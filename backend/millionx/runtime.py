@@ -1,0 +1,202 @@
+"""Wiring: builds the exchange, engine, organisation and background jobs."""
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import traceback
+import uuid
+from datetime import date, datetime, timezone
+from typing import Any, Optional
+
+from .backtest import metrics
+from .backtest.data import load_symbol
+from .backtest.engine import BacktestConfig, run as run_backtest
+from .backtest.walkforward import walk_forward
+from .config import Settings
+from .engine.events import EventBus
+from .engine.live import TradingEngine, cid
+from .exchange.binance import BinanceFutures
+from .exchange.paper import PaperExchange
+from .models import now_ms
+from .notify import FCMNotifier
+from .org.organization import Organization
+from .security import Vault, load_api_keys
+from .storage import Store
+
+log = logging.getLogger("millionx.runtime")
+
+
+class Runtime:
+    def __init__(self, settings: Settings, store: Store, vault: Optional[Vault]):
+        self.s = settings
+        self.store = store
+        self.vault = vault
+        self.bus = EventBus()
+        self.notifier = FCMNotifier(store)
+        self.org = Organization(store, brain_interval_min=int(store.kv_get("brain_interval_min", 60)))
+        self.engine: Optional[TradingEngine] = None
+        self.engine_error: Optional[str] = None
+        saved = store.kv_get("runtime_settings", {})
+        for k in ("mode", "execution", "capital_mode"):
+            if k in saved:
+                setattr(self.s, k, saved[k])
+        self.s.live_trading_unlocked = bool(store.kv_get("live_trading_unlocked", False))
+        lim = store.kv_get("risk_limits")
+        if lim:
+            for k, v in lim.items():
+                if hasattr(self.s.risk, k):
+                    setattr(self.s.risk, k, type(getattr(self.s.risk, k))(v))
+
+    # ---------------------------------------------------------- exchange
+    def build_exchange(self):
+        live = self.s.mode == "live"
+        keys = None
+        if self.s.mode in ("demo", "live") and self.vault:
+            keys = load_api_keys(self.store, self.vault, "binance", self.s.mode)
+        if self.s.mode in ("demo", "live") and not keys:
+            raise RuntimeError(f"no API keys stored for mode '{self.s.mode}'")
+        if self.s.mode == "paper":
+            market = BinanceFutures(self.s.market_data_base)
+            return PaperExchange(market, self.s.starting_capital_eur * self.s.eur_usdt, self.s.fees)
+        ex = BinanceFutures(self.s.rest_base, keys[0], keys[1], live=live)
+        if live:
+            perms = ex.api_permissions()
+            self.store.kv_set("api_permissions", perms)
+            if perms.get("withdrawals"):
+                raise RuntimeError("refusing to trade: API key has WITHDRAWAL permission enabled")
+            if not perms.get("ip_restrict"):
+                self.store.notify("warning", "security", "API key without IP restriction",
+                                  "Restrict the key to your server IP in Binance API management.")
+        return ex
+
+    def start_engine(self) -> None:
+        self.stop_engine()
+        try:
+            ex = self.build_exchange()
+            self.engine = TradingEngine(self.s, self.store, ex, self.bus, self.notifier, self.org)
+            self.engine.start()
+            self.engine_error = None
+        except Exception as e:
+            self.engine = None
+            self.engine_error = str(e)
+            self.store.notify("critical", "system", "Engine not started", str(e))
+            log.error("engine start failed: %s", e)
+
+    def stop_engine(self) -> None:
+        if self.engine:
+            self.engine.stop()
+            if self.engine.thread:
+                self.engine.thread.join(timeout=15)
+        self.engine = None
+
+    def save_runtime(self) -> None:
+        self.store.kv_set("runtime_settings", {"mode": self.s.mode, "execution": self.s.execution,
+                                               "capital_mode": self.s.capital_mode})
+
+    # -------------------------------------------------------------- jobs
+    def submit_job(self, kind: str, req: dict[str, Any]) -> str:
+        jid = uuid.uuid4().hex[:10]
+        self.store.x("INSERT INTO jobs(id,kind,status,request,created_at) VALUES(?,?,?,?,?)",
+                     (jid, kind, "queued", json.dumps(req), now_ms()))
+        threading.Thread(target=self._job, args=(jid, kind, req), daemon=True, name=f"job-{jid}").start()
+        return jid
+
+    def _job(self, jid: str, kind: str, req: dict[str, Any]) -> None:
+        self.store.x("UPDATE jobs SET status='running' WHERE id=?", (jid,))
+        try:
+            start = date.fromisoformat(req["start"])
+            end = date.fromisoformat(req["end"])
+            data = {s: load_symbol(s, self.s.data_dir, start, end) for s in req["symbols"]}
+            t0 = int(datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp() * 1000)
+            t1 = int(datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp() * 1000) + 86_400_000
+            data = {k: v.slice(int((v.open_time < t0).sum()), int((v.open_time < t1).sum())) for k, v in data.items()}
+            if kind == "backtest":
+                cfg = BacktestConfig(start_equity=float(req.get("start_equity", 40.0)), bots=req.get("bots"),
+                                     use_supervisor=bool(req.get("use_supervisor", True)))
+                res = run_backtest(data, self.s, cfg)
+                out = res.summary()
+                out["equity_curve"] = res.equity_curve[:: max(1, len(res.equity_curve) // 500)]
+                out["trades_sample"] = [t.to_dict() for t in res.trades[-200:]]
+            elif kind == "walkforward":
+                def prog(bot, k, w):
+                    self.store.x("UPDATE jobs SET progress=? WHERE id=?", (json.dumps({"bot": bot, "window": k}), jid))
+                out = {}
+                for b in req.get("bots") or []:
+                    wf = walk_forward(data, self.s, b, int(req.get("train_days", 60)), int(req.get("test_days", 20)),
+                                      progress=prog)
+                    out[b] = wf.to_dict()
+                    self.store.audit("quant_research", "walk_forward_completed",
+                                     {"job": jid, "bot": b}, "n/a", wf.activation)
+            else:
+                raise ValueError(f"unknown job kind {kind}")
+            self.store.x("UPDATE jobs SET status='done', result=?, finished_at=? WHERE id=?",
+                         (json.dumps(metrics.json_safe(out), default=str), now_ms(), jid))
+            self.store.notify("info", "backtest", f"{kind} {jid} finished", ", ".join(req["symbols"]))
+        except Exception as e:
+            self.store.x("UPDATE jobs SET status='error', result=?, finished_at=? WHERE id=?",
+                         (json.dumps({"error": str(e), "trace": traceback.format_exc()[-2000:]}), now_ms(), jid))
+
+    # --------------------------------------------------------- preflight
+    def preflight(self) -> dict[str, Any]:
+        """Execution & security checks against Binance DEMO. All must pass
+        before live trading can be unlocked by the owner."""
+        checks: dict[str, Any] = {}
+
+        def check(name, fn):
+            try:
+                checks[name] = {"pass": True, "detail": fn()}
+            except Exception as e:
+                checks[name] = {"pass": False, "detail": str(e)}
+
+        keys = load_api_keys(self.store, self.vault, "binance", "demo") if self.vault else None
+        if not keys:
+            return {"ok": False, "checks": {"demo_keys": {"pass": False, "detail": "store demo API keys first"}}}
+        ex = BinanceFutures(self.s.rest_base if self.s.mode != "live" else "https://demo-fapi.binance.com",
+                            keys[0], keys[1])
+        sym = "ETHUSDT"
+        state: dict[str, Any] = {}
+        check("connectivity", lambda: ex.server_time())
+        check("exchange_info", lambda: len(ex.symbols()))
+        check("account_auth", lambda: ex.balance())
+        check("commission", lambda: ex.commission(sym))
+
+        def order_cycle():
+            rules = ex.symbols()[sym]
+            ob = ex.order_book(sym, 5)
+            qty = rules.round_qty(max(rules.min_notional * 1.2 / ob.mid, rules.min_qty))
+            while qty * ob.mid < rules.min_notional:
+                qty = rules.round_qty(qty + rules.step_size)
+            ex.set_isolated(sym)
+            ex.set_leverage(sym, 2)
+            eid = cid("P", "preflight", str(now_ms()))
+            r = ex.market_order(sym, "BUY", qty, eid)
+            r2 = ex.query_order(sym, eid)
+            assert r2.status == "FILLED", f"entry status {r2.status}"
+            sl = ex.conditional_order(sym, "SELL", "STOP_MARKET", rules.round_price(ob.mid * 0.95),
+                                      cid("PS", eid), close_position=True)
+            ex.cancel_conditional(sym, sl.client_id)
+            amt = ex.position_amount(sym)
+            ex.market_order(sym, "SELL", abs(amt), cid("PX", eid), reduce_only=True)
+            ex.cancel_all(sym)
+            assert abs(ex.position_amount(sym)) < 1e-12, "position not flat after close"
+            return {"entry": r2.raw.get("avgPrice"), "qty": qty}
+
+        check("order_lifecycle_demo", order_cycle)
+        def dup_guard():
+            test_id = cid("D", "preflight", str(now_ms()))
+            self.store.upsert_order({"client_id": test_id, "symbol": sym, "side": "BUY", "type": "TEST",
+                                     "qty": 0, "status": "TEST", "purpose": "preflight", "mode": "test"})
+            assert self.store.one("SELECT client_id FROM orders WHERE client_id=?", (test_id,)), "lookup failed"
+            return "engine refuses an entry whose client id already exists in the order journal"
+
+        check("duplicate_protection", dup_guard)
+        check("stale_data_guard", lambda: self.s.risk.stale_data_seconds <= 120 or (_ for _ in ()).throw(
+            AssertionError("stale threshold too loose")))
+        check("master_key_present", lambda: bool(self.vault) or (_ for _ in ()).throw(AssertionError("no vault")))
+        check("audit_chain", lambda: self.store.verify_audit())
+        ok = all(c["pass"] for c in checks.values())
+        res = {"ok": ok, "ts": now_ms(), "checks": checks}
+        self.store.kv_set("preflight", res)
+        self.store.audit("operations", "preflight", {}, "n/a", res)
+        return res

@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.MillionX" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/mx_bg</item>
+        <item name="android:statusBarColor">@color/mx_bg</item>
+        <item name="android:navigationBarColor">@color/mx_bg</item>
+    </style>
+    <color name="mx_bg">#FF07090D</color>
+    <color name="mx_accent">#FF00E0A4</color>
+</resources>

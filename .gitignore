@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+backend/data/
+backend/.env
+backend/secrets/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/google-services.json
+*.jks
+.idea/

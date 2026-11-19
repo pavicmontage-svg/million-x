@@ -1,0 +1,37 @@
+# MILLION-X AI configuration (environment variables override these)
+mode: paper            # paper | demo | live
+execution: manual      # manual approval of every real order, or auto
+capital_mode: multi    # experimental (4 EUR) | multi (40 EUR shared by 10 bots)
+experimental_capital_eur: 4.0
+multi_capital_eur: 40.0
+eur_usdt: 1.08         # display conversion; set to the current rate
+universe_size: 10
+max_spread_bps: 3.0
+min_depth_usdt: 50000
+fees:
+  maker: 0.0002        # overwritten per symbol from /fapi/v1/commissionRate when keys exist
+  taker: 0.0005
+  slippage_bps: 2.0
+  funding_rate_8h: 0.0001
+risk:
+  risk_per_trade: 0.005
+  max_daily_loss: 0.03
+  max_total_drawdown: 0.20
+  max_consecutive_losses: 4
+  cooldown_minutes: 60
+  max_open_positions: 3
+  max_total_exposure: 3.0
+  max_leverage: 10
+  leverage_vol_target: 0.02
+  max_fee_to_risk: 0.35
+  min_reward_risk: 1.2
+  stale_data_seconds: 90
+activation:
+  min_oos_trades: 100
+  min_profit_factor: 1.15
+  min_expectancy_r: 0.05
+  max_drawdown: 0.20
+  mc_dd_p95_max: 0.30
+  min_positive_wf_windows: 0.6
+  min_paper_trades: 50
+  min_paper_pf: 1.05
