@@ -52,6 +52,7 @@ jobs:
           MX_KEY_PASSWORD: ${{ secrets.MX_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleRelease
       - uses: actions/upload-artifact@v4
+        continue-on-error: true  # account artifact quota may be full; APK is also pushed to branch 'apk'
         with:
           name: million-x-apk
           path: |
