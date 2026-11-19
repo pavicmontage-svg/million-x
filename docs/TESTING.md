@@ -1,6 +1,6 @@
 # Testiranje
 
-## Automatski testovi backenda (`backend/tests`, 35 testova)
+## Automatski testovi backenda (`backend/tests`, 87 testova; rezultati u `TEST_REPORT.md`)
 
 ```bash
 cd backend && pip install -r requirements-dev.txt && python -m pytest -q tests
@@ -24,10 +24,11 @@ Napomena: sintetički podaci služe **samo** za testiranje softvera i ne govore 
 2. **Demo:** spremiti demo ključeve → način rada `demo` → ručno odobravanje. Na Binance Demo sučelju provjeriti da svaka pozicija ima STOP_MARKET (Algo order), da se nakon TP1 stop pomiče na BE i da se trailing pomiče.
 3. **Prekid veze:** blokirati izlaz servera prema Binanceu na 2 minute (firewall). Očekivano: upozorenje „Exchange connection lost“, bez novih ulaza, stopovi ostaju na burzi.
 4. **Emergency stop iz aplikacije:** sve pozicije zatvorene, nema novih ulaza, stanje upamćeno i nakon `docker compose restart`.
-5. **Preflight:** svih 9 provjera mora proći.
+5. **Demo preflight** (sve provjere moraju proći), zatim **live key check** s pravim live ključem bez withdrawala i s IP ograničenjem.
+5a. **Rekoncilijacija:** na Binance Demo ručno otvori malu poziciju izvan aplikacije. Unutar jedne minute mora se pojaviti kritični incident „orphan_position“ i stop na burzi.
 6. **Validacija botova:** walk-forward na najmanje 2–3 godine 1m podataka za više simbola. Botovi koji ne prođu ostaju `RESEARCH` i ne smiju u live.
 
-## Android
+## Android (automatski: unit + UI testovi u GitHub Actionsu, vidi `TEST_REPORT.md`)
 
 - Prva izgradnja: GitHub Actions (`android-apk` job). Ako izgradnja ne uspije, pošalji log; kod je samo sintaktički provjeren jer Android SDK nije bio dostupan.
 - Ručno na S25 Ultra: uparivanje, biometrijsko otključavanje, zaključavanje nakon 60 s u pozadini, živi događaji (indikator „live“), odobravanje signala, emergency stop (haptika), uređivanje prompta (nova verzija), audit verify.

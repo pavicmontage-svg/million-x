@@ -33,6 +33,13 @@
 9. Događaj ide svim „odjelima“ (WebSocket, audit, obavijesti).
 10. Statistika se ažurira (competition, health check bota).
 
+## Slojevi sigurnosti izvršenja (v1.1)
+
+- `engine/execution.py`: atomarna rezervacija naloga, governance provjera neposredno prije slanja, razrješavanje ishoda preko burze, zaštita i **verifikacija** stopa za stvarnu popunjenu količinu, zatvaranje s provjerom, rekoncilijacija (start + svaka svijeća), preuzimanje siročadi.
+- `governance.py`: tvrde granice svih parametara rizika + `pre_trade()` (učestalost, pozicije na burzi, izloženost, korelirana izloženost, leverage, spread, dubina, pomak cijene, rizik po trenutnoj cijeni, live odobrenje, svježina podataka, veza, emergency).
+- `live_gate.py`: demo preflight + live provjera ključa i računa + potvrda vlasnika → vremenski ograničeno odobrenje vezano uz otisak konfiguracije.
+- `validation.py`: LIVE_ELIGIBLE samo uz dokaze (WF + paper), degradacija u odnosu na validaciju, učinak po režimima, korelacija prinosa.
+
 ## 10 botova
 
 Svaki je zaseban modul s vlastitom logikom (test `test_ten_distinct_modules`):
@@ -76,7 +83,7 @@ Kriteriji aktivacije (`config.yaml → activation`): najmanje 100 OOS trgovina, 
 - 11 agenata, svaki s vlastitim, verzioniranim system promptom (iz tvoje specifikacije), modelom, logovima, pouzdanošću, tokenima i troškom te greškama.
 - Svaki agent dobiva **evidence packet** (stvarni podaci s ID-jem). Nalaz koji citira nepostojeći ID označava se kao *untraceable* i nikad se ne primjenjuje.
 - Automatski se primjenjuje samo **pooštravanje** iz `brain_risk` i `exec_cro`: smanjenje rizika, suspenzija bota ili suspenzija svega. Sve ostalo čeka vlasnika.
-- Board meeting: jednom dnevno (ili ručno); neslaganja (stav rizik/aktivnost) se bilježe i prikazuju.
+- Board meeting (jednom dnevno ili ručno) ima dnevni red od 8 točaka: 1. CEO uvodno izvješće, 2. CIO kapital, 3. kvantitativno istraživanje, 4. CRO procjena rizika, 5. COO operacije, 6. rasprava o neslaganjima (samo uz stvarni LLM), 7. konačna odluka CEO-a, 8. neovisno odobrenje ili veto CRO-a. Svaki kasniji govornik dobiva izvješća ranijih (`agent_messages`); svaka točka je stvarni poziv agenta ili izričito deterministička.
 - LLM pozivi rade u zasebnom threadu; trading petlja ih nikad ne čeka.
 
 ## Sigurnost

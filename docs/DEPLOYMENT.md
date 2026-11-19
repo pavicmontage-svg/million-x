@@ -44,10 +44,34 @@ Isto se može pokrenuti iz aplikacije (*Quant Research Lab*). Rezultat walk-forw
 
 **Android Studio:** *Open* → mapa `android/` → *Build → Build APK(s)*.
 
-## 5. Live (tek nakon dokaza)
+## 5. Live (tek nakon dokaza; nikad automatski)
 
-1. Bot mora imati status `LIVE_ELIGIBLE` (walk-forward + Monte Carlo + paper).
-2. *Owner Administration → Run execution & security preflight (demo)*: sve provjere moraju proći.
-3. Upiši potvrdnu frazu → *Unlock live trading*.
-4. Spremi LIVE ključeve (bez withdrawala, ograničene na IP servera) → način rada `LIVE`.
-5. Preporuka: prvih tjedana ostavi `MANUAL APPROVAL`.
+Zadani i rezervni način rada je **PAPER**. Live je dopušten samo dok postoji valjano, vremenski ograničeno odobrenje:
+
+1. Bot mora biti `LIVE_ELIGIBLE`. To je moguće samo uz walk-forward verdikt mlađi od 90 dana i dovoljno stvarnih paper/demo trgovina; shadow trgovine se ne računaju.
+2. *Owner Administration → Run demo preflight*: provjerava mehaniku izvršenja na Binance DEMO. Samo po sebi to **ne** otključava live.
+3. Spremi LIVE ključeve (Futures dozvola uključena, withdrawal isključen, **obavezno** ograničenje na IP servera). Ključ koji ne ispunjava uvjete se odbija.
+4. *Run live key check*: provjerava dozvole, kapital, slobodnu marginu i sat.
+5. Upiši potvrdnu frazu → *Authorise live trading*. Odobrenje vrijedi `max_unlock_hours` (zadano 12 h). Poništava ga svaka rotacija ključa i svaka promjena limita, načina izvršenja ili kapitala.
+6. Prebaci način rada na `LIVE`. Ako se server restartira bez valjanog odobrenja, sam se vraća na PAPER.
+7. Preporuka: prvih tjedana ostavi `MANUAL APPROVAL`.
+
+## 6. Produkcijski potpis APK-a
+
+Debug APK (`...-DEBUG-not-for-production.apk`) služi samo za testiranje. Za produkciju napravi vlastiti ključ (jednom, na računalu):
+
+```bash
+keytool -genkeypair -v -keystore mx-release.jks -alias millionx -keyalg RSA -keysize 4096 -validity 10000
+base64 -w0 mx-release.jks > mx-release.b64
+```
+
+U GitHub repozitoriju otvori *Settings → Secrets and variables → Actions* i dodaj: `MX_KEYSTORE_B64` (sadržaj datoteke `mx-release.b64`), `MX_KEYSTORE_PASSWORD`, `MX_KEY_ALIAS` (`millionx`) i `MX_KEY_PASSWORD`. Sljedeći build na grani `apk` objavljuje `...-release-signed.apk`. **Datoteku `.jks` i lozinke čuvaj sigurno.** Ako ih izgubiš, nadogradnja aplikacije više nije moguća.
+
+## 7. Rad i oporavak
+
+- **Tajne:** umjesto `MX_MASTER_KEY` može se koristiti `MX_MASTER_KEY_FILE=/app/secrets/master.key` (datoteka mora imati `chmod 600`).
+- **Health:** `GET /api/health` vraća 200 ako je sve u redu, a 503 uz detalje (engine, zadnji tick, rekoncilijacija, otvoreni kritični incidenti, integritet baze, audit lanac, zadnji backup, live gate).
+- **Watchdog:** restartira engine koji je pao ili 3 minute nema ticka; jednom dnevno provjerava audit lanac i radi backup u `data/backups/` (čuva se 14 kopija). Ručno: `python -m millionx.cli backup`.
+- **Migracije:** pokreću se automatski pri startu. Ručno: `python -m millionx.cli migrate`.
+- **Restart:** otvorene pozicije učitavaju se iz baze, a pri startu se rekonciliraju s burzom. Nepoznate pozicije dobivaju zaštitni stop i otvara se kritični incident. Emergency stop ostaje aktivan i nakon restarta.
+- **Incidenti:** prikazuju se u *Risk Center*; rješava ih vlasnik.
