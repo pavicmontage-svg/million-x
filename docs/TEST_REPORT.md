@@ -5,7 +5,7 @@ Ovdje su samo testovi koji su **stvarno pokrenuti**. Za svaki je naveden broj i 
 ## Backend (pytest), 87/87 prošlo
 
 - Lokalno (Python 3.13): `87 passed`.
-- GitHub Actions (Python 3.12), commit `845cb99`: `87 passed in 55.58s`.
+- GitHub Actions (Python 3.12), commiti `845cb99` i `80525e5`: oba puta `87 passed`.
 
 | Datoteka | Testova | Područje |
 |---|---|---|
@@ -27,8 +27,8 @@ Ovdje su samo testovi koji su **stvarno pokrenuti**. Za svaki je naveden broj i 
 |---|---|---|
 | Kompilacija debug APK-a | GitHub Actions, `845cb99` | `BUILD SUCCESSFUL` |
 | Kompilacija release APK-a (bez ključa → nepotpisan) | GitHub Actions, `845cb99` | `BUILD SUCCESSFUL` |
-| JVM unit testovi (`JsonHelpersTest`, 3 testa) | GitHub Actions, `testDebugUnitTest` | task izvršen, build uspješan (od sljedećeg builda log ispisuje svaki test pojedinačno) |
-| Instrumentirani UI testovi (`UiSafetyTest`, 4 testa) | GitHub Actions, emulator Android 14 (API 34, x86_64) | `Finished 4 tests`, 0 failed |
+| JVM unit testovi (`JsonHelpersTest`, 3 testa) | GitHub Actions, `80525e5` | 3 × PASSED (ispisano u logu) |
+| Instrumentirani UI testovi (`UiSafetyTest`, 4 testa) | GitHub Actions, emulator Android 14 (API 34, x86_64), `845cb99` i `80525e5` | oba puta `Finished 4 tests`, 0 failed |
 
 UI testovi provjeravaju sljedeće:
 - emergency stop traži potvrdu i tek je onda izvršava;
