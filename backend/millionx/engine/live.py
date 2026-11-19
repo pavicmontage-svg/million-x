@@ -51,13 +51,15 @@ def cid(prefix: str, *parts: str) -> str:
 
 class TradingEngine:
     def __init__(self, settings: Settings, store: Store, exchange: Exchange, bus: Optional[EventBus] = None,
-                 notifier=None, org=None, poll_seconds: float = 5.0):
+                 notifier=None, org=None, poll_seconds: float = 5.0, gate=None, approval_ttl_s: int = 90):
         self.s = settings
         self.store = store
         self.ex = exchange
         self.bus = bus or EventBus()
         self.notifier = notifier
         self.org = org
+        self.gate = gate
+        self.approval_ttl_ms = approval_ttl_s * 1000
         self.poll = poll_seconds
         self.policy = ExitPolicy()
         self.comp = CompetitionEngine(list(ALL_IDS))
@@ -85,8 +87,16 @@ class TradingEngine:
         self._lock = threading.RLock()
         self.thread: Optional[threading.Thread] = None
         self.errors: list[str] = []
+        self.last_tick_ms = 0
+        self.started_reconcile = False
+        self._err_alerted: dict[str, int] = {}
+        from .execution import ExecutionManager
+        self.execm = ExecutionManager(self)
         self._load_state()
         self.risk.reset(self.allocated_equity, now_ms())
+        if self.s.mode == "live":
+            from ..validation import enforce_live_statuses
+            enforce_live_statuses(self)
         if self.store.kv_get("emergency_stop", False):
             self.risk.emergency(True, "persisted emergency stop")
 
@@ -120,6 +130,8 @@ class TradingEngine:
                 self.positions[p.symbol] = p
         if self.store.kv_get("emergency_stop", False):
             self.risk.emergency(True, "persisted emergency stop")
+        # approvals do not survive a restart: the owner must see a fresh, re-priced request
+        self.store.x("UPDATE pending_approvals SET status='expired_restart' WHERE status='pending'")
 
     def save_bot_state(self, bot_id: str) -> None:
         st = self.sup.status.get(bot_id, BotStatus.RESEARCH)
@@ -253,14 +265,25 @@ class TradingEngine:
             except Exception as e:
                 msg = f"{type(e).__name__}: {e}"
                 self.errors = (self.errors + [msg])[-50:]
+                key = type(e).__name__
+                if now_ms() - self._err_alerted.get(key, 0) > 600_000:
+                    self._err_alerted[key] = now_ms()
+                    self.alert("critical", "system", "Engine error", msg[:300])
                 log.error("tick failed: %s\n%s", msg, traceback.format_exc())
             self._stop.wait(max(0.5, self.poll - (time.time() - t0)))
 
     def tick(self) -> None:
         now = now_ms()
+        self.last_tick_ms = now
         if not self.universe or now - self.last_universe_refresh > self.s.universe_refresh_minutes * 60_000:
             self.refresh_universe()
             self._load_fees()
+        if not self.started_reconcile:
+            rep = self.execm.reconcile(startup=True)
+            if "error" not in rep:
+                self.started_reconcile = True
+                self.alert("info", "system", "Startup reconciliation done",
+                           f"adopted {rep['adopted']}, finalized {rep['finalized']}, stops restored {rep['stop_restored']}")
         new_bar = []
         for sym in list(self.universe):
             try:
@@ -280,6 +303,8 @@ class TradingEngine:
             self.risk.state.data_fresh = fresh
             if not fresh:
                 self.alert("warning", "data", "Stale market data", "New entries blocked until data is fresh.")
+        if new_bar and self.started_reconcile:
+            self.execm.reconcile()
         for sym in new_bar:
             self.on_bar(sym)
         self._expire_approvals()
@@ -418,16 +443,21 @@ class TradingEngine:
                 if dec.qty * s.entry < rules.min_notional:
                     cro_ok, why = False, "CRO reduction falls below exchange minimum"
             cro_reason = [why]
-        if cro_ok and self.s.mode == "live" and not self.s.live_trading_unlocked:
-            cro_ok, cro_reason = False, ["live trading locked: preflight checks not passed"]
+        if cro_ok and self.s.mode == "live" and not (self.gate and self.gate.is_valid()):
+            cro_ok, cro_reason = False, ["live trading not authorised (missing, expired or invalidated unlock)"]
         steps.append({"step": 6, "dept": "cro", "result": "approved" if cro_ok else "vetoed", "reasons": cro_reason})
         if not cro_ok:
             self._log_decision(s, steps, "vetoed")
             return
         if self.s.execution == "manual":
-            self.pending[s.id] = PendingApproval(s, dec, now_ms(), now_ms() + 90_000, {"steps": steps})
+            pa = PendingApproval(s, dec, now_ms(), now_ms() + self.approval_ttl_ms, {"steps": steps})
+            self.pending[s.id] = pa
+            self.store.x("INSERT OR REPLACE INTO pending_approvals(signal_id,created_at,expires_at,data,status) "
+                         "VALUES(?,?,?,?,?)", (s.id, pa.created, pa.expires,
+                                               _j({"signal": s.to_dict(), "decision": dec.to_dict()}), "pending"))
             self.alert("info", "approval", f"Approve {s.bot_id} {s.side.name} {s.symbol}?",
-                       f"qty {dec.qty} lev {dec.leverage}x risk {dec.risk_amount:.4f} USDT (expires in 90 s)")
+                       f"qty {dec.qty} lev {dec.leverage}x risk {dec.risk_amount:.4f} USDT "
+                       f"(expires in {self.approval_ttl_ms // 1000} s; re-checked against the live price)")
             self.bus.publish("approval_request", {"signal": s.to_dict(), "decision": dec.to_dict()})
             self._log_decision(s, steps, "awaiting_owner_approval")
             return
@@ -444,8 +474,8 @@ class TradingEngine:
             return {"ok": False, "reason": "not sized"}
         if book is None:
             return {"ok": False, "reason": "no order book snapshot"}
-        if book.spread_bps > self.s.max_spread_bps:
-            return {"ok": False, "reason": f"spread {book.spread_bps:.2f}bps > {self.s.max_spread_bps}"}
+        if book.spread_bps > self.risk.limits.max_spread_bps:
+            return {"ok": False, "reason": f"spread {book.spread_bps:.2f}bps > {self.risk.limits.max_spread_bps}"}
         side_depth = book.depth_within(10)[1 if s.side == Side.LONG else 0]
         if dec.notional > 0.1 * side_depth:
             return {"ok": False, "reason": "order would exceed 10% of depth within 10 bps"}
@@ -459,153 +489,86 @@ class TradingEngine:
     def _approve_unlocked(self, signal_id: str, approved: bool, by: str) -> dict[str, Any]:
         p = self.pending.pop(signal_id, None)
         if not p:
-            return {"ok": False, "error": "not pending or expired"}
-        self.store.x("UPDATE signals SET approval=?, decided_by=? WHERE id=?",
-                     ("approved" if approved else "rejected", by, signal_id))
+            return {"ok": False, "error": "not pending (expired, decided or unknown)"}
+        if now_ms() > p.expires:
+            self._close_approval(signal_id, "expired")
+            return {"ok": False, "error": "approval window expired"}
+        self._close_approval(signal_id, "approved" if approved else "rejected", by)
         self.store.audit(by, "manual_trade_approval", {"signal_id": signal_id}, "approved" if approved else "rejected")
         if not approved:
             return {"ok": True, "status": "rejected"}
         ok, why = self.risk.can_open(now_ms())
         if not ok:
             return {"ok": False, "error": f"risk state changed: {why}"}
-        return self._execute(p.signal, p.decision, p.record.get("steps", []))
+        # the market moved while the owner decided: re-size at the current executable price;
+        # the governance pre-trade check then enforces the drift and stop/target limits
+        s = p.signal
+        try:
+            px = self.ex.book_price(s.symbol, "BUY" if s.side == Side.LONG else "SELL")
+        except ExchangeError as ex:
+            return {"ok": False, "error": f"cannot price the order now: {ex}"}
+        rules = self.rules.get(s.symbol)
+        md = self.mds.get(s.symbol)
+        if rules is None or md is None:
+            return {"ok": False, "error": "symbol no longer tracked"}
+        import copy
+        s_now = copy.copy(s)
+        s_now.entry = px
+        dec = self.risk.size(s_now, rules, list(self.positions.values()), md.atr_pct15_at_1m(len(md.b1) - 1),
+                             now_ms(), min(1.0, p.decision.risk_fraction / max(1e-12, self.risk.risk_fraction())))
+        steps = p.record.get("steps", []) + [{"step": 6.2, "dept": "capital_intelligence", "result":
+                                              "resized_at_approval" if dec.approved else "rejected_at_approval",
+                                              "price_at_signal": s.entry, "price_now": px, "decision": dec.to_dict()}]
+        if not dec.approved:
+            self._log_decision(s, steps, "rejected_at_approval")
+            return {"ok": False, "error": "; ".join(dec.reasons)}
+        return self.execm.execute(s, dec, steps)
+
+    def _close_approval(self, signal_id: str, status: str, by: str = "system") -> None:
+        self.store.x("UPDATE pending_approvals SET status=? WHERE signal_id=?", (status, signal_id))
+        self.store.x("UPDATE signals SET approval=?, decided_by=? WHERE id=?", (status, by, signal_id))
 
     def _expire_approvals(self) -> None:
         now = now_ms()
         for k in [k for k, v in self.pending.items() if v.expires < now]:
-            p = self.pending.pop(k)
-            self.store.x("UPDATE signals SET approval='expired' WHERE id=?", (k,))
+            self.pending.pop(k)
+            self._close_approval(k, "expired")
             self.bus.publish("approval_expired", {"signal_id": k})
 
     # ------------------------------------------------------------ execution
     def _execute(self, s: Signal, dec: SizingDecision, steps: list[dict[str, Any]]) -> dict[str, Any]:
-        sym = s.symbol
-        side = "BUY" if s.side == Side.LONG else "SELL"
-        exit_side = "SELL" if side == "BUY" else "BUY"
-        entry_id = cid("E", s.id)
-        if self.store.one("SELECT client_id FROM orders WHERE client_id=?", (entry_id,)):
-            return {"ok": False, "error": "duplicate order prevented"}
-        try:
-            if not self.ex.is_paper and self.leverage_set.get(sym) != dec.leverage:
-                self.ex.set_isolated(sym)
-                self.ex.set_leverage(sym, dec.leverage)
-                self.leverage_set[sym] = dec.leverage
-            self.store.upsert_order({"client_id": entry_id, "symbol": sym, "side": side, "type": "MARKET",
-                                     "qty": dec.qty, "status": "SUBMITTING", "purpose": "entry", "mode": self.s.mode})
-            t_submit = now_ms()
-            r = self.ex.market_order(sym, side, dec.qty, entry_id)
-            for _ in range(5):
-                if r.status in ("FILLED", "CANCELED", "REJECTED", "EXPIRED"):
-                    break
-                time.sleep(0.4)
-                r = self.ex.query_order(sym, entry_id)
-        except ExchangeError as e:
-            self.store.upsert_order({"client_id": entry_id, "symbol": sym, "side": side, "type": "MARKET",
-                                     "qty": dec.qty, "status": "ERROR", "purpose": "entry", "mode": self.s.mode,
-                                     "raw": {"error": str(e)}})
-            steps.append({"step": 7, "dept": "execution", "result": "error", "error": str(e)})
-            self._log_decision(s, steps, "execution_error")
-            self.alert("warning", "execution", f"Entry failed {sym}", str(e))
-            return {"ok": False, "error": str(e)}
-        self.store.upsert_order({"client_id": entry_id, "exchange_id": r.exchange_id, "symbol": sym, "side": side,
-                                 "type": "MARKET", "qty": dec.qty, "price": r.avg_price, "status": r.status,
-                                 "purpose": "entry", "mode": self.s.mode, "raw": r.raw})
-        steps.append({"step": 7, "dept": "execution", "result": "submitted", "client_id": entry_id})
-        if r.status != "FILLED" or r.filled_qty <= 0:
-            steps.append({"step": 8, "dept": "exchange", "result": "not_filled", "status": r.status})
-            self._log_decision(s, steps, "not_filled")
-            if r.status == "UNKNOWN":
-                self.alert("critical", "execution", f"Order status unknown {sym}",
-                           "Will reconcile with the exchange; no retry until confirmed.")
-            return {"ok": False, "status": r.status}
-        steps.append({"step": 8, "dept": "exchange", "result": "confirmed_fill", "avg_price": r.avg_price,
-                      "qty": r.filled_qty})
-        rules = self.rules[sym]
-        md = self.mds.get(sym)
-        trend, vol = md.regime_at_1m(len(md.b1) - 1) if md else ("SIDEWAYS", "NORMAL_VOL")
-        p = Position(id=s.id, bot_id=s.bot_id, symbol=sym, side=s.side, qty=r.filled_qty, entry_price=r.avg_price,
-                     stop=s.stop, tp1=s.tp1, tp2=s.tp2, initial_stop=s.stop, opened_at=t_submit,
-                     leverage=dec.leverage, risk_amount=dec.risk_amount, qty_initial=r.filled_qty,
-                     best_price=r.avg_price, atr_at_entry=s.features.get("atr", 0.0), signal_id=s.id,
-                     regime=regime_key(trend, vol))
-        # protective orders
-        try:
-            sl = self.ex.conditional_order(sym, exit_side, "STOP_MARKET", rules.round_price(p.stop), cid("S", s.id, "0"),
-                                           close_position=True)
-            p.exchange_ids["sl"] = sl.client_id
-            p.exchange_ids["sl_v"] = 0
-        except ExchangeError as e:
-            self.alert("critical", "execution", f"Stop could not be placed on {sym} — closing",
-                       f"{e}. Position closed immediately to avoid an unprotected position.")
-            self.ex.market_order(sym, exit_side, p.qty, cid("X", s.id), reduce_only=True)
-            steps.append({"step": 8, "dept": "execution", "result": "closed_no_stop", "error": str(e)})
-            self._log_decision(s, steps, "closed_no_stop")
-            return {"ok": False, "error": "stop placement failed; position closed"}
-        try:
-            q1 = rules.round_qty(p.qty * self.policy.partial_fraction)
-            if q1 >= rules.min_qty and q1 > 0:
-                tp1 = self.ex.conditional_order(sym, exit_side, "TAKE_PROFIT_MARKET", rules.round_price(p.tp1),
-                                                cid("T1", s.id), qty=q1)
-                p.exchange_ids["tp1"] = tp1.client_id
-            tp2 = self.ex.conditional_order(sym, exit_side, "TAKE_PROFIT_MARKET", rules.round_price(p.tp2),
-                                            cid("T2", s.id), close_position=True)
-            p.exchange_ids["tp2"] = tp2.client_id
-        except ExchangeError as e:
-            self.alert("warning", "execution", f"Take-profit order failed on {sym}", str(e))
-        self.positions[sym] = p
-        self._persist_position(p, True)
-        self._log_decision(s, steps, "executed")
-        self.store.audit("execution_intelligence", "position_opened", {"signal": s.to_dict(), "decision": dec.to_dict()},
-                         "approved", p.to_dict())
-        self.bus.publish("position_opened", p.to_dict())
-        self.alert("info", "trade", f"{p.side.name} {sym} opened ({s.bot_id})",
-                   f"qty {p.qty} @ {p.entry_price:.6g}, stop {p.stop:.6g}, lev {p.leverage}x")
-        return {"ok": True, "position": p.to_dict()}
+        return self.execm.execute(s, dec, steps)
 
     def _log_decision(self, s: Signal, steps: list[dict[str, Any]], outcome: str) -> None:
         self.store.audit("decision_pipeline", "trade_decision", {"signal_id": s.id, "bot": s.bot_id,
                          "symbol": s.symbol, "steps": steps}, outcome)
         self.bus.publish("decision", {"signal_id": s.id, "outcome": outcome, "steps": steps})
 
-    def _replace_stop(self, p: Position, new_stop: float, reason: str) -> None:
-        rules = self.rules.get(p.symbol)
-        if rules is None:
-            return
-        exit_side = "SELL" if p.side == Side.LONG else "BUY"
-        v = int(p.exchange_ids.get("sl_v", 0)) + 1
-        new_id = cid("S", p.id, str(v))
-        old_id = p.exchange_ids.get("sl")
-        try:
-            self.ex.conditional_order(p.symbol, exit_side, "STOP_MARKET", rules.round_price(new_stop), new_id,
-                                      close_position=True)
-            if old_id:
-                self.ex.cancel_conditional(p.symbol, old_id)
-        except ExchangeError:
-            # some venues allow one close-position stop only: cancel then place
-            try:
-                if old_id:
-                    self.ex.cancel_conditional(p.symbol, old_id)
-                self.ex.conditional_order(p.symbol, exit_side, "STOP_MARKET", rules.round_price(new_stop), new_id,
-                                          close_position=True)
-            except ExchangeError as e:
-                self.alert("critical", "execution", f"Stop update failed on {p.symbol} — closing", str(e))
-                self.close_position(p.symbol, "stop_update_failed")
-                return
-        p.exchange_ids["sl"], p.exchange_ids["sl_v"] = new_id, v
-        p.stop = new_stop
-        self._persist_position(p, True)
-        self.bus.publish("stop_moved", {"symbol": p.symbol, "stop": new_stop, "reason": reason})
+    def _replace_stop(self, p: Position, new_stop: float, reason: str) -> bool:
+        return self.execm.replace_stop(p, new_stop, reason)
 
     def _manage_position(self, sym: str, o: float, h: float, l: float, c: float, ts: int) -> None:
         p = self.positions[sym]
-        try:
-            amt = abs(self.ex.position_amount(sym))
-        except ExchangeError as e:
-            self.errors.append(f"position sync {sym}: {e}")
-            return
+        if now_ms() - self.execm.ex_pos_ts < 30_000:
+            amt = abs(self.execm.ex_pos.get(sym, (0.0, 0.0))[0])
+        else:
+            try:
+                amt = abs(self.ex.position_amount(sym))
+            except ExchangeError as e:
+                self.errors.append(f"position sync {sym}: {e}")
+                return
         if amt <= 0:
             self._finalize(p, c, "exchange_exit")
             return
+        if p.bot_id == "orphan":
+            self._persist_position(p, True)
+            return
+        # targets not on the exchange: manage them from bar data
+        if not p.exchange_ids.get("tp_ok", True):
+            hit2 = (h >= p.tp2) if p.side == Side.LONG else (l <= p.tp2)
+            if hit2:
+                self.close_position(sym, "take_profit_2_engine")
+                return
         rules = self.rules.get(sym)
         if not p.tp1_done and amt < p.qty_initial * 0.75:
             p.tp1_done, p.trail_active, p.qty = True, True, amt
@@ -628,21 +591,10 @@ class TradingEngine:
             return self._close_position_unlocked(sym, reason)
 
     def _close_position_unlocked(self, sym: str, reason: str) -> dict[str, Any]:
-        p = self.positions.get(sym)
-        if not p:
+        if sym not in self.positions and sym not in self.execm.ex_pos:
             return {"ok": False, "error": "no position"}
-        exit_side = "SELL" if p.side == Side.LONG else "BUY"
-        try:
-            amt = abs(self.ex.position_amount(sym))
-            if amt > 0:
-                self.ex.market_order(sym, exit_side, amt, cid("X", p.id, reason), reduce_only=True)
-            self.ex.cancel_all(sym)
-        except ExchangeError as e:
-            self.alert("critical", "execution", f"Close failed on {sym}", str(e))
-            return {"ok": False, "error": str(e)}
-        price = float(self.bars[sym].close[-1]) if sym in self.bars else p.entry_price
-        self._finalize(p, price, reason)
-        return {"ok": True}
+        flat = self.execm.emergency_close(sym, reason)
+        return {"ok": flat, "verified_flat": flat}
 
     def _finalize(self, p: Position, ref_price: float, reason: str) -> None:
         sym = p.symbol
@@ -720,6 +672,14 @@ class TradingEngine:
                     self.store.insert_trade(t.to_dict())
                     self.comp.on_virtual_trade(t)
                     res = self.sup.on_trade(t)
+                    if res is None and self.sup.status.get(p.bot_id) not in (BotStatus.SUSPENDED, BotStatus.DISABLED):
+                        from ..validation import degradation
+                        dg = degradation(self.store, p.bot_id, self.s.mode)
+                        if dg["degraded"]:
+                            self.sup.set_status(p.bot_id, BotStatus.SUSPENDED,
+                                                f"degradation vs validation: mean R {dg['recent_mean_r']:.3f} "
+                                                f"({dg['basis']})")
+                            res = "suspended"
                     if res:
                         self.save_bot_state(p.bot_id)
                         self.alert("warning" if res == "suspended" else "info", "bot",
@@ -748,14 +708,28 @@ class TradingEngine:
     def _emergency_stop_unlocked(self, by: str, flatten: bool = True) -> dict[str, Any]:
         self.risk.emergency(True, f"emergency stop by {by}")
         self.store.kv_set("emergency_stop", True)
-        self.pending.clear()
-        results = {}
+        for k in list(self.pending):
+            self.pending.pop(k)
+            self._close_approval(k, "cancelled_emergency")
+        results: dict[str, Any] = {}
         if flatten:
-            for sym in list(self.positions):
-                results[sym] = self.close_position(sym, "emergency_stop")
+            try:
+                symbols = set(self.execm.refresh_positions()) | set(self.positions)
+            except ExchangeError as ex:
+                symbols = set(self.positions)
+                results["_warning"] = f"exchange position list unavailable: {ex}"
+            for sym in sorted(symbols):
+                results[sym] = {"verified_flat": self.execm.emergency_close(sym, "emergency_stop")}
+            for sym in set(self.universe) - symbols:
+                try:
+                    self.ex.cancel_all(sym)
+                except ExchangeError:
+                    pass
+        failed = [k for k, v in results.items() if isinstance(v, dict) and not v.get("verified_flat")]
         self.store.audit(by, "emergency_stop", {"flatten": flatten}, "executed", results)
-        self.alert("critical", "risk", "EMERGENCY STOP", f"by {by}; flatten={flatten}")
-        return {"ok": True, "closed": results}
+        self.alert("critical", "risk", "EMERGENCY STOP",
+                   f"by {by}; flatten={flatten}; " + (f"NOT VERIFIED FLAT: {failed}" if failed else "all flat (verified)"))
+        return {"ok": not failed, "closed": results, "not_flat": failed}
 
     def emergency_reset(self, by: str) -> dict[str, Any]:
         with self._lock:
@@ -788,7 +762,11 @@ class TradingEngine:
             "connection_ok": self.risk.state.connection_ok, "emergency_stop": self.risk.state.emergency_stop,
             "halted_reason": self.risk.state.halted_reason,
             "active_bots": sum(1 for b in self.comp.books if self.sup.status.get(b) in self.sup.tradable),
-            "live_unlocked": self.s.live_trading_unlocked, "errors": self.errors[-5:],
+            "live_unlocked": bool(self.gate and self.gate.is_valid()),
+            "live_gate": self.gate.status() if self.gate else {"valid": False, "reason": "no gate"},
+            "data_kind": {"paper": "SIMULATED fills on real prices", "demo": "Binance DEMO (virtual funds)",
+                          "live": "REAL MONEY"}[self.s.mode],
+            "last_tick_ms": self.last_tick_ms, "errors": self.errors[-5:],
         }
 
 

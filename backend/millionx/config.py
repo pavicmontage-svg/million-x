@@ -43,6 +43,14 @@ class RiskLimits:
     min_reward_risk: float = 1.2           # net of fees
     stale_data_seconds: int = 90
     disconnect_flatten: bool = False       # exchange-side stops protect positions anyway
+    max_correlated_exposure: float = 1.5   # same-direction notional of correlated symbols / equity
+    max_orders_per_minute: int = 3         # real entry orders
+    max_orders_per_hour: int = 30
+    max_slippage_bps: float = 15.0         # fill vs. price at decision; breach -> incident
+    max_price_drift_bps: float = 10.0      # adverse move between signal and execution
+    max_spread_bps: float = 3.0            # pre-trade liquidity
+    min_depth_usdt: float = 50_000.0       # each side within 10 bps of mid
+    max_unlock_hours: int = 12             # live authorisation lifetime
 
 
 @dataclass
@@ -77,7 +85,6 @@ class Settings:
     data_dir: str = "data/klines"
     api_host: str = "0.0.0.0"
     api_port: int = 8080
-    live_trading_unlocked: bool = False  # set only by passing preflight checks
     fees: FeeModel = field(default_factory=FeeModel)
     risk: RiskLimits = field(default_factory=RiskLimits)
     activation: ActivationCriteria = field(default_factory=ActivationCriteria)
@@ -139,6 +146,8 @@ def load_settings(path: str | None = None) -> Settings:
             setattr(s, attr, typ(os.environ[env]))
     if s.mode not in ("paper", "demo", "live"):
         raise ValueError(f"invalid mode {s.mode}")
-    if s.risk.max_leverage > 20:
-        raise ValueError("max_leverage above 20 is refused by design")
+    from .governance import validate_limits
+    errs = validate_limits(s.risk.__dict__)
+    if errs:
+        raise ValueError("invalid risk limits in configuration: " + "; ".join(errs))
     return s

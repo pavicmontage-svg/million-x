@@ -5,6 +5,7 @@ import pytest
 
 import millionx.engine.live as live
 import millionx.exchange.paper as paper_mod
+import millionx.engine.execution as exec_mod
 from millionx.config import Settings
 from millionx.exchange.paper import PaperExchange
 from millionx.models import BotStatus, MINUTE_MS
@@ -17,6 +18,7 @@ from conftest import FakeMarket
 def engine(tmp_path, clock, monkeypatch):
     monkeypatch.setattr(live, "now_ms", clock)
     monkeypatch.setattr(paper_mod, "now_ms", clock)
+    monkeypatch.setattr(exec_mod, "now_ms", clock)
     s = Settings(mode="paper", execution="auto", capital_mode="multi")
     s.min_depth_usdt = 1.0
     s.max_spread_bps = 5
@@ -36,7 +38,7 @@ def run_minutes(eng, clock, n):
 
 def test_engine_trades_with_protection(engine):
     eng, clock, market, store = engine
-    run_minutes(eng, clock, 300)
+    run_minutes(eng, clock, 1200)
     assert eng.universe
     orders = store.q("SELECT * FROM orders")
     entries = [o for o in orders if o["purpose"] == "entry"]
@@ -48,8 +50,8 @@ def test_engine_trades_with_protection(engine):
     audit = store.q("SELECT action FROM audit WHERE action IN ('trade_decision','position_opened')")
     assert audit, "decisions are logged"
     assert store.verify_audit()["ok"]
-    if entries:
-        assert all(o["status"] == "FILLED" for o in entries)
+    assert entries, "the fake market must produce at least one real (paper) entry"
+    assert all(o["status"] in ("FILLED", "REJECTED_PRETRADE") for o in entries), [o["status"] for o in entries]
 
 
 def test_stale_data_blocks_entries(engine):
@@ -102,4 +104,4 @@ def test_live_mode_requires_unlock(tmp_path, clock, monkeypatch):
     s = Settings(mode="live", execution="auto")
     eng = live.TradingEngine(s, Store(str(tmp_path / "l.db")), FakeMarket(clock))
     assert eng.sup.tradable == {BotStatus.LIVE_ELIGIBLE}
-    assert not s.live_trading_unlocked
+    assert not eng._decide.__self__.gate  # no gate object -> live orders impossible

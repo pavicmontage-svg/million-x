@@ -57,7 +57,8 @@ def call(base, path, token=None, method="GET", body=None):
 
 def test_auth_and_rbac(server):
     base, st = server
-    assert call(base, "/api/health")[0] == 200
+    code, h = call(base, "/api/health")
+    assert code == 503 and h["engine_running"] is False, "health must report the stopped engine honestly"
     assert call(base, "/api/dashboard")[0] == 401
     owner = call(base, "/api/pair", method="POST", body={"code": create_pairing_code(st, "owner"), "device_name": "S25U"})[1]
     viewer = call(base, "/api/pair", method="POST", body={"code": create_pairing_code(st, "viewer"), "device_name": "tab"})[1]
@@ -78,3 +79,9 @@ def test_auth_and_rbac(server):
     assert code == 200 and v["version"] == 2
     assert call(base, "/api/settings", owner["token"], "PUT", {"mode": "live"})[0] == 400, "live locked"
     assert call(base, "/api/audit/verify", owner["token"])[1]["ok"]
+
+
+def test_rate_limit_returns_429(server):
+    base, st = server
+    codes = [call(base, "/api/pair", method="POST", body={"code": "X", "device_name": "y"})[0] for _ in range(14)]
+    assert 429 in codes

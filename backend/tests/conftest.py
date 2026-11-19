@@ -26,7 +26,7 @@ class FakeMarket(Exchange):
 
     def __init__(self, clock: Clock, symbols=("AAAUSDT", "BBBUSDT"), n=4000, seed=5):
         self.clock = clock
-        self.data = {s: synthetic_bars(n, seed=seed + i, start_ms=clock.t - (n - 400) * MINUTE_MS,
+        self.data = {s: synthetic_bars(n, seed=seed + i, start_ms=clock.t // MINUTE_MS * MINUTE_MS - (n - 400) * MINUTE_MS,
                                        price=100.0 * (i + 1)) for i, s in enumerate(symbols)}
         self.consecutive_errors = 0
         self.fail = False
@@ -98,4 +98,5 @@ class FakeMarket(Exchange):
 
 @pytest.fixture
 def clock():
-    return Clock(1_750_000_000_000 // MINUTE_MS * MINUTE_MS)
+    # engine polls a few seconds after each bar closes, like in production
+    return Clock(1_750_000_000_000 // MINUTE_MS * MINUTE_MS + 3_000)

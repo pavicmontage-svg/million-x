@@ -21,6 +21,44 @@ from .security import authenticate, can, create_pairing_code, redeem_pairing_cod
 from .strategies import BASE_CLASSES, build_bots
 
 
+class RateLimiter:
+    """Sliding-window limiter (pure ASGI, also covers WebSocket handshakes)."""
+
+    def __init__(self, app, per_minute: int = 240, pair_per_minute: int = 10):
+        self.app = app
+        self.per_minute = per_minute
+        self.pair_per_minute = pair_per_minute
+        self.hits: dict[str, list[float]] = {}
+
+    def _allow(self, key: str, limit: int) -> bool:
+        import time as _t
+        now = _t.time()
+        q = [x for x in self.hits.get(key, []) if now - x < 60]
+        if len(q) >= limit:
+            self.hits[key] = q
+            return False
+        q.append(now)
+        self.hits[key] = q
+        if len(self.hits) > 10_000:
+            self.hits = {k: v for k, v in self.hits.items() if v and now - v[-1] < 60}
+        return True
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        ip = (scope.get("client") or ("?", 0))[0]
+        path = scope.get("path", "")
+        auth = dict(scope.get("headers") or []).get(b"authorization", b"")[-16:].decode(errors="ignore")
+        ok = self._allow(f"pair:{ip}", self.pair_per_minute) if path == "/api/pair" else \
+            self._allow(f"k:{auth or ip}", self.per_minute)
+        if ok:
+            return await self.app(scope, receive, send)
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 4429})
+            return
+        await JSONResponse({"error": "rate limit exceeded"}, status_code=429)(scope, receive, send)
+
+
 def J(data: Any, status: int = 200) -> JSONResponse:
     return JSONResponse(metrics.json_safe(data), status_code=status)
 
@@ -52,14 +90,28 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
 
     # ---------------------------------------------------------------- misc
     async def health(request):
-        e = eng()
-        return J({"ok": True, "engine_running": bool(e and e.thread and e.thread.is_alive()),
-                  "engine_error": rt.engine_error, "mode": rt.s.mode, "ts": now_ms()})
+        h = rt.health()
+        return J(h, 200 if h["ok"] else 503)
 
     async def pair(request):
+        from .security import pairing_throttled
+        ip = request.client.host if request.client else "?"
+        if pairing_throttled(store, ip):
+            return J({"error": "too many failed pairing attempts; try again later"}, 429)
         body = await request.json()
-        r = redeem_pairing_code(store, str(body.get("code", "")), str(body.get("device_name", "android")))
+        r = redeem_pairing_code(store, str(body.get("code", "")), str(body.get("device_name", "android")), ip)
         return J(r) if r else J({"error": "invalid or expired code"}, 401)
+
+    @guard("read")
+    async def incidents(request):
+        return J(store.q("SELECT * FROM incidents ORDER BY id DESC LIMIT ?", (int(request.query_params.get("limit", 100)),)))
+
+    @guard("change_settings")
+    async def incident_resolve(request):
+        iid = int(request.path_params["iid"])
+        store.x("UPDATE incidents SET resolved=1 WHERE id=?", (iid,))
+        store.audit(request.state.actor, "incident_resolved", {"id": iid}, "owner")
+        return J({"ok": True})
 
     @guard("read")
     async def me(request):
@@ -133,10 +185,11 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             # enabling never grants live eligibility; that needs validation evidence
             e.sup.set_status(bid, BotStatus.PAPER, f"enabled by {request.state.actor}; live requires validation")
         elif action == "mark_live_eligible":
-            ev = store.kv_get(f"validation:{bid}")
-            if not ev or ev.get("status") != "LIVE_ELIGIBLE":
-                return J({"error": "no LIVE_ELIGIBLE validation record for this bot"}, 400)
-            e.sup.set_status(bid, BotStatus.LIVE_ELIGIBLE, "validated (walk-forward + Monte Carlo + paper)")
+            from .validation import eligibility
+            el = eligibility(store, rt.s, bid)
+            if not el["eligible"]:
+                return J({"error": "insufficient validation evidence", "eligibility": el}, 400)
+            e.sup.set_status(bid, BotStatus.LIVE_ELIGIBLE, "validated: walk-forward + Monte Carlo + paper evidence")
         else:
             return J({"error": "action must be enable|disable|mark_live_eligible"}, 400)
         e.save_bot_state(bid)
@@ -164,11 +217,21 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         return J({"ok": True})
 
     @guard("read")
+    async def bot_eligibility(request):
+        from .validation import degradation, eligibility, regime_performance
+        bid = request.path_params["bot_id"]
+        return J({"eligibility": eligibility(store, rt.s, bid), "degradation": degradation(store, bid, rt.s.mode),
+                  "regimes": regime_performance(store, bid, rt.s.mode),
+                  "validation": store.kv_get(f"validation:{bid}")})
+
+    @guard("read")
     async def strategies_compare(request):
         e = eng()
         if not e:
             return J({"error": "engine stopped"}, 400)
+        from .validation import return_correlation
         return J({"leaderboard": e.comp.leaderboard(), "best_by_regime": e.comp.best_by_regime(),
+                  "return_correlation": return_correlation(store, rt.s.mode, list(e.comp.books)),
                   "regime_table": e.comp.regimes.table(), "signal_correlation": e.sup.correlation_matrix(),
                   "history": e.comp.history[-30:]})
 
@@ -257,15 +320,14 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
     @guard("change_risk_limits")
     async def risk_limits(request):
         body = await request.json()
-        old = dict(rt.s.risk.__dict__)
-        for k, v in body.items():
-            if not hasattr(rt.s.risk, k):
-                return J({"error": f"unknown limit {k}"}, 400)
-            setattr(rt.s.risk, k, type(getattr(rt.s.risk, k))(v))
-        if rt.s.risk.max_leverage > 20 or rt.s.risk.risk_per_trade > 0.02:
-            rt.s.risk.__dict__.update(old)
-            return J({"error": "refused: leverage > 20 or risk per trade > 2% is not allowed"}, 400)
+        from .governance import apply_limit_changes, BOUNDS
+        try:
+            old = apply_limit_changes(rt.s.risk, body)
+        except ValueError as e:
+            store.audit(request.state.actor, "risk_limits_refused", {"requested": body, "error": str(e)})
+            return J({"error": f"refused by risk governance: {e}", "bounds": BOUNDS}, 400)
         store.kv_set("risk_limits", rt.s.risk.__dict__)
+        rt.gate.invalidate("risk limits changed", request.state.actor)
         store.audit(request.state.actor, "risk_limits_changed", {"old": old, "new": rt.s.risk.__dict__}, "owner")
         return J({"ok": True, "limits": rt.s.risk.__dict__})
 
@@ -312,7 +374,9 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         out = {}
         for bid, wf in res.items():
             st = wf["activation"]["status"]
-            store.kv_set(f"validation:{bid}", {"status": st, "job": r["id"], "ts": now_ms()})
+            store.kv_set(f"validation:{bid}", {"status": st, "job": r["id"], "ts": now_ms(),
+                                               "oos_expectancy_r": (wf.get("oos_metrics") or {}).get("expectancy_r"),
+                                               "oos_trades": (wf.get("oos_metrics") or {}).get("trades")})
             if e and st == "BACKTEST_PASSED":
                 e.sup.set_status(bid, BotStatus.PAPER, f"walk-forward passed (job {r['id']}); collecting paper evidence")
                 e.save_bot_state(bid)
@@ -348,8 +412,10 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
     async def settings_get(request):
         keys = {r["mode"]: True for r in store.q("SELECT mode FROM api_keys WHERE exchange='binance'")}
         return J({"mode": rt.s.mode, "execution": rt.s.execution, "capital_mode": rt.s.capital_mode,
-                  "rest_base": rt.s.rest_base, "keys_stored": keys, "live_unlocked": rt.s.live_trading_unlocked,
-                  "preflight": store.kv_get("preflight"), "api_permissions": store.kv_get("api_permissions"),
+                  "rest_base": rt.s.rest_base, "keys_stored": keys, "live_gate": rt.gate.status(),
+                  "live_unlocked": rt.gate.is_valid(),
+                  "preflight": store.kv_get("preflight_demo") or store.kv_get("preflight"),
+                  "live_check": store.kv_get("live_check"), "api_permissions": store.kv_get("api_permissions"),
                   "brain_interval_min": store.kv_get("brain_interval_min", 60), "push_enabled": rt.notifier.enabled,
                   "llm_available": rt.org.llm.available})
 
@@ -363,8 +429,8 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                 if body[k] not in allowed:
                     return J({"error": f"{k} must be one of {allowed}"}, 400)
                 changes[k] = body[k]
-        if changes.get("mode") == "live" and not rt.s.live_trading_unlocked:
-            return J({"error": "live mode locked: pass preflight and unlock first"}, 400)
+        if changes.get("mode") == "live" and not rt.gate.is_valid():
+            return J({"error": f"live mode locked: {rt.gate.status()['reason']}"}, 400)
         if "brain_interval_min" in body:
             store.kv_set("brain_interval_min", max(15, int(body["brain_interval_min"])))
             rt.org.interval_ms = max(15, int(body["brain_interval_min"])) * 60_000
@@ -395,7 +461,15 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         if perms.get("withdrawals"):
             store.audit(request.state.actor, "api_key_rejected", {"mode": mode, "reason": "withdrawals enabled"})
             return J({"error": "REFUSED: this key has withdrawal permission. Create a key without it."}, 400)
+        if mode == "live" and not perms.get("ip_restrict"):
+            store.audit(request.state.actor, "api_key_rejected", {"mode": mode, "reason": "no IP restriction"})
+            return J({"error": "REFUSED: live keys must be restricted to the server IP."}, 400)
+        if mode == "live" and not perms.get("futures"):
+            store.audit(request.state.actor, "api_key_rejected", {"mode": mode, "reason": "no futures permission"})
+            return J({"error": "REFUSED: live key has no Futures trading permission."}, 400)
         store_api_keys(store, rt.vault, "binance", mode, body["api_key"], body["api_secret"])
+        if mode == "live":
+            rt.gate.invalidate("live API key rotated", request.state.actor)
         store.kv_set("api_permissions", perms)
         store.audit(request.state.actor, "api_keys_stored", {"mode": mode, "permissions": perms}, "owner")
         return J({"ok": True, "balance": bal, "permissions": perms})
@@ -406,17 +480,15 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         return J(res)
 
     @guard("unlock_live")
+    async def live_check(request):
+        res = await asyncio.get_running_loop().run_in_executor(None, rt.live_check)
+        return J(res)
+
+    @guard("unlock_live")
     async def unlock_live(request):
         body = await request.json()
-        pf = store.kv_get("preflight") or {}
-        if not pf.get("ok"):
-            return J({"error": "preflight checks have not all passed"}, 400)
-        if body.get("confirm") != "I UNDERSTAND THE RISK":
-            return J({"error": "confirmation phrase required"}, 400)
-        rt.s.live_trading_unlocked = True
-        store.kv_set("live_trading_unlocked", True)
-        store.audit(request.state.actor, "live_trading_unlocked", {"preflight_ts": pf.get("ts")}, "owner")
-        return J({"ok": True})
+        res = rt.gate.unlock(request.state.actor, str(body.get("confirm", "")))
+        return J(res, 200 if res.get("ok") else 400)
 
     # ----------------------------------------------------------- emergency
     @guard("emergency_stop")
@@ -573,6 +645,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         Route("/api/bots", bots), Route("/api/bots/{bot_id}/trades", bot_trades),
         Route("/api/bots/{bot_id}/status", bot_status, methods=["POST"]),
         Route("/api/bots/{bot_id}/params", bot_params, methods=["PUT"]),
+        Route("/api/bots/{bot_id}/eligibility", bot_eligibility),
         Route("/api/strategies/compare", strategies_compare),
         Route("/api/positions", positions), Route("/api/orders", orders),
         Route("/api/positions/{symbol}/close", close_pos, methods=["POST"]),
@@ -589,6 +662,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         Route("/api/settings", settings_get), Route("/api/settings", settings_put, methods=["PUT"]),
         Route("/api/settings/apikeys", api_keys, methods=["POST"]),
         Route("/api/preflight", preflight, methods=["POST"]), Route("/api/unlock-live", unlock_live, methods=["POST"]),
+        Route("/api/live-check", live_check, methods=["POST"]),
         Route("/api/emergency-stop", emergency, methods=["POST"]),
         Route("/api/emergency-reset", emergency_reset, methods=["POST"]),
         Route("/api/org/agents", org_agents), Route("/api/org/agents/{agent_id}", org_agent),
@@ -599,11 +673,13 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         Route("/api/org/runs/{run_id}", org_run),
         Route("/api/org/meetings", meetings), Route("/api/org/meetings", meeting_now, methods=["POST"]),
         Route("/api/audit", audit), Route("/api/audit/verify", audit_verify),
+        Route("/api/incidents", incidents), Route("/api/incidents/{iid}/resolve", incident_resolve, methods=["POST"]),
         Route("/api/admin/devices", devices), Route("/api/admin/pairing-code", pairing_code, methods=["POST"]),
         Route("/api/admin/devices/{device_id}/revoke", revoke, methods=["POST"]),
         WebSocketRoute("/ws", ws),
     ]
-    return Starlette(routes=routes, lifespan=lifespan)
+    from starlette.middleware import Middleware
+    return Starlette(routes=routes, lifespan=lifespan, middleware=[Middleware(RateLimiter)])
 
 
 def _goal_probability(rt: Runtime, e) -> dict[str, Any]:

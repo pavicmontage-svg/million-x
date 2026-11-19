@@ -41,9 +41,26 @@ def can(role: str, action: str) -> bool:
     return role in PERMISSIONS.get(action, ("owner",))
 
 
+TOKEN_TTL_MS = 30 * 86_400_000          # device tokens expire after 30 days without use
+PAIR_FAILS_PER_IP = 5                    # per 15 minutes
+PAIR_FAILS_GLOBAL = 30                   # per hour, all sources
+
+
+def _master_key_from_env() -> Optional[str]:
+    key = os.environ.get("MX_MASTER_KEY")
+    path = os.environ.get("MX_MASTER_KEY_FILE")  # e.g. a Docker secret mounted at /run/secrets/...
+    if not key and path and os.path.exists(path):
+        st = os.stat(path)
+        if st.st_mode & 0o077:
+            raise RuntimeError(f"{path} must not be readable by group/others (chmod 600)")
+        with open(path) as fh:
+            key = fh.read().strip()
+    return key
+
+
 class Vault:
     def __init__(self, master_key: Optional[str] = None):
-        key = master_key or os.environ.get("MX_MASTER_KEY")
+        key = master_key or _master_key_from_env()
         if not key:
             raise RuntimeError("MX_MASTER_KEY is not set. Generate one with: python -m millionx.cli genkey")
         self.f = Fernet(key.encode() if isinstance(key, str) else key)
@@ -89,16 +106,28 @@ def create_pairing_code(store: Store, role: str = "owner", ttl_s: int = 600) -> 
     return code
 
 
-def redeem_pairing_code(store: Store, code: str, device_name: str) -> Optional[dict[str, Any]]:
+def pairing_throttled(store: Store, ip: str) -> bool:
+    now = int(time.time() * 1000)
+    per_ip = store.one("SELECT COUNT(*) n FROM auth_failures WHERE kind='pair' AND ip=? AND ts>?", (ip, now - 900_000))
+    total = store.one("SELECT COUNT(*) n FROM auth_failures WHERE kind='pair' AND ts>?", (now - 3_600_000,))
+    return per_ip["n"] >= PAIR_FAILS_PER_IP or total["n"] >= PAIR_FAILS_GLOBAL
+
+
+def redeem_pairing_code(store: Store, code: str, device_name: str, ip: str = "?") -> Optional[dict[str, Any]]:
+    if pairing_throttled(store, ip):
+        store.audit("unknown", "pairing_throttled", {"ip": ip})
+        return None
     r = store.one("SELECT * FROM pairing WHERE code_hash=? AND used=0", (_h(code.strip().upper()),))
     if not r or r["expires_at"] < int(time.time() * 1000):
-        store.audit("unknown", "pairing_failed", {"device": device_name})
+        store.x("INSERT INTO auth_failures(ts,ip,kind) VALUES(?,?,?)", (int(time.time() * 1000), ip, "pair"))
+        store.audit("unknown", "pairing_failed", {"device": device_name, "ip": ip})
         return None
     store.x("UPDATE pairing SET used=1 WHERE code_hash=?", (r["code_hash"],))
     token = secrets.token_urlsafe(32)
     dev_id = secrets.token_hex(8)
-    store.x("INSERT INTO devices(id,name,role,token_hash,created_at,last_seen) VALUES(?,?,?,?,?,?)",
-            (dev_id, device_name[:60], r["role"], _h(token), int(time.time() * 1000), int(time.time() * 1000)))
+    now = int(time.time() * 1000)
+    store.x("INSERT INTO devices(id,name,role,token_hash,created_at,last_seen,expires_at) VALUES(?,?,?,?,?,?,?)",
+            (dev_id, device_name[:60], r["role"], _h(token), now, now, now + TOKEN_TTL_MS))
     store.audit(f"device:{dev_id}", "device_paired", {"name": device_name, "role": r["role"]})
     return {"token": token, "device_id": dev_id, "role": r["role"]}
 
@@ -106,7 +135,13 @@ def redeem_pairing_code(store: Store, code: str, device_name: str) -> Optional[d
 def authenticate(store: Store, token: str) -> Optional[dict[str, Any]]:
     if not token:
         return None
-    r = store.one("SELECT id, name, role FROM devices WHERE token_hash=? AND revoked=0", (_h(token),))
-    if r:
-        store.x("UPDATE devices SET last_seen=? WHERE id=?", (int(time.time() * 1000), r["id"]))
-    return r
+    now = int(time.time() * 1000)
+    r = store.one("SELECT id, name, role, expires_at FROM devices WHERE token_hash=? AND revoked=0", (_h(token),))
+    if not r:
+        return None
+    if r["expires_at"] and r["expires_at"] < now:
+        store.audit(f"device:{r['id']}", "token_expired", {})
+        return None
+    # sliding expiry: active devices stay paired; idle ones must re-pair
+    store.x("UPDATE devices SET last_seen=?, expires_at=? WHERE id=?", (now, now + TOKEN_TTL_MS, r["id"]))
+    return {k: r[k] for k in ("id", "name", "role")}

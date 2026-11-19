@@ -31,6 +31,7 @@ def build():
     async def lifespan(app):
         if os.environ.get("MX_AUTOSTART", "1") == "1":
             await asyncio.get_running_loop().run_in_executor(None, rt.start_engine)
+            rt.start_watchdog()
         yield
         await asyncio.get_running_loop().run_in_executor(None, rt.stop_engine)
 

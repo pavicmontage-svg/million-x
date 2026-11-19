@@ -254,6 +254,28 @@ class BinanceFutures(Exchange):
         except ExchangeError as e:
             log.info("cancel algo open orders %s: %s", symbol, e)
 
+    def positions(self) -> dict[str, tuple[float, float]]:
+        rows = self._req("GET", "/fapi/v2/positionRisk", signed=True)
+        out: dict[str, tuple[float, float]] = {}
+        for r in rows:
+            amt = float(r.get("positionAmt", 0))
+            if amt != 0:
+                prev = out.get(r["symbol"], (0.0, 0.0))
+                out[r["symbol"]] = (prev[0] + amt, float(r.get("entryPrice", 0)))
+        return out
+
+    def open_conditionals(self, symbol: str) -> list[dict[str, Any]]:
+        rows = self._req("GET", "/fapi/v1/openAlgoOrders", {"symbol": symbol}, signed=True)
+        rows = rows.get("orders", rows) if isinstance(rows, dict) else rows
+        return [{"client_id": r.get("clientAlgoId"), "type": r.get("orderType") or r.get("type"),
+                 "trigger": float(r.get("triggerPrice") or 0), "status": r.get("algoStatus"),
+                 "close_position": str(r.get("closePosition")).lower() == "true",
+                 "qty": float(r.get("quantity") or 0)} for r in rows]
+
+    def query_conditional(self, symbol: str, client_id: str) -> OrderResult:
+        d = self._req("GET", "/fapi/v1/algoOrder", {"clientAlgoId": client_id}, signed=True)
+        return self._res(d, client_id)
+
     def realized_since(self, symbol, since_ms) -> dict[str, float]:
         rows = self._req("GET", "/fapi/v1/income", {"symbol": symbol, "startTime": since_ms, "limit": 1000},
                          signed=True)

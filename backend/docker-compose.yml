@@ -5,7 +5,7 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
-      - ./secrets:/app/secrets:ro
+      - ./secrets:/app/secrets:ro   # optional: MX_MASTER_KEY_FILE=/app/secrets/master.key (chmod 600)
     expose: ["8080"]
   caddy:
     image: caddy:2

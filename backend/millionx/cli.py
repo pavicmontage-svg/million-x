@@ -50,6 +50,9 @@ def main(argv=None):
     f.add_argument("--stop-pct", type=float, default=0.004)
     f.add_argument("--capital-eur", type=float, default=4.0)
     sub.add_parser("verify-audit")
+    bk = sub.add_parser("backup")
+    bk.add_argument("--dir", default="")
+    sub.add_parser("migrate")
     a = ap.parse_args(argv)
     s = load_settings()
 
@@ -99,6 +102,14 @@ def main(argv=None):
                                SymbolRules("X", min_notional=a.min_notional, min_qty=0.0, step_size=1e-6),
                                s.risk, s.fees)
         print(json.dumps(r, indent=2))
+    elif a.cmd == "backup":
+        from .storage import Store
+        st = Store(s.db_path)
+        print(st.backup(a.dir or os.path.join(os.path.dirname(s.db_path) or ".", "backups")))
+    elif a.cmd == "migrate":
+        from .storage import Store
+        st = Store(s.db_path)
+        print("schema version", st.schema_version(), "integrity", st.integrity_ok())
     elif a.cmd == "verify-audit":
         from .storage import Store
         print(Store(s.db_path).verify_audit())

@@ -130,13 +130,15 @@ class Organization:
         return new
 
     # --------------------------------------------------------- evidence
-    def packet(self, aid: str, engine) -> dict[str, Any]:
+    def packet(self, aid: str, engine, extra_items: Optional[list[tuple[str, Any]]] = None) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
 
         def add(source: str, data: Any, ts: Optional[int] = None) -> None:
             items.append({"id": f"ev-{len(items) + 1:03d}-{source}", "source": source, "ts": ts or now_ms(),
                           "data": metrics.json_safe(data)})
 
+        for src, data in extra_items or []:
+            add(src, data)
         if engine is None:
             add("system", {"note": "trading engine not running"})
             return {"agent": aid, "generated_at": now_ms(), "items": items}
@@ -219,9 +221,10 @@ class Organization:
         return {"agent": aid, "generated_at": now_ms(), "items": items}
 
     # ------------------------------------------------------------- run
-    def run_agent(self, aid: str, engine, kind: str = "cycle") -> dict[str, Any]:
+    def run_agent(self, aid: str, engine, kind: str = "cycle", extra_items: Optional[list[tuple[str, Any]]] = None,
+                  task: Optional[str] = None, meeting_id: Optional[str] = None) -> dict[str, Any]:
         cfg = self.config(aid)
-        pk = self.packet(aid, engine)
+        pk = self.packet(aid, engine, extra_items)
         ids = {i["id"] for i in pk["items"]}
         rid = uuid.uuid4().hex[:12]
         pr = self.prompt(aid)
@@ -230,7 +233,9 @@ class Organization:
         error = None
         if cfg.get("enabled") and self.llm.available:
             system = pr.get("prompt", "") + "\n\n" + OUTPUT_CONTRACT
-            res = self.llm.complete(system, "EVIDENCE PACKET:\n" + json.dumps(pk, default=str)[:150_000],
+            user = (f"YOUR TASK NOW: {task}\n\n" if task else "") + "EVIDENCE PACKET:\n" + \
+                json.dumps(pk, default=str)[:150_000]
+            res = self.llm.complete(system, user,
                                     cfg.get("model", DEFAULT_MODEL), int(cfg.get("max_tokens", 1500)),
                                     float(cfg.get("temperature", 0.2)))
             error = res.error
@@ -266,9 +271,18 @@ class Organization:
                       res.cost_usd if res else 0.0, res.latency_ms if res else 0, error,
                       json.dumps(sorted(ids))))
         out["run_id"] = rid
-        if engine is not None:
+        out["agent"] = aid
+        out["kind"] = kind
+        if meeting_id:
+            self.message(meeting_id, aid, "board", kind, rid, out.get("summary", ""))
+        if engine is not None and not kind.startswith("board:"):
             self._apply(aid, out, engine, rid)
         return out
+
+    def message(self, meeting_id: Optional[str], sender: str, recipient: str, kind: str, run_id: Optional[str],
+                content: str) -> None:
+        self.store.x("INSERT INTO agent_messages(ts,meeting_id,sender,recipient,kind,run_id,content) "
+                     "VALUES(?,?,?,?,?,?,?)", (now_ms(), meeting_id, sender, recipient, kind, run_id, content[:2000]))
 
     def _deterministic(self, aid: str, pk: dict[str, Any], engine) -> dict[str, Any]:
         items = {i["source"]: i for i in pk["items"]}
@@ -309,6 +323,13 @@ class Organization:
                         if row.get("regime"):
                             f.append({"text": f"{row['symbol']}: {row['regime']} / {row.get('volatility')}",
                                       "evidence_ids": [it["id"]]})
+        if aid.startswith("exec_") and not f:
+            for src, it in items.items():
+                if src.startswith("agent_runs.") or src.startswith("board."):
+                    d = it["data"] if isinstance(it["data"], dict) else {}
+                    o = d.get("output", d)
+                    if isinstance(o, dict) and o.get("summary"):
+                        f.append({"text": f"{src}: {o.get('summary')}", "evidence_ids": [it["id"]]})
         return {"mode": "deterministic", "summary": f"{len(f)} rule-based findings", "findings": f,
                 "recommendations": recs, "stance": stance, "confidence": None,
                 "limitations": ["no language-model analysis in this run"]}
@@ -322,13 +343,20 @@ class Organization:
                 continue
             if not self.auto_tighten:
                 continue
+            self._apply_one(aid, r, engine, rid)
+
+    def _apply_one(self, aid: str, r: dict[str, Any], engine, rid: str):
+        """Apply ONE tightening recommendation. Returns what was applied or None."""
+        if r.get("direction") != "tighten" or r.get("action") not in AGENTS[aid].get("can_apply", []):
+            return None
+        if engine is not None:
             act, tgt = r["action"], str(r.get("target", ""))
             applied = None
             if act == "risk_scale":
                 try:
                     f = float(tgt)
                 except ValueError:
-                    continue
+                    return None
                 if f < engine.risk.tighten_factor:
                     applied = engine.risk.tighten(f)
             elif act == "suspend_bot" and tgt in engine.comp.books:
@@ -342,6 +370,8 @@ class Organization:
                 self.store.audit(aid, f"auto_tighten:{act}", {"run_id": rid, "recommendation": r}, "auto (tighten-only)",
                                  {"applied": applied})
                 engine.alert("warning", "risk", f"{AGENTS[aid]['title']}: {act}", r.get("rationale", ""))
+            return applied
+        return None
 
     # ---------------------------------------------------------- CRO gate
     def cro_review(self, engine, signal, dec) -> tuple[bool, float, str]:
@@ -382,33 +412,105 @@ class Organization:
     def on_new_day(self, engine) -> None:
         self.pool.submit(self.board_meeting, engine)
 
+    AGENDA = [("exec_ceo", "opening_report", "CEO opening report: state of the organisation and today's objectives"),
+              ("exec_cio", "capital_report", "CIO capital report: allocation, exposure, risk-adjusted results"),
+              ("exec_hqr", "quant_report", "Quantitative research report: validation status, degradation, evidence"),
+              ("exec_cro", "risk_assessment", "CRO risk assessment: limits, drawdown, exposures, incidents"),
+              ("exec_coo", "operational_assessment", "COO operational assessment: connectivity, data, execution, audit")]
+    # actions the CRO may approve for automatic application (tightening only)
+    TIGHTEN_ACTIONS = {"risk_scale", "suspend_bot", "suspend_all"}
+
     def board_meeting(self, engine) -> dict[str, Any]:
+        """Eight-item agenda. Every item is a real agent run (LLM or explicitly
+        deterministic); nothing is scripted or invented."""
         mid = uuid.uuid4().hex[:10]
-        outputs = {}
-        for aid in EXECUTIVES:
+        llm_on = self.llm.available
+        items: list[dict[str, Any]] = []
+        reports: dict[str, dict[str, Any]] = {}
+        shared: list[tuple[str, Any]] = []
+        # 1-5: department reports; later speakers receive earlier reports (inter-agent communication)
+        for n, (aid, kind, task) in enumerate(self.AGENDA, start=1):
             try:
-                outputs[aid] = self.run_agent(aid, engine, kind="board_meeting")
+                out = self.run_agent(aid, engine, f"board:{kind}", extra_items=list(shared), task=task, meeting_id=mid)
             except Exception as e:
-                outputs[aid] = {"error": str(e)}
-        stances = {aid: (o.get("stance") or {}) for aid, o in outputs.items()}
+                out = {"mode": "error", "summary": f"agent failed: {e}", "stance": {}}
+            reports[aid] = out
+            shared.append((f"board.{kind}.{aid}", {"summary": out.get("summary"), "stance": out.get("stance"),
+                                                   "recommendations": out.get("recommendations"),
+                                                   "mode": out.get("mode"), "run_id": out.get("run_id")}))
+            items.append({"item": n, "title": task.split(":")[0], "agent": aid, "mode": out.get("mode"),
+                          "run_id": out.get("run_id"), "summary": out.get("summary"), "stance": out.get("stance"),
+                          "findings": out.get("findings", []), "recommendations": out.get("recommendations", []),
+                          "note": out.get("note")})
+        # 6: disagreements and discussion
         disagreements = []
         for key in ("risk", "activity"):
-            vals = {aid: s.get(key) for aid, s in stances.items() if s.get(key)}
+            vals = {aid: (o.get("stance") or {}).get(key) for aid, o in reports.items() if (o.get("stance") or {}).get(key)}
             if len(set(vals.values())) > 1:
                 disagreements.append({"topic": key, "positions": vals})
-        recs = []
-        for aid, o in outputs.items():
-            for r in o.get("recommendations", []) or []:
-                recs.append({**r, "from": aid, "status": "auto-applied" if (
-                    r.get("direction") == "tighten" and r.get("action") in AGENTS[aid]["can_apply"] and self.auto_tighten)
-                    else "awaiting owner decision"})
-        data = {"id": mid, "ts": now_ms(), "participants": list(EXECUTIVES), "outputs": outputs,
-                "disagreements": disagreements, "recommendations": recs}
+        discussion = []
+        if disagreements and llm_on:
+            for d in disagreements:
+                for aid in d["positions"]:
+                    others = {k: v for k, v in d["positions"].items() if k != aid}
+                    task = (f"Discussion: you said {d['topic']}={d['positions'][aid]}; colleagues said {others}. "
+                            "Respond to their arguments (cite evidence) and give your final stance.")
+                    out = self.run_agent(aid, engine, "board:discussion", extra_items=list(shared), task=task,
+                                         meeting_id=mid)
+                    discussion.append({"agent": aid, "topic": d["topic"], "mode": out.get("mode"),
+                                       "run_id": out.get("run_id"), "summary": out.get("summary"),
+                                       "final_stance": (out.get("stance") or {}).get(d["topic"])})
+                    shared.append((f"board.discussion.{aid}.{d['topic']}", discussion[-1]))
+        items.append({"item": 6, "title": "Discussion of disagreements", "disagreements": disagreements,
+                      "discussion": discussion,
+                      "note": None if (discussion or not disagreements) else
+                      "LLM offline: positions recorded, no discussion round was run"})
+        # 7: CEO final decision
+        ceo = self.run_agent("exec_ceo", engine, "board:final_decision", extra_items=list(shared),
+                             task="Final CEO decision: choose the actions for today from the reports and discussion. "
+                                  "You cannot loosen CRO limits.", meeting_id=mid)
+        decisions = [dict(r, index=i) for i, r in enumerate(ceo.get("recommendations", []) or [])]
+        items.append({"item": 7, "title": "Final CEO decision", "agent": "exec_ceo", "mode": ceo.get("mode"),
+                      "run_id": ceo.get("run_id"), "summary": ceo.get("summary"), "decisions": decisions})
+        # 8: independent CRO approval / veto (hard rules first, then the CRO agent)
+        cro_out = self.run_agent("exec_cro", engine, "board:cro_review", extra_items=list(shared) + [
+            ("board.ceo_decisions", decisions)],
+            task="CRO review of the CEO decisions: for each decision index state approve or veto with evidence. "
+                 "Express a veto as a recommendation {action:'veto', target:'<index>'}.", meeting_id=mid)
+        llm_vetoes = {str(r.get("target")) for r in cro_out.get("recommendations", []) or []
+                      if str(r.get("action", "")).lower() == "veto"}
+        verdicts = []
+        for d in decisions:
+            reason, status = "", "approved_by_cro"
+            if d.get("direction") == "loosen":
+                status, reason = "vetoed_by_cro", "hard rule: loosening risk requires the owner"
+            elif d.get("mode") == "llm" and d.get("traceable") is False:
+                status, reason = "vetoed_by_cro", "not traceable to evidence"
+            elif d.get("traceable") is False:
+                status, reason = "vetoed_by_cro", "not traceable to evidence"
+            elif str(d["index"]) in llm_vetoes:
+                status, reason = "vetoed_by_cro", "CRO agent veto"
+            applied = None
+            if status == "approved_by_cro" and d.get("direction") == "tighten" and \
+                    d.get("action") in self.TIGHTEN_ACTIONS and self.auto_tighten and engine is not None:
+                applied = self._apply_one("exec_cro", d, engine, cro_out.get("run_id", ""))
+            final = status if status.startswith("vetoed") else ("applied (tighten-only)" if applied is not None
+                                                                else "awaiting owner decision")
+            verdicts.append({**d, "cro": status, "cro_reason": reason, "status": final})
+        items.append({"item": 8, "title": "Independent CRO approval or veto", "agent": "exec_cro",
+                      "mode": cro_out.get("mode"), "run_id": cro_out.get("run_id"), "summary": cro_out.get("summary"),
+                      "verdicts": verdicts})
+        data = {"id": mid, "ts": now_ms(), "llm": llm_on, "agenda": items, "disagreements": disagreements,
+                "decisions": verdicts, "participants": [a for a, *_ in self.AGENDA],
+                # backwards-compatible fields used by older app builds
+                "outputs": reports, "recommendations": [dict(v, **{"from": "exec_ceo"}) for v in verdicts]}
         self.store.x("INSERT INTO meetings VALUES(?,?,?)", (mid, now_ms(), json.dumps(data, default=str)))
-        self.store.audit("organization", "board_meeting", {"meeting_id": mid, "disagreements": disagreements})
+        self.store.audit("organization", "board_meeting", {"meeting_id": mid, "llm": llm_on,
+                         "disagreements": disagreements, "decisions": len(verdicts)})
         if engine is not None:
-            engine.alert("info", "boardroom", "Daily board meeting finished",
-                         f"{len(recs)} recommendations, {len(disagreements)} disagreements")
+            engine.alert("info", "boardroom", "Board meeting finished",
+                         f"{len(verdicts)} decisions, {sum(v['cro'].startswith('vetoed') for v in verdicts)} vetoed, "
+                         f"{len(disagreements)} disagreements" + ("" if llm_on else " (deterministic, LLM offline)"))
         return data
 
     # ------------------------------------------------------------ status

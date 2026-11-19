@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 import traceback
 import uuid
 from datetime import date, datetime, timezone
@@ -41,12 +42,22 @@ class Runtime:
         for k in ("mode", "execution", "capital_mode"):
             if k in saved:
                 setattr(self.s, k, saved[k])
-        self.s.live_trading_unlocked = bool(store.kv_get("live_trading_unlocked", False))
         lim = store.kv_get("risk_limits")
         if lim:
-            for k, v in lim.items():
-                if hasattr(self.s.risk, k):
-                    setattr(self.s.risk, k, type(getattr(self.s.risk, k))(v))
+            from .governance import apply_limit_changes
+            try:
+                apply_limit_changes(self.s.risk, {k: v for k, v in lim.items() if hasattr(self.s.risk, k)})
+            except ValueError as e:
+                store.notify("critical", "risk", "Stored risk limits rejected", f"{e}; defaults kept")
+        from .live_gate import LiveGate
+        self.gate = LiveGate(store, self.s)
+        if self.s.mode == "live" and not self.gate.is_valid():
+            # never resume real trading without a valid, unexpired authorisation
+            self.s.mode = "paper"
+            self.save_runtime()
+            store.notify("critical", "risk", "Live mode not resumed",
+                         f"live authorisation invalid ({self.gate.status()['reason']}); switched to PAPER")
+            store.audit("system", "live_not_resumed", self.gate.status())
 
     # ---------------------------------------------------------- exchange
     def build_exchange(self):
@@ -66,15 +77,16 @@ class Runtime:
             if perms.get("withdrawals"):
                 raise RuntimeError("refusing to trade: API key has WITHDRAWAL permission enabled")
             if not perms.get("ip_restrict"):
-                self.store.notify("warning", "security", "API key without IP restriction",
-                                  "Restrict the key to your server IP in Binance API management.")
+                raise RuntimeError("refusing to trade: live API key is not IP-restricted")
+            if not perms.get("futures"):
+                raise RuntimeError("refusing to trade: live API key has no Futures permission")
         return ex
 
     def start_engine(self) -> None:
         self.stop_engine()
         try:
             ex = self.build_exchange()
-            self.engine = TradingEngine(self.s, self.store, ex, self.bus, self.notifier, self.org)
+            self.engine = TradingEngine(self.s, self.store, ex, self.bus, self.notifier, self.org, gate=self.gate)
             self.engine.start()
             self.engine_error = None
         except Exception as e:
@@ -89,6 +101,64 @@ class Runtime:
             if self.engine.thread:
                 self.engine.thread.join(timeout=15)
         self.engine = None
+
+    def live_check(self) -> dict[str, Any]:
+        keys = load_api_keys(self.store, self.vault, "binance", "live") if self.vault else None
+        if not keys:
+            return {"ok": False, "checks": {"live_keys": {"pass": False, "detail": "store LIVE API keys first"}}}
+        ex = BinanceFutures("https://fapi.binance.com", keys[0], keys[1], live=True)
+        return self.gate.live_check(ex, self.s.starting_capital_eur * self.s.eur_usdt)
+
+    # ------------------------------------------------------- monitoring
+    def health(self) -> dict[str, Any]:
+        e = self.engine
+        now = now_ms()
+        alive = bool(e and e.thread and e.thread.is_alive())
+        tick_age = (now - e.last_tick_ms) / 1000 if e and e.last_tick_ms else None
+        unresolved = self.store.one("SELECT COUNT(*) n FROM incidents WHERE resolved=0 AND severity='critical'")["n"]
+        h = {"ts": now, "mode": self.s.mode, "engine_running": alive, "engine_error": self.engine_error,
+             "last_tick_age_s": tick_age, "data_fresh": e.risk.state.data_fresh if e else None,
+             "connection_ok": e.risk.state.connection_ok if e else None,
+             "emergency_stop": e.risk.state.emergency_stop if e else self.store.kv_get("emergency_stop", False),
+             "startup_reconciled": e.started_reconcile if e else False,
+             "schema_version": self.store.schema_version(), "db_integrity": self.store.kv_get("db_integrity"),
+             "audit_chain": self.store.kv_get("audit_verify"), "last_backup": self.store.kv_get("last_backup"),
+             "unresolved_critical_incidents": unresolved, "live_gate": self.gate.status()}
+        h["ok"] = bool(alive and (tick_age is None or tick_age < 120) and unresolved == 0
+                       and (h["db_integrity"] or {}).get("ok", True))
+        return h
+
+    def start_watchdog(self, interval_s: int = 30, backup_dir: Optional[str] = None) -> None:
+        """Restarts a dead/stuck engine, verifies the audit chain and backs up the DB daily."""
+        import os
+        backup_dir = backup_dir or os.path.join(os.path.dirname(self.s.db_path) or ".", "backups")
+        self.store.kv_set("db_integrity", {"ok": self.store.integrity_ok(), "ts": now_ms()})
+
+        def loop():
+            last_daily = 0
+            while not getattr(self, "_wd_stop", False):
+                try:
+                    e = self.engine
+                    stuck = e and e.last_tick_ms and now_ms() - e.last_tick_ms > 180_000
+                    dead = e is not None and not (e.thread and e.thread.is_alive())
+                    if dead or stuck:
+                        self.store.notify("critical", "system", "Engine restarted by watchdog",
+                                          "dead thread" if dead else "no tick for 3 minutes")
+                        self.store.audit("watchdog", "engine_restart", {"dead": dead, "stuck": bool(stuck)})
+                        self.start_engine()
+                    if now_ms() - last_daily > 86_400_000:
+                        last_daily = now_ms()
+                        v = self.store.verify_audit()
+                        self.store.kv_set("audit_verify", {**v, "ts": now_ms()})
+                        if not v["ok"]:
+                            self.store.notify("critical", "security", "AUDIT CHAIN BROKEN", str(v))
+                        path = self.store.backup(backup_dir)
+                        self.store.kv_set("last_backup", {"path": path, "ts": now_ms()})
+                except Exception as ex:  # the watchdog itself must never die
+                    log.error("watchdog: %s", ex)
+                time.sleep(interval_s)
+
+        threading.Thread(target=loop, name="watchdog", daemon=True).start()
 
     def save_runtime(self) -> None:
         self.store.kv_set("runtime_settings", {"mode": self.s.mode, "execution": self.s.execution,
@@ -198,5 +268,6 @@ class Runtime:
         ok = all(c["pass"] for c in checks.values())
         res = {"ok": ok, "ts": now_ms(), "checks": checks}
         self.store.kv_set("preflight", res)
+        self.gate.record_demo_preflight(res)
         self.store.audit("operations", "preflight", {}, "n/a", res)
         return res

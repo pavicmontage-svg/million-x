@@ -84,3 +84,20 @@ class Exchange(ABC):
     @abstractmethod
     def realized_since(self, symbol: str, since_ms: int) -> dict[str, float]:
         """Sum of realized PnL, commission and funding for symbol since ts."""
+
+    # reconciliation (source of truth = exchange)
+    def positions(self) -> dict[str, tuple[float, float]]:
+        """All non-zero positions: symbol -> (signed amount, entry price)."""
+        return {}
+
+    def open_conditionals(self, symbol: str) -> list[dict[str, Any]]:
+        """Open conditional (algo) orders for symbol: dicts with client_id, type, trigger, status."""
+        return []
+
+    def query_conditional(self, symbol: str, client_id: str) -> OrderResult:
+        raise ExchangeError("not supported")
+
+    def book_price(self, symbol: str, side: str) -> float:
+        """Price a market order on `side` would hit now (best ask for BUY)."""
+        ob = self.order_book(symbol, 5)
+        return ob.asks[0][0] if side == "BUY" else ob.bids[0][0]

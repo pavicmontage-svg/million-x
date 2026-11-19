@@ -57,6 +57,28 @@ CREATE TABLE IF NOT EXISTS meetings (id TEXT PRIMARY KEY, ts INTEGER, data TEXT)
 """
 
 
+# Ordered, append-only list of schema migrations. Never edit a released entry;
+# add a new one. Version 1 is the original schema above.
+MIGRATIONS: list[tuple[int, str, str]] = [
+    (1, "initial schema", SCHEMA),
+    (2, "execution safety, governance, org messages, device expiry", """
+ALTER TABLE orders ADD COLUMN filled_qty REAL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN avg_price REAL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN reconciled_at INTEGER;
+ALTER TABLE devices ADD COLUMN expires_at INTEGER;
+CREATE TABLE IF NOT EXISTS pending_approvals (signal_id TEXT PRIMARY KEY, created_at INTEGER, expires_at INTEGER,
+    data TEXT, status TEXT DEFAULT 'pending');
+CREATE TABLE IF NOT EXISTS agent_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, meeting_id TEXT,
+    sender TEXT, recipient TEXT, kind TEXT, run_id TEXT, content TEXT);
+CREATE INDEX IF NOT EXISTS agent_messages_ts ON agent_messages(ts);
+CREATE TABLE IF NOT EXISTS auth_failures (ts INTEGER, ip TEXT, kind TEXT);
+CREATE INDEX IF NOT EXISTS auth_failures_ip ON auth_failures(ip, ts);
+CREATE TABLE IF NOT EXISTS incidents (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, severity TEXT, symbol TEXT,
+    kind TEXT, detail TEXT, resolved INTEGER DEFAULT 0);
+"""),
+]
+
+
 class Store:
     def __init__(self, path: str):
         d = os.path.dirname(path)
@@ -66,7 +88,58 @@ class Store:
         self._lock = threading.RLock()
         self.db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
-        self.db.executescript(SCHEMA)
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA foreign_keys=ON")
+        self.migrate()
+
+    # ---- migrations ------------------------------------------------------
+    def schema_version(self) -> int:
+        self.db.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, "
+                        "name TEXT, applied_at INTEGER)")
+        r = self.db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+        if r is None:
+            # databases created before migrations existed already have v1 tables
+            has = self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trades'").fetchone()
+            return 1 if has else 0
+        return int(r)
+
+    def migrate(self) -> list[int]:
+        applied = []
+        with self._lock:
+            cur = self.schema_version()
+            if cur >= 1 and not self.db.execute("SELECT 1 FROM schema_migrations WHERE version=1").fetchone():
+                self.db.execute("INSERT INTO schema_migrations VALUES(1, 'initial schema (pre-existing)', ?)", (_now(),))
+            for ver, name, sql in MIGRATIONS:
+                if ver <= cur:
+                    continue
+                self.db.execute("BEGIN")
+                try:
+                    for stmt in _split_sql(sql):
+                        self.db.execute(stmt)
+                    self.db.execute("INSERT INTO schema_migrations VALUES(?,?,?)", (ver, name, _now()))
+                    self.db.execute("COMMIT")
+                except Exception:
+                    self.db.execute("ROLLBACK")
+                    raise
+                applied.append(ver)
+        return applied
+
+    def integrity_ok(self) -> bool:
+        return self.db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+    def backup(self, dest_dir: str, keep: int = 14) -> str:
+        """Consistent online backup (SQLite backup API) with rotation."""
+        os.makedirs(dest_dir, exist_ok=True)
+        name = time.strftime("millionx-%Y%m%d-%H%M%S.db", time.gmtime())
+        path = os.path.join(dest_dir, name)
+        with self._lock:
+            dst = sqlite3.connect(path)
+            self.db.backup(dst)
+            dst.close()
+        files = sorted(f for f in os.listdir(dest_dir) if f.startswith("millionx-") and f.endswith(".db"))
+        for f in files[:-keep]:
+            os.remove(os.path.join(dest_dir, f))
+        return path
 
     # ---- generic ---------------------------------------------------------
     def x(self, sql: str, args: Iterable[Any] = ()) -> sqlite3.Cursor:
@@ -122,21 +195,58 @@ class Store:
         self.x(f"INSERT OR IGNORE INTO trades({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
                [int(t[c]) if c == "virtual" else t[c] for c in cols])
 
+    ORDER_COLS = ["client_id", "exchange_id", "symbol", "side", "type", "qty", "price", "status", "purpose",
+                  "position_id", "mode", "raw", "created_at", "updated_at", "filled_qty", "avg_price", "reconciled_at"]
+
+    def claim_order(self, client_id: str, symbol: str, side: str, type_: str, qty: float, purpose: str,
+                    mode: str) -> bool:
+        """Atomically reserve a client id before sending. False = already used (duplicate)."""
+        cur = self.x("INSERT OR IGNORE INTO orders(client_id,symbol,side,type,qty,status,purpose,mode,raw,created_at,"
+                     "updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                     (client_id, symbol, side, type_, qty, "CLAIMED", purpose, mode, "{}", _now(), _now()))
+        return cur.rowcount == 1
+
     def upsert_order(self, o: dict[str, Any]) -> None:
-        o = dict(o)
-        o.setdefault("created_at", _now())
+        """Insert or update only the provided fields (never blanks known values)."""
+        o = {k: v for k, v in o.items() if k in self.ORDER_COLS}
+        if "raw" in o:
+            o["raw"] = json.dumps(o["raw"] or {}, default=str)
         o["updated_at"] = _now()
-        cols = ["client_id", "exchange_id", "symbol", "side", "type", "qty", "price", "status", "purpose",
-                "position_id", "mode", "raw", "created_at", "updated_at"]
-        o["raw"] = json.dumps(o.get("raw", {}), default=str)
-        self.x(f"INSERT INTO orders({','.join(cols)}) VALUES({','.join('?' * len(cols))}) ON CONFLICT(client_id) "
-               "DO UPDATE SET exchange_id=excluded.exchange_id, status=excluded.status, raw=excluded.raw, "
-               "updated_at=excluded.updated_at", [o.get(c) for c in cols])
+        with self._lock:
+            if self.one("SELECT 1 FROM orders WHERE client_id=?", (o["client_id"],)):
+                keys = [k for k in o if k != "client_id"]
+                self.x(f"UPDATE orders SET {', '.join(k + '=?' for k in keys)} WHERE client_id=?",
+                       [o[k] for k in keys] + [o["client_id"]])
+            else:
+                o.setdefault("created_at", _now())
+                o.setdefault("raw", "{}")
+                keys = list(o)
+                self.x(f"INSERT INTO orders({','.join(keys)}) VALUES({','.join('?' * len(keys))})", [o[k] for k in keys])
 
     def notify(self, level: str, category: str, title: str, body: str) -> int:
         cur = self.x("INSERT INTO notifications(ts,level,category,title,body) VALUES(?,?,?,?,?)",
                      (_now(), level, category, title, body))
         return int(cur.lastrowid)
+
+
+def _split_sql(sql: str) -> list[str]:
+    """Split a migration script into statements, keeping trigger bodies whole."""
+    out, buf, depth = [], [], 0
+    for line in sql.splitlines():
+        if not line.strip():
+            continue
+        buf.append(line)
+        up = line.upper()
+        depth += up.count(" BEGIN ") + (1 if up.rstrip().endswith(" BEGIN") else 0)
+        if line.rstrip().endswith(";"):
+            if "END;" in up and depth:
+                depth = 0
+            if depth == 0:
+                out.append("\n".join(buf))
+                buf = []
+    if buf:
+        out.append("\n".join(buf))
+    return [x for x in out if x.strip() and not x.strip().upper().startswith("PRAGMA JOURNAL_MODE")]
 
 
 def _now() -> int:

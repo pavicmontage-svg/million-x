@@ -182,6 +182,27 @@ class PaperExchange(Exchange):
                 out["funding"] += -v
         return out
 
+    def positions(self) -> dict[str, tuple[float, float]]:
+        with self._lock:
+            return {s: (p.qty, p.entry) for s, p in self.pos.items() if p.qty != 0}
+
+    def open_conditionals(self, symbol: str) -> list[dict[str, Any]]:
+        with self._lock:
+            return [{"client_id": c.client_id, "type": c.type, "trigger": c.trigger, "status": "NEW",
+                     "close_position": c.close_position, "qty": c.qty or 0.0}
+                    for c in self.cond.values() if c.symbol == symbol]
+
+    def query_conditional(self, symbol: str, client_id: str) -> OrderResult:
+        with self._lock:
+            c = self.cond.get(client_id)
+            if c is None:
+                raise ExchangeError("algo order does not exist", code=-2013)
+            return OrderResult(client_id, client_id, symbol, c.side, c.type, "NEW", c.qty or 0.0)
+
+    def book_price(self, symbol: str, side: str) -> float:
+        return self._px(symbol, side) / (1 + self.fees.slippage_bps / 1e4) if side == "BUY" else \
+            self._px(symbol, side) / (1 - self.fees.slippage_bps / 1e4)
+
     # simulation hook: called by the engine on every closed 1m bar
     def on_bar(self, symbol: str, o: float, h: float, l: float, c: float, ts: int) -> list[str]:
         fired = []
