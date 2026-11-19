@@ -38,10 +38,13 @@ class LiveSocket(private val api: Api, private val store: SecureStore) {
         wanted = false
         ws?.close(1000, "bye")
         ws = null
+        _connected.value = false
     }
 
     private fun connect() {
         val base = store.serverUrl ?: return
+        if (store.token == null) return
+        ws?.cancel()
         val url = base.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") + "/ws"
         ws = api.http.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -52,10 +55,18 @@ class LiveSocket(private val api: Api, private val store: SecureStore) {
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val j = runCatching { parseJson(text) }.getOrNull() ?: return
+                if (j.str("type") == "error" && j.str("data") == "unauthorized") {
+                    wanted = false
+                    Session.expire("Live connection rejected: pair again")
+                    return
+                }
                 _events.tryEmit(LiveEvent(j.str("type"), j.long("ts"), j["data"]))
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = retry()
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (code == 4401) { wanted = false; Session.expire("Live connection rejected: pair again") }
+                retry()
+            }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = retry()
         })
     }

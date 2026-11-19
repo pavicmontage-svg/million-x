@@ -12,6 +12,13 @@ import java.util.concurrent.TimeUnit
 
 class ApiException(val code: Int, message: String) : IOException(message)
 
+/** App-wide session events (token expired/revoked -> back to pairing). */
+object Session {
+    private val _expired = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val expired: kotlinx.coroutines.flow.SharedFlow<String> = _expired
+    fun expire(reason: String) { _expired.tryEmit(reason) }
+}
+
 /** REST client for the MILLION-X backend. All calls run on Dispatchers.IO. */
 class Api(private val store: SecureStore) {
     val http: OkHttpClient = OkHttpClient.Builder()
@@ -27,6 +34,16 @@ class Api(private val store: SecureStore) {
     suspend fun post(path: String, body: String = "{}"): JsonElement = call("POST", path, body)
     suspend fun put(path: String, body: String): JsonElement = call("PUT", path, body)
 
+    /** Health returns 503 with a useful body when degraded; read it either way. */
+    suspend fun health(): JsonElement = withContext(Dispatchers.IO) {
+        if (base.isEmpty()) throw ApiException(0, "Server not configured")
+        http.newCall(Request.Builder().url("$base/api/health").get().build()).execute().use { r ->
+            val text = r.body?.string().orEmpty()
+            if (r.code != 200 && r.code != 503) throw ApiException(r.code, "HTTP ${r.code}")
+            parseJson(text)
+        }
+    }
+
     suspend fun call(method: String, path: String, body: String?): JsonElement = withContext(Dispatchers.IO) {
         if (base.isEmpty()) throw ApiException(0, "Server not configured")
         val b = Request.Builder().url(base + path)
@@ -39,7 +56,13 @@ class Api(private val store: SecureStore) {
             val text = r.body?.string().orEmpty()
             val parsed = runCatching { parseJson(text) }.getOrNull()
             if (!r.isSuccessful) {
-                throw ApiException(r.code, parsed.str("error").ifEmpty { "HTTP ${r.code}" })
+                if (r.code == 401 && path != "/api/pair") Session.expire("Session expired or device revoked — pair again")
+                val msg = when (r.code) {
+                    429 -> "Too many requests — slow down and retry"
+                    503 -> parsed.str("error").ifEmpty { "Server degraded (see Health)" }
+                    else -> parsed.str("error").ifEmpty { "HTTP ${r.code}" }
+                }
+                throw ApiException(r.code, msg)
             }
             parsed ?: throw ApiException(r.code, "Invalid response")
         }

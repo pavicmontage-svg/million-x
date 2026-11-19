@@ -26,15 +26,20 @@ class MxMessagingService : FirebaseMessagingService() {
     @SuppressLint("MissingPermission")
     override fun onMessageReceived(message: RemoteMessage) {
         val level = message.data["level"] ?: "info"
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
         val n = message.notification
+        val title = n?.title ?: message.data["title"] ?: "MILLION-X"
+        val body = n?.body ?: message.data["body"] ?: ""
         val intent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
-        val notif = NotificationCompat.Builder(this, "mx_$level")
+        val channel = if (level in setOf("critical", "warning", "info")) "mx_$level" else "mx_info"
+        val notif = NotificationCompat.Builder(this, channel)
             .setSmallIcon(R.drawable.ic_stat_mx)
-            .setContentTitle(n?.title ?: "MILLION-X")
-            .setContentText(n?.body ?: "")
-            .setStyle(NotificationCompat.BigTextStyle().bigText(n?.body ?: ""))
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(if (level == "critical") NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(intent)
             .setAutoCancel(true)

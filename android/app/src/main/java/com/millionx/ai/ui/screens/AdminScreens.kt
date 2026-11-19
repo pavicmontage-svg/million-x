@@ -150,27 +150,40 @@ fun AdminScreen(nav: NavController, onLogout: () -> Unit) {
                     }
                     MxCard {
                         SectionTitle("Live trading gate")
+                        val gate = s["live_gate"]
+                        KV("Authorisation", if (gate.bool("valid")) "VALID until ${fmtTime(gate.num("expires").toLong())}"
+                           else "NOT VALID — ${gate.str("reason")}", if (gate.bool("valid")) MX.Down else MX.Muted)
+                        Text("Step 1 — Demo preflight (execution mechanics on Binance DEMO). Does NOT make live ready.",
+                            style = MaterialTheme.typography.bodySmall)
                         val pf = s["preflight"]
-                        KV("Preflight", when { pf == null -> "never run"; pf.bool("ok") -> "PASSED"; else -> "FAILED" },
-                            if (pf.bool("ok")) MX.Up else MX.Down)
+                        KV("Demo preflight", when { pf == null -> "never run"; pf.bool("ok") -> "PASSED ${fmtTime(pf.num("ts").toLong())}"
+                            else -> "FAILED" }, if (pf.bool("ok")) MX.Up else MX.Down)
                         pf["checks"].keys().forEach { k ->
-                            KV(k, if (pf["checks"][k].bool("pass")) "pass" else pf["checks"][k].str("detail").take(60),
-                                if (pf["checks"][k].bool("pass")) MX.Up else MX.Down)
+                            if (!pf["checks"][k].bool("pass")) KV(k, pf["checks"][k].str("detail").take(60), MX.Down)
                         }
-                        KV("Live unlocked", if (s.bool("live_unlocked")) "YES" else "no")
-                        OutlinedButton(onClick = { auth("Run preflight on Binance Demo") {
-                            vm.action("POST", "/api/preflight", "{}", "Preflight finished") } }) {
-                            Text("Run execution & security preflight (demo)")
+                        OutlinedButton(onClick = { auth("Run demo preflight") {
+                            vm.action("POST", "/api/preflight", "{}", "Demo preflight finished") } }) { Text("Run demo preflight") }
+                        Text("Step 2 — Live key & account check (Futures on, withdrawals off, IP-restricted, equity, margin).",
+                            style = MaterialTheme.typography.bodySmall)
+                        val lc = s["live_check"]
+                        KV("Live check", when { lc == null -> "never run"; lc.bool("ok") -> "PASSED ${fmtTime(lc.num("ts").toLong())}"
+                            else -> "FAILED" }, if (lc.bool("ok")) MX.Up else MX.Down)
+                        lc["checks"].keys().forEach { k ->
+                            KV(k, lc["checks"][k].str("detail").take(50), if (lc["checks"][k].bool("pass")) MX.Up else MX.Down)
                         }
+                        OutlinedButton(onClick = { auth("Check live key and account") {
+                            vm.action("POST", "/api/live-check", "{}", "Live check finished") } }) { Text("Run live key check") }
+                        Text("Step 3 — Owner confirmation. Valid for a limited time; any key rotation or risk/config change " +
+                                "invalidates it.", style = MaterialTheme.typography.bodySmall)
                         OutlinedTextField(phrase, { phrase = it }, label = { Text("Type: I UNDERSTAND THE RISK") },
                             singleLine = true, modifier = Modifier.fillMaxWidth())
                         Button(enabled = phrase == "I UNDERSTAND THE RISK", onClick = {
                             auth("Unlock live trading") {
-                                vm.action("POST", "/api/unlock-live", jsonBody("confirm" to phrase), "Live trading unlocked")
+                                vm.action("POST", "/api/unlock-live", jsonBody("confirm" to phrase), "Live authorisation granted")
                             }
-                        }) { Text("Unlock live trading") }
-                        Text("Only bots marked LIVE_ELIGIBLE (walk-forward + Monte Carlo + paper evidence) trade live.",
-                            color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                        }) { Text("Authorise live trading") }
+                        Text("Only bots that are LIVE_ELIGIBLE (walk-forward + Monte Carlo + paper evidence) can trade live. " +
+                                "Default and fallback mode is PAPER.", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

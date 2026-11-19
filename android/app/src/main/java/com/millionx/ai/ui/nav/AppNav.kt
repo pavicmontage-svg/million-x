@@ -51,6 +51,8 @@ import com.millionx.ai.ui.screens.StrategyCenterScreen
 import com.millionx.ai.ui.screens.TradesScreen
 import com.millionx.ai.ui.theme.MX
 import com.millionx.ai.ui.vm.LiveVM
+import com.millionx.ai.ui.vm.HealthVM
+import com.millionx.ai.ui.components.ModeRibbon
 
 private data class Tab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -66,7 +68,9 @@ private val TABS = listOf(
 fun AppNav(onLogout: () -> Unit) {
     val nav = rememberNavController()
     val live: LiveVM = viewModel()
+    val health: HealthVM = viewModel()
     val snack = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) { health.messages.collect { snack.showSnackbar(it) } }
     val ctx = LocalContext.current
     // Haptic + snackbar for important live events (trades, approvals, risk alerts)
     LaunchedEffect(Unit) {
@@ -88,6 +92,7 @@ fun AppNav(onLogout: () -> Unit) {
     Scaffold(
         containerColor = MX.Bg,
         snackbarHost = { SnackbarHost(snack) },
+        topBar = { ModeRibbon(health) },
         bottomBar = {
             NavigationBar(containerColor = MX.Surface) {
                 TABS.forEach { t ->
@@ -109,7 +114,7 @@ fun AppNav(onLogout: () -> Unit) {
             }
         },
     ) { pad ->
-        NavHost(nav, startDestination = "dashboard", modifier = Modifier.padding(bottom = pad.calculateBottomPadding())) {
+        NavHost(nav, startDestination = "dashboard", modifier = Modifier.padding(pad)) {
             composable("dashboard") { DashboardScreen(nav) }
             composable("bots") { BotsScreen(nav) }
             composable("bot/{id}") { BotDetailScreen(nav, it.arguments?.getString("id") ?: "") }

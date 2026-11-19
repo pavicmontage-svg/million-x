@@ -59,8 +59,9 @@ fun BoardroomScreen(nav: NavController) {
     val auth = LocalAuth.current
     Screen("AI Boardroom", nav, meetings.messages, actions = { RefreshIcon { agents.refresh(); meetings.refresh() } }) {
         item {
-            Banner("Executives are AI agents. They advise and can only tighten risk automatically; " +
-                    "everything else waits for your decision. No activity is simulated.", MX.Info)
+            Banner("Executives are AI agents. Agenda: CEO, CIO, Quant, CRO, COO reports → discussion → CEO decision → " +
+                    "independent CRO approval/veto. Only CRO-approved tightening is applied automatically; everything " +
+                    "else waits for you. Items marked DETERMINISTIC ran without a language model.", MX.Info)
         }
         item { SectionTitle("Executive team") }
         item {
@@ -102,31 +103,60 @@ fun BoardroomScreen(nav: NavController) {
 }
 
 @Composable
+private fun ModeChip(mode: String) {
+    when (mode) {
+        "llm" -> Chip("AI (LLM)", MX.Up)
+        "deterministic" -> Chip("DETERMINISTIC", MX.Info)
+        "" -> {}
+        else -> Chip(mode.uppercase(), MX.Warn)
+    }
+}
+
+@Composable
 private fun MeetingCard(mt: JsonElement) {
     MxCard {
-        Text("Meeting ${mt.str("id")} · ${fmtTime(mt.num("ts").toLong())}", fontWeight = FontWeight.SemiBold)
-        val dis = mt.list("disagreements")
-        if (dis.isNotEmpty()) {
-            SectionTitle("Disagreements")
-            dis.forEach { d ->
-                val pos = d["positions"]
-                Text("${d.str("topic")}: " + pos.keys().joinToString { "${it.removePrefix("exec_").uppercase()}=${pos.str(it)}" },
-                    color = MX.Warn, style = MaterialTheme.typography.bodySmall)
-            }
-        } else Text("No recorded disagreements", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
-        val outs = mt["outputs"]
-        outs.keys().forEach { k ->
-            val o = outs[k]
-            Text("${k.removePrefix("exec_").uppercase()} (${o.str("mode")}): ${o.str("summary")}", style = MaterialTheme.typography.bodySmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Meeting ${mt.str("id")} · ${fmtTime(mt.num("ts").toLong())}", fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
+            if (!mt.bool("llm", true)) Chip("LLM OFFLINE", MX.Warn)
         }
-        val recs = mt.list("recommendations")
-        if (recs.isNotEmpty()) SectionTitle("Recommendations")
-        recs.forEach { r ->
-            Text("• [${r.str("from").removePrefix("exec_").uppercase()}] ${r.str("action")} ${r.str("target")} " +
-                    "(${r.str("direction")}) — ${r.str("status")}", style = MaterialTheme.typography.bodySmall,
-                color = if (r.bool("traceable", true)) MX.Text else MX.Warn)
-            Text("   evidence: ${r.list("evidence_ids").joinToString { it.toString().trim('"') }}", color = MX.Muted,
-                style = MaterialTheme.typography.bodySmall)
+        val agenda = mt.list("agenda")
+        if (agenda.isEmpty()) {
+            Text("Meeting from an older version (no agenda recorded)", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        agenda.forEach { it0 ->
+            val n = it0.num("item").toInt()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("$n. ${it0.str("title")}", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                ModeChip(it0.str("mode"))
+            }
+            if (it0.str("summary").isNotEmpty()) Text(it0.str("summary"), style = MaterialTheme.typography.bodySmall)
+            if (it0.str("note").isNotEmpty()) Text(it0.str("note"), color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+            if (n == 6) {
+                val dis = it0.list("disagreements")
+                if (dis.isEmpty()) Text("No disagreements recorded", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                dis.forEach { d ->
+                    val pos = d["positions"]
+                    Text("${d.str("topic")}: " + pos.keys().joinToString { "${it.removePrefix("exec_").uppercase()}=${pos.str(it)}" },
+                        color = MX.Warn, style = MaterialTheme.typography.bodySmall)
+                }
+                it0.list("discussion").forEach { x ->
+                    Text("↳ ${x.str("agent").removePrefix("exec_").uppercase()} → ${x.str("final_stance")}: ${x.str("summary")}",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (n == 8) {
+                it0.list("verdicts").forEach { v ->
+                    val vetoed = v.str("cro").startsWith("vetoed")
+                    Text("• ${v.str("action")} ${v.str("target")} (${v.str("direction")}) → ${v.str("status")}" +
+                            (if (vetoed) " — ${v.str("cro_reason")}" else ""),
+                        color = if (vetoed) MX.Down else MX.Up, style = MaterialTheme.typography.bodySmall)
+                    Text("   evidence: ${v.list("evidence_ids").joinToString { it.toString().trim('"') }}", color = MX.Muted,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                if (it0.list("verdicts").isEmpty()) Text("No decisions to review", color = MX.Muted,
+                    style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
@@ -224,7 +254,7 @@ fun AgentDetailScreen(nav: NavController, id: String) {
                         MxCard {
                             Row {
                                 Text(fmtTime(r.num("ts").toLong()), modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                                Chip(o.str("mode", "?"), if (o.str("mode") == "llm") MX.Up else MX.Info)
+                                ModeChip(o.str("mode", "?"))
                             }
                             Text(o.str("summary"), style = MaterialTheme.typography.bodySmall)
                             o.list("findings").take(5).forEach { f ->

@@ -27,6 +27,7 @@ import com.millionx.ai.data.numOrNull
 import com.millionx.ai.data.pct
 import com.millionx.ai.data.str
 import com.millionx.ai.ui.components.Banner
+import com.millionx.ai.ui.components.StaleBanner
 import com.millionx.ai.ui.components.Chip
 import com.millionx.ai.ui.components.EmergencyButton
 import com.millionx.ai.ui.components.GoalRing
@@ -67,6 +68,9 @@ fun DashboardScreen(nav: NavController) {
         item {
             LoadBox(state, { vm.refresh() }) { d ->
                 androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StaleBanner(vm)
+                    if (d.str("data_kind").isNotEmpty()) Banner("Results shown are from: ${d.str("data_kind")}",
+                        if (d.str("mode") == "live") MX.Down else MX.Info)
                     if (!d.bool("engine_running")) Banner("Trading engine not running: ${d.str("engine_error", "unknown")}", MX.Down)
                     if (d.bool("emergency_stop")) Banner("EMERGENCY STOP ACTIVE — no new trades. Reset in Risk Center.", MX.Down)
                     if (d["data_fresh"] != null && !d.bool("data_fresh")) Banner("Market data stale: new entries blocked.")

@@ -56,7 +56,27 @@ fun RiskScreen(nav: NavController) {
     val st by vm.state.collectAsState()
     val auth = LocalAuth.current
     val edits = remember { mutableStateMapOf<String, String>() }
-    Screen("Risk Management Center", nav, vm.messages, actions = { RefreshIcon { vm.refresh() } }) {
+    val inc = rememberResource("/api/incidents?limit=30", 15_000, setOf("alert"))
+    val incidents by inc.state.collectAsState()
+    Screen("Risk Management Center", nav, vm.messages, actions = { RefreshIcon { vm.refresh(); inc.refresh() } }) {
+        item { com.millionx.ai.ui.components.StaleBanner(vm) }
+        item {
+            LoadBox(incidents, { inc.refresh() }) { list ->
+                val open = list.arr.filter { !it.bool("resolved") }
+                if (open.isNotEmpty()) MxCard {
+                    SectionTitle("Open execution incidents (${open.size})")
+                    open.take(10).forEach { i ->
+                        Text("${i.str("severity").uppercase()} · ${i.str("symbol")} · ${i.str("kind")}",
+                            color = if (i.str("severity") == "critical") MX.Down else MX.Warn, fontWeight = FontWeight.SemiBold)
+                        Text(i.str("detail"), color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { auth("Mark incident resolved") {
+                            inc.action("POST", "/api/incidents/${i.num("id").toLong()}/resolve", "{}", "Resolved") } }) {
+                            Text("Mark resolved")
+                        }
+                    }
+                }
+            }
+        }
         item {
             LoadBox(st, { vm.refresh() }) { d ->
                 val s = d["state"]; val lim = d["limits"]
@@ -69,7 +89,9 @@ fun RiskScreen(nav: NavController) {
                         KV("Today / limit", "${d.numOrNull("daily_pnl").pct(2)} / -${lim.numOrNull("max_daily_loss").pct(1)}",
                             pnlColor(d.numOrNull("daily_pnl")))
                         KV("Risk per trade now", d.numOrNull("risk_fraction_now").pct(3))
-                        KV("Risk oversight factor (tighten-only)", d.numOrNull("tighten_factor").fmt(2))
+                        KV("AI risk oversight factor (tighten-only)", d.numOrNull("tighten_factor").fmt(2))
+                        Text("All values above are deterministic rule outputs, not AI estimates.", color = MX.Muted,
+                            style = MaterialTheme.typography.bodySmall)
                         KV("Consecutive losses", s.num("consecutive_losses").toInt().toString())
                         KV("Open exposure", "${d.numOrNull("exposure").fmt(2)} USDT")
                         KV("Data fresh / connection", "${s.bool("data_fresh")} / ${s.bool("connection_ok")}")
@@ -90,7 +112,9 @@ fun RiskScreen(nav: NavController) {
                         Text(d.str("feasibility_assumption"), color = MX.Muted, style = MaterialTheme.typography.bodySmall)
                     }
                     MxCard {
-                        SectionTitle("Hard limits (owner only, audited)")
+                        SectionTitle("Limits (owner only, audited; server enforces hard bounds)")
+                        Text("Values outside the governance bounds are refused by the server. Changing any limit " +
+                                "invalidates a live authorisation.", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
                         lim.keys().forEach { k ->
                             val cur = (lim[k] as? JsonPrimitive)?.content ?: ""
                             OutlinedTextField(value = edits[k] ?: cur, onValueChange = { edits[k] = it }, label = { Text(k) },
@@ -219,6 +243,17 @@ fun StrategyCenterScreen(nav: NavController) {
                         }
                         Text("Pairs ≥ 0.5 are treated as one opinion by the supervisor.", color = MX.Muted,
                             style = MaterialTheme.typography.bodySmall)
+                    }
+                    MxCard {
+                        SectionTitle("Return correlation (daily R, shadow books, 30 d)")
+                        val rc = d["return_correlation"]
+                        var any = false
+                        rc.keys().forEach { a ->
+                            val row = rc[a]
+                            val hi = row.keys().filter { it > a && (row.numOrNull(it) ?: 0.0) >= 0.6 }
+                            if (hi.isNotEmpty()) { any = true; KV(a, hi.joinToString { "$it ${row.numOrNull(it).fmt(2)}" }, MX.Warn) }
+                        }
+                        if (!any) Text("No strongly correlated pairs (or not enough days of data).", color = MX.Muted)
                     }
                     MxCard {
                         SectionTitle("Daily weight cycles")

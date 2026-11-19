@@ -24,6 +24,7 @@ import com.millionx.ai.data.bool
 import com.millionx.ai.data.fmt
 import com.millionx.ai.data.get
 import com.millionx.ai.data.keys
+import com.millionx.ai.data.list
 import com.millionx.ai.data.num
 import com.millionx.ai.data.numOrNull
 import com.millionx.ai.data.pct
@@ -101,6 +102,8 @@ fun BotDetailScreen(nav: NavController, botId: String) {
     val tvm = rememberResource("/api/bots/$botId/trades?limit=100", 30_000, setOf("trade"))
     val state by vm.state.collectAsState()
     val trades by tvm.state.collectAsState()
+    val evm = rememberResource("/api/bots/$botId/eligibility", 60_000)
+    val elig by evm.state.collectAsState()
     val auth = LocalAuth.current
     val edits = remember { mutableStateMapOf<String, String>() }
     Screen(botId, nav, vm.messages) {
@@ -169,6 +172,26 @@ fun BotDetailScreen(nav: NavController, botId: String) {
                 }
             }
         }
+        item {
+            LoadBox(elig, { evm.refresh() }) { d ->
+                MxCard {
+                    val el = d["eligibility"]
+                    SectionTitle("Live eligibility (evidence, not opinion)")
+                    KV("Eligible", if (el.bool("eligible")) "YES" else "NO", if (el.bool("eligible")) MX.Up else MX.Down)
+                    val ch = el["checks"]
+                    ch.keys().forEach { k -> KV(k, ch[k].str("detail"), if (ch[k].bool("pass")) MX.Up else MX.Down) }
+                    val dg = d["degradation"]
+                    KV("Degradation", if (dg.bool("degraded")) "DEGRADED" else (dg.str("reason").ifEmpty { "not detected" }),
+                        if (dg.bool("degraded")) MX.Down else MX.Muted)
+                    SectionTitle("Performance by market regime")
+                    d.list("regimes").forEach { r ->
+                        KV("${r.str("regime")} (${r.str("book")})",
+                            "n=${r.num("n").toInt()} PF ${r.numOrNull("profit_factor").fmt(2)} exp ${r.numOrNull("exp_r").fmt(2)}R")
+                    }
+                    if (d.list("regimes").isEmpty()) Text("No closed trades yet", color = MX.Muted)
+                }
+            }
+        }
         item { SectionTitle("Trade history") }
         item {
             LoadBox(trades, { tvm.refresh() }) { list ->
@@ -186,7 +209,8 @@ fun TradeRow(t: JsonElement) {
     MxCard {
         Row(Modifier.fillMaxWidth()) {
             Text("${t.str("side")} ${t.str("symbol")}", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            if (t.bool("virtual")) Chip("SHADOW", MX.Muted)
+            if (t.bool("virtual")) Chip("SIMULATED · shadow", MX.Muted) else Chip(t.str("mode").uppercase(),
+                if (t.str("mode") == "live") MX.Down else MX.Info)
             Text(" ${t.numOrNull("net_pnl").fmt(4)}", color = pnlColor(t.numOrNull("net_pnl")))
         }
         Text("${t.str("bot_id")} · ${t.str("exit_reason")} · ${t.numOrNull("r_multiple").fmt(2)}R · fees ${t.numOrNull("fees").fmt(4)}",

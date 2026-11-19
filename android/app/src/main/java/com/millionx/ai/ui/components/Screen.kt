@@ -3,6 +3,7 @@ package com.millionx.ai.ui.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -51,9 +52,11 @@ fun Screen(
     LaunchedEffect(messages) { messages.collect { snack.showSnackbar(it) } }
     Scaffold(
         containerColor = MX.Bg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),  // the global ribbon owns the status-bar inset
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text(title) },
                 navigationIcon = {
                     if (nav != null && nav.previousBackStackEntry != null) {
