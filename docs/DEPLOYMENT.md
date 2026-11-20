@@ -1,6 +1,16 @@
 # Deployment
 
-## 1. Server
+## 0. Sve s mobitela (preporučeno): Hetzner + cloud-init
+
+1. **GitHub token:** github.com → profilna slika → *Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token*. Za *Repository access* odaberi *Only select repositories → million-x*, za *Permissions → Contents* odaberi *Read-only*, rok 7 dana. Kopiraj token.
+2. **Hetzner Cloud** (console.hetzner.cloud) → *Add Server*: lokacija Njemačka ili Finska, image **Ubuntu 24.04**, najmanji tip (x86), javni IPv4 uključen. SSH ključ ne treba; root lozinka stiže e-mailom.
+3. U polje **Cloud config** zalijepi sadržaj datoteke `deploy/cloud-init.yaml` i zamijeni `PASTE_GITHUB_TOKEN_HERE` i `PASTE_PAIRING_CODE_HERE` (kod koji sam smisliš, najmanje 12 znakova). Klikni *Create & Buy*.
+4. Pričekaj 5–10 minuta, zatim u pregledniku otvori `https://A-B-C-D.sslip.io/api/health`, gdje je A.B.C.D IP servera s točkama zamijenjenima crticama.
+5. U aplikaciji upiši tu adresu (bez `/api/health`) i svoj kod → *Pair device*. Kod vrijedi 72 h, samo jednom, i samo dok nijedan vlasnik nije uparen.
+
+Server se pokreće u **PAPER** načinu. Ako traka u aplikaciji pokazuje „NO MARKET DATA“, Binance odbija IP servera; tada izbriši server i napravi novi na drugoj lokaciji.
+
+## 1. Server (ručno, s računala)
 
 Bilo koji Linux VPS (2 vCPU / 4 GB RAM dovoljno je za trading; walk-forward na 2–3 godine i 10 simbola traje satima pa je s više CPU-a brže). Potrebni su Docker i Docker Compose te domena koja pokazuje na IP servera (za HTTPS).
 

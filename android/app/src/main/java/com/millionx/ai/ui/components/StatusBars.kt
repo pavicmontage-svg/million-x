@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.millionx.ai.data.bool
 import com.millionx.ai.data.get
+import com.millionx.ai.data.num
 import com.millionx.ai.data.str
 import com.millionx.ai.ui.theme.MX
 import com.millionx.ai.ui.vm.HealthVM
@@ -64,6 +65,8 @@ fun ModeRibbon(vm: HealthVM) {
         h == null -> "connecting…" to MX.Muted
         h.bool("emergency_stop") -> "EMERGENCY STOP ACTIVE · ${modeLabel(h.str("mode")).first}" to MX.Down
         !h.bool("engine_running") -> "ENGINE STOPPED · ${modeLabel(h.str("mode")).first}" to MX.Down
+        !h.bool("ok") && h.num("market_symbols") == 0.0 && h.str("mode").isNotEmpty() ->
+            "NO MARKET DATA (exchange unreachable?) · ${modeLabel(h.str("mode")).first}" to MX.Warn
         else -> modeLabel(h.str("mode"))
     }
     Row(

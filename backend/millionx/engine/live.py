@@ -94,6 +94,7 @@ class TradingEngine:
         self.execm = ExecutionManager(self)
         self._load_state()
         self.risk.reset(self.allocated_equity, now_ms())
+        self.risk.state.data_fresh = False  # no entries until real market data has arrived
         if self.s.mode == "live":
             from ..validation import enforce_live_statuses
             enforce_live_statuses(self)

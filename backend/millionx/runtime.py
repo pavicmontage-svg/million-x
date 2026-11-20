@@ -126,9 +126,12 @@ class Runtime:
              "startup_reconciled": e.started_reconcile if e else False,
              "schema_version": self.store.schema_version(), "db_integrity": self.store.kv_get("db_integrity"),
              "audit_chain": self.store.kv_get("audit_verify"), "last_backup": self.store.kv_get("last_backup"),
-             "unresolved_critical_incidents": unresolved, "live_gate": self.gate.status()}
+             "unresolved_critical_incidents": unresolved, "live_gate": self.gate.status(),
+             "market_symbols": len(e.universe) if e else 0, "last_errors": e.errors[-3:] if e else []}
+        warming_up = bool(e and now - e.started_at < 120_000)
         h["ok"] = bool(alive and (tick_age is None or tick_age < 120) and unresolved == 0
-                       and (h["db_integrity"] or {}).get("ok", True))
+                       and (h["db_integrity"] or {}).get("ok", True)
+                       and (warming_up or (e is not None and len(e.universe) > 0 and e.risk.state.data_fresh)))
         return h
 
     def start_watchdog(self, interval_s: int = 30, backup_dir: Optional[str] = None) -> None:
