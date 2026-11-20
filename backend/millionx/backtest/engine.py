@@ -44,6 +44,11 @@ class BacktestConfig:
     record_equity_every: int = 15             # minutes
     daily_competition: bool = True
     assumed_spread_bps: float = 1.0           # historical klines carry no book: spread assumed for leverage tiers
+    # cost scenario knobs (2.0): half the spread is paid on every market fill, entries can be delayed
+    # (latency, in 1m bars) and a deterministic share of entries is rejected by the "exchange"
+    spread_bps: float = 0.0
+    entry_delay_bars: int = 0
+    reject_prob: float = 0.0
 
 
 @dataclass
@@ -68,7 +73,7 @@ class _Sim:
     def __init__(self, settings: Settings, cfg: BacktestConfig):
         self.s, self.cfg = settings, cfg
         self.fees = settings.fees
-        self.slip = settings.fees.slippage_bps / 1e4
+        self.slip = settings.fees.slippage_bps / 1e4 + cfg.spread_bps / 2e4
 
     def fill_entry(self, side: Side, ref: float) -> float:
         return ref * (1 + self.slip * int(side))
@@ -77,6 +82,14 @@ class _Sim:
         # market-type exits (stops, time stop) pay slippage against us; TP orders
         # are TAKE_PROFIT_MARKET in live too, so they get the same treatment.
         return ref * (1 - self.slip * int(side))
+
+
+def _rejected(key: str, p: float) -> bool:
+    """Deterministic pseudo-random order rejection (reproducible runs)."""
+    if p <= 0:
+        return False
+    import hashlib
+    return int(hashlib.sha1(key.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF < p
 
 
 def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> BacktestResult:
@@ -145,6 +158,7 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
     virtual: dict[tuple[str, str], Position] = {}
     pending_real: list[tuple[Signal, Any]] = []
     pending_virt: list[Signal] = []
+    ready_at: dict[str, int] = {}
     trades: list[Trade] = []
     vtrades: list[Trade] = []
     rejections: dict[str, int] = {}
@@ -202,7 +216,7 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
         new_pending_real, new_pending_virt = [], []
         for sig, dec in pending_real:
             k = pos_idx[sig.symbol].get(t)
-            if k is None:
+            if k is None or t < ready_at.get(sig.id, 0):
                 new_pending_real.append((sig, dec))
                 continue
             b = data[sig.symbol]
@@ -213,7 +227,7 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
             real[sig.symbol] = open_pos(sig, float(b.open[k]), t, dec.qty, dec.leverage, dec.risk_amount, False)
         for sig in pending_virt:
             k = pos_idx[sig.symbol].get(t)
-            if k is None:
+            if k is None or t < ready_at.get(sig.id, 0):
                 new_pending_virt.append(sig)
                 continue
             b = data[sig.symbol]
@@ -280,6 +294,10 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
                     all_sigs.append(s)
         for s in all_sigs:
             if (s.bot_id, s.symbol) not in virtual and not any(v.bot_id == s.bot_id and v.symbol == s.symbol for v in pending_virt):
+                if _rejected(s.id, cfg.reject_prob):
+                    rejections["exchange_reject_sim"] = rejections.get("exchange_reject_sim", 0) + 1
+                    continue
+                ready_at[s.id] = t + (1 + cfg.entry_delay_bars) * MINUTE_MS
                 pending_virt.append(s)
 
         # mark-to-market equity for risk limits
@@ -306,7 +324,10 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
                 ap = mds[s.symbol].atr_pct15_at_1m(pos_idx[s.symbol][t])
                 dec = risk.size(s, cfg.rules[s.symbol], positions + [_pseudo(x, d) for x, d in pending_real],
                                 ap, t, mult, quality={"score": score, "spread_bps": cfg.assumed_spread_bps})
-                if dec.approved:
+                if dec.approved and _rejected("r" + s.id, cfg.reject_prob):
+                    rejections["exchange_reject_sim"] = rejections.get("exchange_reject_sim", 0) + 1
+                elif dec.approved:
+                    ready_at[s.id] = t + (1 + cfg.entry_delay_bars) * MINUTE_MS
                     pending_real.append((s, dec))
                 else:
                     key = (dec.reasons[0] if dec.reasons else "rejected").split(" ")[0]
