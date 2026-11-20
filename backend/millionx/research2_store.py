@@ -16,7 +16,7 @@ from .models import now_ms
 SNAPSHOT = os.path.join(os.path.dirname(__file__), "data", "research2_summary.json")
 KEEP = ("bot", "timeframe", "configs_tried", "oos", "max_drawdown", "positive_windows", "long_short", "by_regime",
         "by_symbol", "deflated_sharpe", "pbo", "cross_asset", "cost_scenarios", "most_chosen_config",
-        "parameter_stability", "checks", "verdict")
+        "parameter_stability", "checks", "verdict", "bootstrap", "positive_windows")
 
 
 def strategy_catalog() -> list[dict[str, Any]]:
