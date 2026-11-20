@@ -54,6 +54,16 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // One APK per CPU type keeps the download small: arm64-v8a = real phones (S25 Ultra),
+    // x86_64 = emulator for the UI tests. The embedded Python makes a universal APK >100 MB.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
     lint {
         abortOnError = false
         checkReleaseBuilds = false
