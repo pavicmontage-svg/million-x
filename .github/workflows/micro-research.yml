@@ -1,0 +1,33 @@
+name: micro-research
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pandas
+      - name: Collect per-symbol tables (branches md-*)
+        run: |
+          mkdir -p /tmp/md
+          URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          for ref in $(git ls-remote "$URL" 'refs/heads/md-*' | cut -f2); do
+            b=${ref#refs/heads/}; git clone -q --depth 1 -b "$b" "$URL" "/tmp/c_$b" && cp /tmp/c_$b/* /tmp/md/
+          done
+          ls -la /tmp/md
+      - run: mkdir -p /tmp/mr && cp /tmp/md/*.json /tmp/mr/ && python -m millionx.micro.research --data-dir /tmp/md --out /tmp/mr/micro_research.json
+      - run: cat /tmp/mr/micro_research.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch micro-research
+        run: |
+          cd /tmp/mr && git init -q -b micro-research && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "micro research ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" micro-research
