@@ -1,0 +1,29 @@
+name: research-forensic
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  forensic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-10sym-2025-01-2026-06-v1
+      - run: mkdir -p /tmp/fo && python -m millionx.research forensic --out /tmp/fo/forensic.json
+      - run: cat /tmp/fo/forensic.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch research-forensic
+        run: |
+          cd /tmp/fo && git init -q -b research-forensic && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "forensic ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" research-forensic
