@@ -90,7 +90,12 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
 
     # ---------------------------------------------------------------- misc
     async def health(request):
-        h = rt.health()
+        try:
+            h = rt.health()
+        except Exception as e:  # report, never a bare 500
+            return J({"ok": False, "service": "millionx", "mode": rt.s.mode, "engine_running": False,
+                      "health_error": f"{type(e).__name__}: {e}"}, 503)
+        h["service"] = "millionx"
         return J(h, 200 if h["ok"] else 503)
 
     async def pair(request):
@@ -679,7 +684,14 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         WebSocketRoute("/ws", ws),
     ]
     from starlette.middleware import Middleware
-    return Starlette(routes=routes, lifespan=lifespan, middleware=[Middleware(RateLimiter)])
+
+    async def on_error(request, exc):
+        import logging
+        logging.getLogger("millionx.api").exception("unhandled error on %s", request.url.path)
+        return JSONResponse({"error": f"server error: {type(exc).__name__}: {exc}"}, status_code=500)
+
+    return Starlette(routes=routes, lifespan=lifespan, middleware=[Middleware(RateLimiter)],
+                     exception_handlers={500: on_error})
 
 
 def _goal_probability(rt: Runtime, e) -> dict[str, Any]:

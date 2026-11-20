@@ -94,14 +94,15 @@ class Store:
 
     # ---- migrations ------------------------------------------------------
     def schema_version(self) -> int:
-        self.db.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, "
-                        "name TEXT, applied_at INTEGER)")
-        r = self.db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
-        if r is None:
-            # databases created before migrations existed already have v1 tables
-            has = self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trades'").fetchone()
-            return 1 if has else 0
-        return int(r)
+        with self._lock:
+            self.db.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, "
+                            "name TEXT, applied_at INTEGER)")
+            r = self.db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+            if r is None:
+                # databases created before migrations existed already have v1 tables
+                has = self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trades'").fetchone()
+                return 1 if has else 0
+            return int(r)
 
     def migrate(self) -> list[int]:
         applied = []
@@ -125,7 +126,8 @@ class Store:
         return applied
 
     def integrity_ok(self) -> bool:
-        return self.db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        with self._lock:
+            return self.db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
 
     def backup(self, dest_dir: str, keep: int = 14) -> str:
         """Consistent online backup (SQLite backup API) with rotation."""

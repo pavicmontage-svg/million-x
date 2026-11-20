@@ -104,3 +104,32 @@ def test_bootstrap_owner_code_only_until_owner_exists(tmp_path):
     assert r and r["role"] == "owner"
     assert sec.redeem_pairing_code(st, "ABCD-1234-EF56", "x", ip="2.2.2.2") is None, "single use"
     assert not sec.bootstrap_owner_code(st, "FFFF-1234-EF56"), "never once an owner is paired"
+
+
+def test_local_pairing_code_allows_repairing_after_owner_exists(tmp_path):
+    """The embedding app can always re-pair itself in-process (not over HTTP)."""
+    import os
+    from millionx import android_entry as ae
+    from millionx.security import redeem_pairing_code
+    from millionx.storage import Store
+    first = ae.local_pairing_code(str(tmp_path))
+    second = ae.local_pairing_code(str(tmp_path))
+    st = Store(os.path.join(str(tmp_path), "mx-data", "millionx.db"))
+    a = redeem_pairing_code(st, first, "phone", "127.0.0.1")
+    b = redeem_pairing_code(st, second, "phone again", "127.0.0.1")
+    assert a and a["role"] == "owner" and b and b["role"] == "owner"
+    assert redeem_pairing_code(st, first, "replay", "127.0.0.1") is None  # single use
+
+
+def test_choose_port_skips_busy_port(tmp_path):
+    import socket
+    from millionx import android_entry as ae
+    with socket.socket() as sk:
+        try:
+            sk.bind(("127.0.0.1", ae.PORTS[0]))
+        except OSError:
+            pass  # already busy on this machine: still busy for choose_port
+        sk.listen()
+        p = ae.choose_port(str(tmp_path))
+    assert p != ae.PORTS[0] and p in ae.PORTS
+    assert (tmp_path / "mx_port.txt").read_text() == str(p)

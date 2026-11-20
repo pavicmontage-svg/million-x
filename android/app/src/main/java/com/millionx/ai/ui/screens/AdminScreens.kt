@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -200,6 +202,11 @@ fun AdminScreen(nav: NavController, onLogout: () -> Unit) {
                     if (com.millionx.ai.engine.LocalEngine.ignoringBatteryOptimizations(ctx)) MX.Up else MX.Warn)
                 Text("Samsung: Settings → Apps → MILLION-X → Battery → Unrestricted, and remove it from 'Sleeping apps'.",
                     color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                val problem = com.millionx.ai.engine.LocalEngine.lastProblem
+                if (problem.isNotEmpty()) Text(problem, color = MX.Warn, style = MaterialTheme.typography.bodySmall)
+                var showLog by remember { mutableStateOf(false) }
+                if (showLog) EngineLogDialog { showLog = false }
+                TextButton(onClick = { showLog = true }) { Text("Show engine log") }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { com.millionx.ai.engine.LocalEngine.start(ctx); enabled = true }) { Text("Start") }
                     OutlinedButton(onClick = { auth("Stop local engine") {
@@ -294,6 +301,39 @@ fun MoreScreen(nav: NavController) {
     }
 }
 
+/** Last lines of the embedded engine's server.log, so start problems can be read on the phone. */
+@Composable
+fun EngineLogDialog(onClose: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var text by remember { mutableStateOf("Loading…") }
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(tick) {
+        text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val e = com.millionx.ai.engine.LocalEngine
+            buildString {
+                append("Local URL: ${e.URL}\n")
+                if (e.lastProblem.isNotEmpty()) append("Problem: ${e.lastProblem}\n")
+                runCatching { e.pythonError() }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { append("Python: $it\n") }
+                append("\n").append(e.logTail(ctx))
+            }
+        }
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        confirmButton = { TextButton(onClick = onClose) { Text("Close") } },
+        dismissButton = { TextButton(onClick = { tick++ }) { Text("Refresh") } },
+        title = { Text("Engine log") },
+        text = {
+            Column(Modifier.height(420.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(text, style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
+            }
+        },
+    )
+}
+
 /** First run: connect the phone to the backend with a one-time code. */
 @Composable
 fun PairingScreen(onPaired: () -> Unit) {
@@ -313,7 +353,7 @@ fun PairingScreen(onPaired: () -> Unit) {
             busy = true; error = null
             localStatus = "Starting the engine on this phone… first start takes 1–3 minutes"
             scope.launch {
-                val err = com.millionx.ai.engine.LocalEngine.startAndPair(ctx)
+                val err = com.millionx.ai.engine.LocalEngine.startAndPair(ctx) { st -> localStatus = st }
                 busy = false
                 if (err == null) {
                     if (!com.millionx.ai.engine.LocalEngine.ignoringBatteryOptimizations(ctx)) {
@@ -324,6 +364,9 @@ fun PairingScreen(onPaired: () -> Unit) {
             }
         }) { Text("▶  Run engine on this phone (free)") }
         localStatus?.let { Text(it, color = MX.Info, style = MaterialTheme.typography.bodySmall) }
+        var showLog by remember { mutableStateOf(false) }
+        if (error != null || busy) TextButton(onClick = { showLog = true }) { Text("Show engine log") }
+        if (showLog) EngineLogDialog { showLog = false }
         Text("— or connect to a server —", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(server, { server = it }, label = { Text("Server URL (https://…)") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())

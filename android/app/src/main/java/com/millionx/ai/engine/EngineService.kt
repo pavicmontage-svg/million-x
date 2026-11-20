@@ -66,7 +66,8 @@ class EngineService : Service() {
                 try {
                     LocalEngine.startPython(this@EngineService)
                 } catch (e: Exception) {
-                    update("Engine failed to start: ${e.message}")
+                    LocalEngine.lastProblem = "Engine failed to start: ${e.message}"
+                    update(LocalEngine.lastProblem)
                     return@launch
                 }
                 monitor()
@@ -79,24 +80,29 @@ class EngineService : Service() {
         val app = MillionXApp.instance
         val prefs = getSharedPreferences("mx_local_engine", MODE_PRIVATE)
         while (scope.isActive) {
-            val status = try {
-                val h = LocalEngine.health()
+            val p = LocalEngine.health()
+            val status = if (p.ours && p.json != null) {
+                val h = p.json
                 val mode = h.str("mode").uppercase()
                 when {
+                    h.str("health_error").isNotEmpty() -> "Health error · $mode · ${h.str("health_error").take(80)}"
                     h.bool("emergency_stop") -> "EMERGENCY STOP active · $mode"
-                    !h.bool("engine_running") -> "Engine stopped · $mode"
+                    !h.bool("engine_running") -> "Engine loop not running · $mode (open app → Admin → engine log)"
                     h.bool("ok") -> "Running · $mode · ${h.long("market_symbols")} markets"
+                    !h.bool("data_fresh") -> "Running · $mode · waiting for Binance market data"
                     else -> "Degraded · $mode · ${h.str("last_errors").take(60)}"
                 }
-            } catch (e: Exception) {
+            } else {
+                val err = runCatching { LocalEngine.pythonError() }.getOrDefault("")
                 if (!LocalEngine.pythonRunning()) {  // server thread died: restart it
                     try { LocalEngine.startPython(this) } catch (_: Exception) { }
                 }
-                "Starting… (${e.message?.take(40)})"
+                LocalEngine.lastProblem = if (err.isNotEmpty()) "Engine error: $err" else p.problem
+                "Not answering · ${LocalEngine.lastProblem.take(90)}"
             }
             update(status)
-            if (app.store.token != null && app.store.serverUrl == LocalEngine.URL) mirrorAlerts(prefs)
-            delay(30_000)
+            if (app.store.token != null && LocalEngine.isLocalUrl(app.store.serverUrl)) mirrorAlerts(prefs)
+            delay(if (p.ours) 30_000 else 10_000)
         }
     }
 
@@ -127,6 +133,7 @@ class EngineService : Service() {
     private fun notification(text: String): Notification =
         NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_stat_mx)
             .setContentTitle("MILLION-X engine").setContentText(text).setOngoing(true)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openApp()).setOnlyAlertOnce(true).build()
 
     @SuppressLint("MissingPermission")
