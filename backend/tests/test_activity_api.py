@@ -178,3 +178,23 @@ def test_engine_diagnosis_names_liquidity_filter(client):
     rt.engine_error = "no API keys stored for mode 'demo'"
     d = c.get("/api/activity").json()["engine"]
     assert d["level"] == "critical" and "no API keys" in d["verdict"]
+
+
+def test_risk_profile_and_pause_reset(client):
+    c, eng, rt = client
+    r = c.post("/api/risk/profile", json={"profile": "aggressive"})
+    assert r.status_code == 200 and rt.s.risk.risk_per_trade == 0.02 and rt.s.risk.max_consecutive_losses == 10
+    assert c.get("/api/risk").json()["profile"] == "aggressive"
+    assert c.post("/api/risk/profile", json={"profile": "yolo"}).status_code == 400
+    import millionx.api as api_mod
+    eng.risk.state.cooldown_until = api_mod.now_ms() + 3_600_000
+    eng.risk.state.consecutive_losses = 4
+    d = c.get("/api/activity").json()["engine"]
+    assert d["level"] == "warning" and "paused" in d["verdict"] and "not the AI" in d["verdict"]
+    assert c.post("/api/risk/cooldown-reset", json={}).json()["ok"]
+    assert eng.risk.state.cooldown_until == 0 and eng.risk.can_open(api_mod.now_ms())[1] != "loss_streak_cooldown"
+    rt.s.mode = "live"
+    assert c.post("/api/risk/profile", json={"profile": "aggressive"}).status_code == 400  # needs explicit phrase
+    rt.s.mode = "paper"
+    c.post("/api/risk/profile", json={"profile": "standard"})
+    assert rt.s.risk.risk_per_trade == 0.005

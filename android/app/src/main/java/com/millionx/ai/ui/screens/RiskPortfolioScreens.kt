@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,71 @@ import com.millionx.ai.ui.theme.MX
 import com.millionx.ai.ui.theme.pnlColor
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+
+private val PROFILE_TEXT = mapOf(
+    "safe" to ("Safe" to "0.25% risk per trade, pause after 3 losses for 2 h, max 2 positions, leverage ≤ 5x."),
+    "standard" to ("Standard" to "0.5% risk per trade, pause after 4 losses for 1 h, max 3 positions, leverage ≤ 10x."),
+    "aggressive" to ("Aggressive" to "2% risk per trade (the hard maximum), pause only after 10 losses for 15 min, " +
+            "up to 6 positions, leverage ≤ 15x, daily loss limit 10%, drawdown stop 35%. Losses grow 4x faster than Standard."),
+)
+
+/** Risk profile switch + loss-streak pause override (owner, biometric, audited). */
+@Composable
+private fun RiskProfileCard(vm: com.millionx.ai.ui.vm.ResourceVM, d: kotlinx.serialization.json.JsonElement) {
+    val auth = LocalAuth.current
+    val s = d["state"]
+    val current = d.str("profile", "standard")
+    val confirm = remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var phrase by remember { androidx.compose.runtime.mutableStateOf("") }
+    MxCard {
+        SectionTitle("Risk profile")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PROFILE_TEXT.forEach { (id, t) ->
+                androidx.compose.material3.FilterChip(selected = current == id, onClick = { if (id != current) confirm.value = id },
+                    label = { Text(t.first) })
+            }
+        }
+        Text(PROFILE_TEXT[current]?.second ?: "", style = MaterialTheme.typography.bodySmall,
+            color = if (current == "aggressive") MX.Warn else MX.Muted)
+        Text("Hard limits (governance bounds) always apply; turning off the AI risk officer does not remove them.",
+            color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+        val until = s.num("cooldown_until").toLong()
+        if (until > System.currentTimeMillis()) {
+            Banner("New trades paused until ${fmtTime(until).substringAfter(' ')} after ${s.num("consecutive_losses").toInt()} " +
+                    "losses in a row.", MX.Warn)
+            OutlinedButton(onClick = { auth("Reset loss-streak pause") {
+                vm.action("POST", "/api/risk/cooldown-reset", "{}", "Pause reset — trading resumes") } }) {
+                Text("Reset pause now")
+            }
+        }
+    }
+    confirm.value?.let { target ->
+        val live = d.str("mode") == "live"
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirm.value = null },
+            title = { Text("Switch to ${PROFILE_TEXT[target]?.first}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(PROFILE_TEXT[target]?.second ?: "")
+                    if (target == "aggressive") Text(if (live) "REAL MONEY: type I ACCEPT HIGH RISK to continue." else
+                        "Mode is ${d.str("mode").uppercase()} (not real money).", color = if (live) MX.Down else MX.Warn)
+                    if (target == "aggressive" && live) OutlinedTextField(phrase, { phrase = it }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(enabled = !(live && target == "aggressive") || phrase == "I ACCEPT HIGH RISK", onClick = {
+                    auth("Change risk profile") {
+                        vm.action("POST", "/api/risk/profile", jsonBody("profile" to target, "confirm" to phrase),
+                            "Risk profile: ${PROFILE_TEXT[target]?.first}")
+                    }
+                    confirm.value = null; phrase = ""
+                }) { Text("Switch") }
+            },
+            dismissButton = { TextButton(onClick = { confirm.value = null }) { Text("Cancel") } },
+        )
+    }
+}
 
 /** RISK MANAGEMENT CENTER */
 @Composable
@@ -82,6 +148,7 @@ fun RiskScreen(nav: NavController) {
                 val s = d["state"]; val lim = d["limits"]
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (s.bool("emergency_stop")) Banner("EMERGENCY STOP ACTIVE (${s.str("halted_reason")})", MX.Down)
+                    RiskProfileCard(vm, d)
                     MxCard {
                         SectionTitle("Live risk state")
                         KV("Equity", "${s.numOrNull("equity").fmt(4)} USDT")

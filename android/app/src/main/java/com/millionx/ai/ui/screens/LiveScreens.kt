@@ -126,7 +126,7 @@ fun LiveScreen(nav: NavController) {
         }
         item {
             LoadBox(a, { act.refresh() }) { d ->
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { FunnelCard(d) }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { FunnelCard(d, nav) }
             }
         }
         item {
@@ -176,7 +176,7 @@ fun LiveScreen(nav: NavController) {
 }
 
 @Composable
-private fun FunnelCard(d: JsonElement) {
+private fun FunnelCard(d: JsonElement, nav: NavController) {
     val f = d["funnel"]
     val eg = d["engine"]
     MxCard {
@@ -184,6 +184,9 @@ private fun FunnelCard(d: JsonElement) {
         val lvl = eg.str("level")
         val col = when (lvl) { "ok" -> MX.Up; "info" -> MX.Info; "warning" -> MX.Warn; else -> MX.Down }
         Text(eg.str("verdict"), color = col, style = MaterialTheme.typography.bodyMedium)
+        if (eg.num("cooldown_until") > 0 || lvl == "critical") {
+            androidx.compose.material3.OutlinedButton(onClick = { nav.navigate("risk") }) { Text("Open Risk settings") }
+        }
         if (eg.bool("running")) {
             KV("Markets watched", eg.list("universe").joinToString { it.toString().trim('"').removeSuffix("USDT") }
                 .ifEmpty { "none" })

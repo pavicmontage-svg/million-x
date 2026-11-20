@@ -67,6 +67,20 @@ def validate_limits(d: dict[str, Any]) -> list[str]:
     return errs
 
 
+# Risk profiles: preset values, always validated against BOUNDS like any other change.
+RISK_PROFILES: dict[str, dict[str, Any]] = {
+    "safe": {"risk_per_trade": 0.0025, "max_daily_loss": 0.02, "max_total_drawdown": 0.10,
+             "max_consecutive_losses": 3, "cooldown_minutes": 120, "loss_streak_risk_scale": 0.5,
+             "max_open_positions": 2, "max_leverage": 5, "max_total_exposure": 1.5},
+    "standard": {"risk_per_trade": 0.005, "max_daily_loss": 0.03, "max_total_drawdown": 0.20,
+                 "max_consecutive_losses": 4, "cooldown_minutes": 60, "loss_streak_risk_scale": 0.5,
+                 "max_open_positions": 3, "max_leverage": 10, "max_total_exposure": 3.0},
+    "aggressive": {"risk_per_trade": 0.02, "max_daily_loss": 0.10, "max_total_drawdown": 0.35,
+                   "max_consecutive_losses": 10, "cooldown_minutes": 15, "loss_streak_risk_scale": 1.0,
+                   "max_open_positions": 6, "max_leverage": 15, "max_total_exposure": 5.0},
+}
+
+
 def apply_limit_changes(limits, changes: dict[str, Any]) -> dict[str, Any]:
     """Validate the merged result before touching the live object (all-or-nothing)."""
     merged = dict(limits.__dict__)

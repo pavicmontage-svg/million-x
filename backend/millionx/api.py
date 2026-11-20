@@ -317,7 +317,9 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         for name, cap in (("experimental_4eur", rt.s.experimental_capital_eur), ("multi_40eur", rt.s.multi_capital_eur)):
             if price:
                 feas[name] = feasibility_report(cap * rt.s.eur_usdt, price, 0.004, rules, rt.s.risk, rt.s.fees)
+        from .governance import RISK_PROFILES
         return J({"limits": rt.s.risk.__dict__, "fees": rt.s.fees.__dict__,
+                  "profile": store.kv_get("risk_profile", "standard"), "profiles": RISK_PROFILES, "mode": rt.s.mode,
                   "state": e.risk.state.__dict__ if e else None,
                   "drawdown": e.risk.drawdown if e else None, "daily_pnl": e.risk.daily_pnl_frac if e else None,
                   "risk_fraction_now": e.risk.risk_fraction() if e else None,
@@ -338,6 +340,40 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         rt.gate.invalidate("risk limits changed", request.state.actor)
         store.audit(request.state.actor, "risk_limits_changed", {"old": old, "new": rt.s.risk.__dict__}, "owner")
         return J({"ok": True, "limits": rt.s.risk.__dict__})
+
+    @guard("change_risk_limits")
+    async def risk_profile(request):
+        """Switch between safe / standard / aggressive presets (hard BOUNDS still apply)."""
+        from .governance import RISK_PROFILES, apply_limit_changes
+        body = await request.json()
+        name = str(body.get("profile", ""))
+        if name not in RISK_PROFILES:
+            return J({"error": f"profile must be one of {list(RISK_PROFILES)}"}, 400)
+        if rt.s.mode == "live" and name == "aggressive" and body.get("confirm") != "I ACCEPT HIGH RISK":
+            return J({"error": "LIVE + aggressive needs confirm='I ACCEPT HIGH RISK'"}, 400)
+        try:
+            old = apply_limit_changes(rt.s.risk, RISK_PROFILES[name])
+        except ValueError as e:
+            return J({"error": f"refused by risk governance: {e}"}, 400)
+        store.kv_set("risk_limits", rt.s.risk.__dict__)
+        store.kv_set("risk_profile", name)
+        rt.gate.invalidate(f"risk profile changed to {name}", request.state.actor)
+        store.audit(request.state.actor, "risk_profile_changed", {"profile": name, "old": old,
+                                                                   "new": rt.s.risk.__dict__}, "owner")
+        return J({"ok": True, "profile": name, "limits": rt.s.risk.__dict__})
+
+    @guard("change_risk_limits")
+    async def risk_cooldown_reset(request):
+        """Owner override of the loss-streak pause (audited)."""
+        e = eng()
+        if not e:
+            return J({"error": "engine not running"}, 400)
+        st = e.risk.state
+        before = {"consecutive_losses": st.consecutive_losses, "cooldown_until": st.cooldown_until}
+        st.cooldown_until = 0
+        st.consecutive_losses = 0
+        store.audit(request.state.actor, "loss_streak_pause_reset", before, "owner")
+        return J({"ok": True})
 
     @guard("change_risk_limits")
     async def risk_tighten_reset(request):
@@ -526,6 +562,13 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                      "execution_error": "Execution error", "rejected_by_exchange": "Rejected by exchange",
                      "no_symbol_rules": "No exchange rules for symbol"}
 
+    PLAIN = {"loss_streak_cooldown": "paused after several losses in a row (risk rule; Risk → Reset pause or change profile)",
+             "daily_loss_limit": "daily loss limit reached (resets at 00:00 UTC)",
+             "max_drawdown_reached": "maximum drawdown reached",
+             "max_open_positions": "maximum number of open positions reached",
+             "stale_market_data": "market data is late",
+             "suspended_by_risk_oversight": "suspended by risk oversight (Risk → reset oversight factor)"}
+
     def _why(steps: list) -> tuple[str, str]:
         """(department, reason) of the step that stopped a signal."""
         for st in steps or []:
@@ -537,7 +580,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                 continue
             reasons = st.get("reasons") or (st.get("decision") or {}).get("reasons") or \
                 [st.get("reason") or st.get("error") or res]
-            text = "; ".join(str(x) for x in reasons if x) or str(res)
+            text = "; ".join(PLAIN.get(str(x), str(x)) for x in reasons if x) or str(res)
             if res == "not_validated":
                 text = f"bot status {st.get('bot_status')}: not allowed to trade in this mode"
             return DEPT_LABEL.get(st.get("dept", ""), st.get("dept", "") or "?"), text
@@ -572,6 +615,12 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                 f"{rt.s.min_depth_usdt:,.0f} USDT depth within 10 bps on each side). {len(failed)} of {len(scanned)} "
                 "scanned markets failed — see the list below." if scanned else
                 "Market list not loaded yet (or Binance did not answer). " + ("; ".join(e.errors[-2:]) or "")))
+        elif now < e.risk.state.cooldown_until:
+            mins = max(1, round((e.risk.state.cooldown_until - now) / 60_000))
+            d.update(level="warning", cooldown_until=e.risk.state.cooldown_until, verdict=(
+                f"New trades paused for another {mins} min after "
+                f"{rt.s.risk.max_consecutive_losses} losing trades in a row. This is the hard risk rule, not the AI "
+                "CRO. You can reset the pause or pick another risk profile in Risk."))
         elif not e.risk.state.connection_ok:
             d.update(level="critical", verdict="Connection to Binance is failing: " + "; ".join(e.errors[-2:]))
         elif e.bars_processed == 0:
@@ -986,6 +1035,8 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         Route("/api/scanner", scanner), Route("/api/trades", trades), Route("/api/performance", performance),
         Route("/api/risk", risk), Route("/api/risk/limits", risk_limits, methods=["PUT"]),
         Route("/api/risk/tighten-reset", risk_tighten_reset, methods=["POST"]),
+        Route("/api/risk/profile", risk_profile, methods=["POST"]),
+        Route("/api/risk/cooldown-reset", risk_cooldown_reset, methods=["POST"]),
         Route("/api/backtests", backtest_submit, methods=["POST"]), Route("/api/backtests", backtest_list),
         Route("/api/backtests/{job_id}", backtest_get),
         Route("/api/backtests/{job_id}/apply-validation", apply_validation, methods=["POST"]),
