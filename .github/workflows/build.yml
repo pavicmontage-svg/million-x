@@ -100,11 +100,11 @@ jobs:
         with:
           name: million-x-apk
           path: android/app/build/outputs/apk/
-      - name: Publish APKs (main -> branch 'apk', v2.0 -> branch 'apk-v2.0')
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v2.0'
+      - name: Publish APKs (main -> branch 'apk', vX.Y -> branch 'apk-vX.Y')
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/v2.')
         run: |
           BR=${GITHUB_REF#refs/heads/}
-          TARGET=apk; [ "$BR" = "v2.0" ] && TARGET=apk-v2.0
+          TARGET=apk; [ "$BR" != "main" ] && TARGET="apk-$BR"
           # an older run finishing late must not overwrite a newer APK
           HEAD_SHA=$(git ls-remote "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "refs/heads/$BR" | cut -f1)
           if [ -n "$HEAD_SHA" ] && [ "$HEAD_SHA" != "$GITHUB_SHA" ]; then echo "newer commit $HEAD_SHA on $BR: skip publish"; exit 0; fi
