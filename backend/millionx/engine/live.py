@@ -269,8 +269,10 @@ class TradingEngine:
                 key = type(e).__name__
                 if now_ms() - self._err_alerted.get(key, 0) > 600_000:
                     self._err_alerted[key] = now_ms()
+                    log.error("tick failed: %s\n%s", msg, traceback.format_exc())
                     self.alert("critical", "system", "Engine error", msg[:300])
-                log.error("tick failed: %s\n%s", msg, traceback.format_exc())
+                else:
+                    log.warning("tick failed: %s", msg)
             self._stop.wait(max(0.5, self.poll - (time.time() - t0)))
 
     def tick(self) -> None:

@@ -1,0 +1,6 @@
+# numpy and cryptography come from Termux packages (pkg install python-numpy python-cryptography)
+starlette>=0.40
+uvicorn>=0.30
+websockets>=12
+requests>=2.31
+pyyaml>=6.0

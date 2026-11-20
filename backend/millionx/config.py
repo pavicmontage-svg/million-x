@@ -140,6 +140,7 @@ def load_settings(path: str | None = None) -> Settings:
         "MX_DB_PATH": ("db_path", str),
         "MX_DATA_DIR": ("data_dir", str),
         "MX_API_PORT": ("api_port", int),
+        "MX_API_HOST": ("api_host", str),
     }
     for env, (attr, typ) in env_map.items():
         if env in os.environ:
