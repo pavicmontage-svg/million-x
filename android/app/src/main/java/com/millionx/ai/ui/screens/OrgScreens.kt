@@ -67,6 +67,13 @@ fun BoardroomScreen(nav: NavController) {
                     "independent CRO approval/veto. Only CRO-approved tightening is applied automatically; everything " +
                     "else waits for you. Items marked RULES ran with fixed rules, without a language model.", MX.Info)
         }
+        item {
+            MxCard(onClick = { nav.navigate("ai_center") }) {
+                SectionTitle("AI Command Center") { Text("Open ›", color = MX.Accent) }
+                Text("Independent Trader, AI Supervisor, free providers Groq → Gemini → OpenRouter with failover.",
+                    color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
         item { AiModelCard() }
         item { SectionTitle("Executive team") }
         item {

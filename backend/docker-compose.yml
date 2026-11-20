@@ -1,12 +1,33 @@
 services:
   backend:
     build: .
-    restart: unless-stopped
+    restart: unless-stopped            # automatic restart after crashes and reboots
     env_file: .env
     volumes:
       - ./data:/app/data
       - ./secrets:/app/secrets:ro   # optional: MX_MASTER_KEY_FILE=/app/secrets/master.key (chmod 600)
     expose: ["8080"]
+    healthcheck:                        # /api/health returns 200 only when engine, data and DB are healthy
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=5)"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    logging:                            # log rotation
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+    mem_limit: 1g
+  backup:                               # daily SQLite backup with rotation (python -m millionx.cli backup)
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./secrets:/app/secrets:ro
+    entrypoint: ["sh", "-c", "while true; do python -m millionx.cli backup || echo backup failed; sleep 86400; done"]
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -17,5 +38,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     depends_on: [backend]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
 volumes:
   caddy_data:

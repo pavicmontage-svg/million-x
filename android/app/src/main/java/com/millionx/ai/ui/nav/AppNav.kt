@@ -119,6 +119,9 @@ fun AppNav(onLogout: () -> Unit) {
             composable("dashboard") { DashboardScreen(nav) }
             composable("live") { com.millionx.ai.ui.screens.LiveScreen(nav) }
             composable("exchange") { com.millionx.ai.ui.screens.ExchangeScreen(nav) }
+            composable("ai_center") { com.millionx.ai.ui.screens.CommandCenterScreen(nav) }
+            composable("ai_decisions") { com.millionx.ai.ui.screens.AiDecisionsScreen(nav) }
+            composable("perf_audit") { com.millionx.ai.ui.screens.PerformanceAuditScreen(nav) }
             composable("bots") { BotsScreen(nav) }
             composable("bot/{id}") { BotDetailScreen(nav, it.arguments?.getString("id") ?: "") }
             composable("boardroom") { BoardroomScreen(nav) }
