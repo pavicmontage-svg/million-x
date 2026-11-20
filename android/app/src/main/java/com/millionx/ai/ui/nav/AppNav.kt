@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.CandlestickChart
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -58,9 +59,9 @@ private data class Tab(val route: String, val label: String, val icon: androidx.
 
 private val TABS = listOf(
     Tab("dashboard", "Home", Icons.Filled.Insights),
+    Tab("live", "Live", Icons.Filled.CandlestickChart),
     Tab("bots", "Bots", Icons.Filled.SmartToy),
-    Tab("boardroom", "Board", Icons.Filled.Groups),
-    Tab("risk", "Risk", Icons.Filled.Shield),
+    Tab("boardroom", "Team", Icons.Filled.Groups),
     Tab("more", "More", Icons.Filled.Apps),
 )
 
@@ -116,6 +117,7 @@ fun AppNav(onLogout: () -> Unit) {
     ) { pad ->
         NavHost(nav, startDestination = "dashboard", modifier = Modifier.padding(pad)) {
             composable("dashboard") { DashboardScreen(nav) }
+            composable("live") { com.millionx.ai.ui.screens.LiveScreen(nav) }
             composable("bots") { BotsScreen(nav) }
             composable("bot/{id}") { BotDetailScreen(nav, it.arguments?.getString("id") ?: "") }
             composable("boardroom") { BoardroomScreen(nav) }

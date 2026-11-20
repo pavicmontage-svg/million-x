@@ -234,7 +234,7 @@ class Organization:
         if cfg.get("enabled") and self.llm.available:
             system = pr.get("prompt", "") + "\n\n" + OUTPUT_CONTRACT
             user = (f"YOUR TASK NOW: {task}\n\n" if task else "") + "EVIDENCE PACKET:\n" + \
-                json.dumps(pk, default=str)[:150_000]
+                json.dumps(pk, default=str)[:getattr(self.llm, "max_packet_chars", 150_000)]
             res = self.llm.complete(system, user,
                                     cfg.get("model", DEFAULT_MODEL), int(cfg.get("max_tokens", 1500)),
                                     float(cfg.get("temperature", 0.2)))
@@ -392,8 +392,16 @@ class Organization:
         return True, 1.0, "within CRO policy"
 
     # ------------------------------------------------------- scheduling
+    RULES_INTERVAL_MS = 10 * 60_000
+
+    @property
+    def effective_interval_ms(self) -> int:
+        """Rule-based cycles are cheap, so without a language model they run every
+        10 minutes; with one, the configured interval protects the API budget."""
+        return self.interval_ms if self.llm.available else min(self.interval_ms, self.RULES_INTERVAL_MS)
+
     def on_tick(self, engine) -> None:
-        if self._running or now_ms() - self.last_cycle < self.interval_ms:
+        if self._running or now_ms() - self.last_cycle < self.effective_interval_ms:
             return
         self.last_cycle = now_ms()
         self._running = True
@@ -514,6 +522,30 @@ class Organization:
         return data
 
     # ------------------------------------------------------------ status
+    def activity(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Recent work of every agent (real runs only), newest first."""
+        rows = self.store.q("SELECT id, ts, agent_id, kind, model, output, error, latency_ms, input_tokens, "
+                            "output_tokens FROM agent_runs ORDER BY ts DESC LIMIT ?", (limit,))
+        out = []
+        for r in rows:
+            try:
+                o = json.loads(r["output"] or "{}")
+            except ValueError:
+                o = {}
+            meta = AGENTS.get(r["agent_id"], {})
+            out.append({"run_id": r["id"], "ts": r["ts"], "agent_id": r["agent_id"],
+                        "agent": meta.get("name", r["agent_id"]), "title": meta.get("title", ""),
+                        "kind": r["kind"], "mode": o.get("mode", ""), "model": r["model"],
+                        "summary": o.get("summary", ""), "error": r["error"], "note": o.get("note", ""),
+                        "findings": [f.get("text", "") for f in (o.get("findings") or [])[:4] if isinstance(f, dict)],
+                        "recommendations": [f"{x.get('action')} {x.get('target', '')} ({x.get('direction', '')})"
+                                            for x in (o.get("recommendations") or [])[:3] if isinstance(x, dict)],
+                        "latency_ms": r["latency_ms"], "tokens": (r["input_tokens"] or 0) + (r["output_tokens"] or 0)})
+        return out
+
+    def next_cycle_in_ms(self) -> int:
+        return max(0, self.last_cycle + self.effective_interval_ms - now_ms())
+
     def overview(self) -> list[dict[str, Any]]:
         out = []
         for aid, meta in AGENTS.items():
@@ -525,11 +557,24 @@ class Organization:
                                  "FROM agent_runs WHERE agent_id=?", (aid,))
             o = json.loads(last["output"]) if last else {}
             online = bool(c.get("enabled")) and self.llm.available
+            # brains run every cycle; executives run at the daily board meeting (and the CRO on every trade)
+            window = 2.5 * self.effective_interval_ms if meta.get("kind") == "brain" else 26 * 3_600_000
+            active = bool(last) and now_ms() - last["ts"] <= window
+            if not c.get("enabled"):
+                status = "disabled"
+            elif not active:
+                status = "idle"
+            elif o.get("mode") == "llm" and not last["error"]:
+                status = "ai"
+            else:
+                status = "rules"
             out.append({"id": aid, **{k: v for k, v in meta.items() if k != "can_apply"},
                         "auto_apply": meta.get("can_apply", []),
-                        "enabled": bool(c.get("enabled")), "model": c.get("model"),
+                        "enabled": bool(c.get("enabled")),
+                        "model": (getattr(self.llm, "model_override", "") or c.get("model")) if self.llm.available else "rules (no AI model)",
                         "prompt_version": c.get("active_version"),
-                        "status": "online" if online else ("deterministic" if c.get("enabled") else "offline"),
+                        "status": status, "active": active, "llm_connected": online,
+                        "legacy_status": "online" if online else ("deterministic" if c.get("enabled") else "offline"),
                         "last_run": last["ts"] if last else None, "last_summary": o.get("summary"),
                         "last_mode": o.get("mode"), "confidence": last["confidence"] if last else None,
                         "last_error": last["error"] if last else None, "totals": tot})

@@ -429,6 +429,9 @@ class TradingEngine:
             return
         rules = self.rules.get(s.symbol)
         if rules is None:
+            steps.append({"step": 4, "dept": "capital_intelligence", "result": "rejected",
+                          "reason": "exchange rules for this symbol not loaded"})
+            self._log_decision(s, steps, "no_symbol_rules")
             return
         dec = self.risk.size(s, rules, list(self.positions.values()), md.atr_pct15_at_1m(len(md.b1) - 1), ts,
                              v.size_multiplier * self._budget_multiplier(s.bot_id))
@@ -544,7 +547,7 @@ class TradingEngine:
 
     def _log_decision(self, s: Signal, steps: list[dict[str, Any]], outcome: str) -> None:
         self.store.audit("decision_pipeline", "trade_decision", {"signal_id": s.id, "bot": s.bot_id,
-                         "symbol": s.symbol, "steps": steps}, outcome)
+                         "symbol": s.symbol, "side": "LONG" if int(s.side) > 0 else "SHORT", "steps": steps}, outcome)
         self.bus.publish("decision", {"signal_id": s.id, "outcome": outcome, "steps": steps})
 
     def _replace_stop(self, p: Position, new_stop: float, reason: str) -> bool:

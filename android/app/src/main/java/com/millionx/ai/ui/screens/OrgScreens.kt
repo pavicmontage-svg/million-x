@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -46,6 +48,8 @@ import com.millionx.ai.ui.components.SectionTitle
 import com.millionx.ai.ui.components.StatusDot
 import com.millionx.ai.ui.components.rememberResource
 import com.millionx.ai.ui.components.statusColor
+import com.millionx.ai.ui.components.agentStatusLabel
+import com.millionx.ai.data.long
 import com.millionx.ai.ui.theme.MX
 import kotlinx.serialization.json.JsonElement
 
@@ -61,8 +65,9 @@ fun BoardroomScreen(nav: NavController) {
         item {
             Banner("Executives are AI agents. Agenda: CEO, CIO, Quant, CRO, COO reports → discussion → CEO decision → " +
                     "independent CRO approval/veto. Only CRO-approved tightening is applied automatically; everything " +
-                    "else waits for you. Items marked DETERMINISTIC ran without a language model.", MX.Info)
+                    "else waits for you. Items marked RULES ran with fixed rules, without a language model.", MX.Info)
         }
+        item { AiModelCard() }
         item { SectionTitle("Executive team") }
         item {
             LoadBox(a, { agents.refresh() }) { list ->
@@ -74,9 +79,11 @@ fun BoardroomScreen(nav: NavController) {
                                     Text("${e.str("name")} — ${e.str("title")}", fontWeight = FontWeight.SemiBold)
                                     Text(e.str("responsibility"), color = MX.Muted, style = MaterialTheme.typography.bodySmall)
                                 }
-                                StatusDot(e.str("status") == "online", e.str("status"))
+                                StatusDot(e.bool("active"), agentStatusLabel(e.str("status")), statusColor(e.str("status")))
                             }
-                            Text("Latest: ${e.str("last_summary", "no decision yet")}", style = MaterialTheme.typography.bodySmall)
+                            Text("Latest: ${e.str("last_summary", "no decision yet")}" +
+                                    (e.long("last_run").takeIf { it > 0 }?.let { " · ${fmtTime(it)}" } ?: ""),
+                                style = MaterialTheme.typography.bodySmall)
                             if (e.str("last_error").isNotEmpty()) Text("Alert: ${e.str("last_error")}", color = MX.Warn,
                                 style = MaterialTheme.typography.bodySmall)
                         }
@@ -99,6 +106,140 @@ fun BoardroomScreen(nav: NavController) {
                 }
             }
         }
+        item { SectionTitle("Work log — every agent run, newest first") }
+        item { WorkLog() }
+    }
+}
+
+/** Real agent runs (rules or AI model), newest first. Nothing here is simulated. */
+@Composable
+fun WorkLog() {
+    val vm = rememberResource("/api/org/activity?limit=40", 20_000, setOf("alert"))
+    val st by vm.state.collectAsState()
+    LoadBox(st, { vm.refresh() }) { d ->
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val next = d.num("next_cycle_in_ms").toLong()
+            Text("Brains run every ${d.num("interval_min").toInt()} min · next run in ${next / 60_000} min ${(next / 1000) % 60} s. " +
+                    "Executives meet once a day (or tap Convene now).", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+            val runs = d.list("runs")
+            if (runs.isEmpty()) Text("No agent has run yet.", color = MX.Muted)
+            runs.forEach { r ->
+                MxCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${r.str("agent")} · ${r.str("title")}", fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        ModeChip(r.str("mode"))
+                    }
+                    Text("${fmtTime(r.long("ts"))} · ${r.str("kind")}" +
+                            (if (r.str("mode") == "llm") " · ${r.str("model")} · ${r.num("tokens").toInt()} tokens · " +
+                                    "${r.num("latency_ms").toInt()} ms" else ""),
+                        color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text(r.str("summary"), style = MaterialTheme.typography.bodySmall)
+                    r.list("findings").forEach { f ->
+                        Text("• ${f.toString().trim('"')}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    r.list("recommendations").forEach { f ->
+                        Text("→ ${f.toString().trim('"')}", color = MX.Info, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (r.str("error").isNotEmpty()) Text("AI error: ${r.str("error").take(160)}", color = MX.Warn,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+private data class Provider(val id: String, val label: String, val help: String)
+
+private val PROVIDERS = listOf(
+    Provider("groq", "Groq (free tier)", "Free key: console.groq.com → API Keys. Rate-limited; calls are spaced automatically."),
+    Provider("gemini", "Google Gemini (free tier)", "Free key: aistudio.google.com/apikey. Enter a current Flash model name."),
+    Provider("openai_compatible", "Other OpenAI-compatible", "Any /chat/completions endpoint: base URL + model + key."),
+    Provider("anthropic", "Anthropic Claude (paid)", "Key from console.anthropic.com; usage is billed."),
+)
+
+/** Connect the agents to a language model (key stored encrypted on the engine). */
+@Composable
+fun AiModelCard() {
+    val vm = rememberResource("/api/settings/llm", 60_000)
+    val st by vm.state.collectAsState()
+    val auth = LocalAuth.current
+    var open by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(vm) { vm.messages.collect { msg = it } }
+    LoadBox(st, { vm.refresh() }) { d ->
+        MxCard {
+            msg?.let { Text(it, color = if (it.contains("fail", true) || it.contains("error", true)) MX.Down else MX.Up,
+                style = MaterialTheme.typography.bodySmall) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("AI model for the team", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                StatusDot(d.bool("connected"), if (d.bool("connected")) "connected" else "not connected",
+                    if (d.bool("connected")) MX.Up else MX.Warn)
+            }
+            if (d.bool("connected")) {
+                KV("Provider", d.str("provider"))
+                KV("Model", d.str("model"))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { open = true }) { Text("Change") }
+                    OutlinedButton(onClick = { auth("Disconnect AI model") {
+                        vm.action("PUT", "/api/settings/llm", jsonBody("disconnect" to true), "Disconnected") } }) {
+                        Text("Disconnect", color = MX.Down)
+                    }
+                }
+            } else {
+                Text("Without a model the agents still work, but only with fixed rules (shown as RULES). " +
+                        "Connect a free model to get real AI analysis.", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { open = true }) { Text("Connect AI model (free option)") }
+            }
+        }
+        if (open) {
+            val presets = d["presets"]
+            var prov by remember { mutableStateOf("groq") }
+            var key by remember { mutableStateOf("") }
+            var model by remember { mutableStateOf(presets[prov].str("model")) }
+            var url by remember { mutableStateOf(presets[prov].str("base_url")) }
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { open = false },
+                title = { Text("Connect AI model") },
+                text = {
+                    Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PROVIDERS.forEach { p ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.RadioButton(selected = prov == p.id, onClick = {
+                                    prov = p.id; model = presets[p.id].str("model"); url = presets[p.id].str("base_url")
+                                })
+                                Text(p.label)
+                            }
+                        }
+                        Text(PROVIDERS.first { it.id == prov }.help, color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(key, { key = it.trim() }, label = { Text("API key") }, singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(model, { model = it.trim() }, label = { Text("Model") }, singleLine = true,
+                            modifier = Modifier.fillMaxWidth())
+                        if (prov != "groq" && prov != "anthropic") {
+                            OutlinedTextField(url, { url = it.trim() }, label = { Text("Base URL") }, singleLine = true,
+                                modifier = Modifier.fillMaxWidth())
+                        }
+                        Text("The key is tested with one short request, then stored encrypted on the engine. " +
+                                "AI agents are advisory and can only tighten risk.", color = MX.Muted,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = {
+                    Button(enabled = key.length >= 10 && model.isNotEmpty(), onClick = {
+                        auth("Connect AI model") {
+                            vm.action("PUT", "/api/settings/llm",
+                                jsonBody("provider" to prov, "api_key" to key, "model" to model, "base_url" to url),
+                                "AI model connected — agents use it from the next run")
+                            open = false
+                        }
+                    }) { Text("Connect & test") }
+                },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { open = false }) { Text("Cancel") } },
+            )
+        }
     }
 }
 
@@ -106,7 +247,7 @@ fun BoardroomScreen(nav: NavController) {
 private fun ModeChip(mode: String) {
     when (mode) {
         "llm" -> Chip("AI (LLM)", MX.Up)
-        "deterministic" -> Chip("DETERMINISTIC", MX.Info)
+        "deterministic" -> Chip("RULES", MX.Info)
         "" -> {}
         else -> Chip(mode.uppercase(), MX.Warn)
     }
@@ -167,6 +308,7 @@ fun BrainsScreen(nav: NavController) {
     val agents = rememberResource("/api/org/agents", 30_000)
     val a by agents.state.collectAsState()
     Screen("Six-Brain Control Center", nav, agents.messages, actions = { RefreshIcon { agents.refresh() } }) {
+        item { AiModelCard() }
         item {
             LoadBox(a, { agents.refresh() }) { list ->
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -175,7 +317,7 @@ fun BrainsScreen(nav: NavController) {
                         MxCard(onClick = { nav.navigate("agent/${b.str("id")}") }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(b.str("title"), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                                Chip(b.str("status").uppercase(), statusColor(b.str("status")))
+                                Chip(agentStatusLabel(b.str("status")).uppercase(), statusColor(b.str("status")))
                             }
                             KV("Model / prompt", "${b.str("model")} · v${b.num("prompt_version").toInt()}")
                             KV("Confidence", b.numOrNull("confidence").fmt(2))

@@ -36,6 +36,7 @@ class Runtime:
         self.bus = EventBus()
         self.notifier = FCMNotifier(store)
         self.org = Organization(store, brain_interval_min=int(store.kv_get("brain_interval_min", 60)))
+        self.load_llm_config()
         self.engine: Optional[TradingEngine] = None
         self.engine_error: Optional[str] = None
         saved = store.kv_get("runtime_settings", {})
@@ -113,6 +114,18 @@ class Runtime:
         return self.gate.live_check(ex, self.s.starting_capital_eur * self.s.eur_usdt)
 
     # ------------------------------------------------------- monitoring
+    def load_llm_config(self) -> None:
+        """AI-model connection for the agents; the key is stored encrypted."""
+        import base64
+        cfg = self.store.kv_get("llm_config")
+        if not cfg or not cfg.get("key_enc") or not self.vault:
+            return
+        try:
+            key = self.vault.dec(base64.b64decode(cfg["key_enc"]))
+            self.org.llm.configure(cfg["provider"], key, cfg.get("base_url", ""), cfg.get("model", ""))
+        except Exception as e:  # never block startup; agents fall back to rules
+            self.store.audit("system", "llm_config_load_failed", {"error": f"{type(e).__name__}: {e}"})
+
     def health(self) -> dict[str, Any]:
         e = self.engine
         now = now_ms()

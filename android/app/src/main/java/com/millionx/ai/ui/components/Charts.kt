@@ -92,3 +92,122 @@ fun GoalRing(progress: Float, modifier: Modifier = Modifier, label: String) {
         Text(label, style = MaterialTheme.typography.titleMedium)
     }
 }
+
+/** Distinct colours for multi-series charts (bots). */
+val SERIES_COLORS = listOf(
+    Color(0xFF00E0A4), Color(0xFF5AA9FF), Color(0xFFFFB547), Color(0xFFA78BFA), Color(0xFFFF5A6E),
+    Color(0xFF4DD0E1), Color(0xFFF06292), Color(0xFFAED581), Color(0xFFFFD54F), Color(0xFF90A4AE),
+)
+
+data class Candle(val t: Long, val o: Double, val h: Double, val l: Double, val c: Double)
+data class ChartMarker(val t: Long, val price: Double, val long: Boolean, val accepted: Boolean)
+data class ChartLevel(val price: Double, val color: Color, val dashed: Boolean)
+
+/** Candlestick chart with bot-signal markers (▲ long / ▼ short) and open-position levels. */
+@Composable
+fun CandleChart(candles: List<Candle>, markers: List<ChartMarker>, levels: List<ChartLevel>,
+                modifier: Modifier = Modifier, height: Dp = 260.dp) {
+    if (candles.size < 2) {
+        Box(modifier.fillMaxWidth().height(height), contentAlignment = Alignment.Center) {
+            Text("Waiting for market data…", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        return
+    }
+    Canvas(modifier.fillMaxWidth().height(height)) {
+        val visibleLevels = levels.map { it.price }
+        val lo0 = candles.minOf { it.l }
+        val hi0 = candles.maxOf { it.h }
+        // include levels only if they are reasonably near (keep the candles readable)
+        val near = visibleLevels.filter { it > lo0 - (hi0 - lo0) && it < hi0 + (hi0 - lo0) }
+        val lo = minOf(lo0, near.minOrNull() ?: lo0)
+        val hi = maxOf(hi0, near.maxOrNull() ?: hi0)
+        val pad = (hi - lo).coerceAtLeast(hi * 1e-6) * 0.06
+        val top = hi + pad
+        val bot = lo - pad
+        val span = top - bot
+        val n = candles.size
+        val slot = size.width / n
+        val body = (slot * 0.62f).coerceAtLeast(1.5f)
+        fun y(p: Double) = ((top - p) / span * size.height).toFloat()
+        val t0 = candles.first().t
+        val stepMs = ((candles.last().t - t0) / (n - 1)).coerceAtLeast(1)
+        // grid
+        for (k in 1..3) {
+            val yy = size.height * k / 4
+            drawLine(MX.Line, Offset(0f, yy), Offset(size.width, yy), strokeWidth = 1f)
+        }
+        candles.forEachIndexed { i, k ->
+            val cx = slot * i + slot / 2
+            val up = k.c >= k.o
+            val col = if (up) MX.Up else MX.Down
+            drawLine(col, Offset(cx, y(k.h)), Offset(cx, y(k.l)), strokeWidth = 1.2f)
+            val yt = y(maxOf(k.o, k.c))
+            val yb = y(minOf(k.o, k.c))
+            drawRect(col, topLeft = Offset(cx - body / 2, yt),
+                size = androidx.compose.ui.geometry.Size(body, (yb - yt).coerceAtLeast(1.2f)))
+        }
+        levels.forEach { lv ->
+            if (lv.price in bot..top) {
+                val yy = y(lv.price)
+                drawLine(lv.color, Offset(0f, yy), Offset(size.width, yy), strokeWidth = 2f,
+                    pathEffect = if (lv.dashed) androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)) else null)
+            }
+        }
+        markers.forEach { m ->
+            // signal ts is the close of the bar -> index of the bar that produced it
+            val idx = (((m.t - t0) / stepMs) - 1).toInt()
+            if (idx < 0 || idx >= n) return@forEach
+            val cx = slot * idx + slot / 2
+            val col = if (m.long) MX.Up else MX.Down
+            val a = if (m.accepted) 1f else 0.45f
+            val s = 9.dp.toPx()
+            val k = candles[idx]
+            val path = Path()
+            if (m.long) {
+                val yy = y(k.l) + 4.dp.toPx()
+                path.moveTo(cx, yy); path.lineTo(cx - s / 2, yy + s); path.lineTo(cx + s / 2, yy + s); path.close()
+            } else {
+                val yy = y(k.h) - 4.dp.toPx()
+                path.moveTo(cx, yy); path.lineTo(cx - s / 2, yy - s); path.lineTo(cx + s / 2, yy - s); path.close()
+            }
+            drawPath(path, col.copy(alpha = a))
+        }
+        // last price line
+        val last = candles.last().c
+        drawLine(MX.Info.copy(alpha = 0.6f), Offset(0f, y(last)), Offset(size.width, y(last)), strokeWidth = 1f,
+            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 6f)))
+    }
+}
+
+/** Several cumulative curves on a shared time axis (strategy competition). */
+@Composable
+fun MultiLineChart(series: List<Pair<Color, List<Pair<Long, Double>>>>, modifier: Modifier = Modifier,
+                   height: Dp = 200.dp) {
+    val pts = series.flatMap { it.second }
+    if (pts.size < 2) {
+        Box(modifier.fillMaxWidth().height(height), contentAlignment = Alignment.Center) {
+            Text("No closed shadow trades yet — curves appear after the first exits",
+                color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        return
+    }
+    Canvas(modifier.fillMaxWidth().height(height)) {
+        val t0 = pts.minOf { it.first }
+        val t1 = pts.maxOf { it.first }.coerceAtLeast(t0 + 1)
+        val lo = minOf(0.0, pts.minOf { it.second })
+        val hi = maxOf(0.0, pts.maxOf { it.second })
+        val span = (hi - lo).takeIf { it > 0 } ?: 1.0
+        fun x(t: Long) = ((t - t0).toDouble() / (t1 - t0) * size.width).toFloat()
+        fun y(v: Double) = (size.height - (v - lo) / span * size.height).toFloat()
+        drawLine(MX.Muted.copy(alpha = 0.6f), Offset(0f, y(0.0)), Offset(size.width, y(0.0)), strokeWidth = 1f)
+        series.forEach { (col, s) ->
+            if (s.isEmpty()) return@forEach
+            val p = Path().apply {
+                moveTo(x(s.first().first), y(0.0))
+                s.forEach { (t, v) -> lineTo(x(t), y(v)) }
+                lineTo(size.width, y(s.last().second))
+            }
+            drawPath(p, col, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+        }
+    }
+}

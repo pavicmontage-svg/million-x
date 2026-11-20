@@ -511,6 +511,199 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         e = eng()
         return J(e.emergency_reset(request.state.actor) if e else {"ok": False})
 
+
+    # ------------------------------------------------ live activity & charts
+    DEPT_LABEL = {"market_intelligence": "Market", "strategy_intelligence": "Supervisor",
+                  "quant_research": "Validation", "capital_intelligence": "Risk sizing",
+                  "execution_intelligence": "Execution plan", "cro": "CRO (risk officer)"}
+    OUTCOME_LABEL = {"executed": "Trade opened", "awaiting_owner_approval": "Waiting for your approval",
+                     "rejected": "Rejected", "vetoed": "Vetoed by risk", "rejected_at_approval": "Rejected at approval",
+                     "duplicate_blocked": "Duplicate blocked", "blocked_by_governance": "Blocked by governance",
+                     "execution_error": "Execution error", "rejected_by_exchange": "Rejected by exchange",
+                     "no_symbol_rules": "No exchange rules for symbol"}
+
+    def _why(steps: list) -> tuple[str, str]:
+        """(department, reason) of the step that stopped a signal."""
+        for st in steps or []:
+            if not isinstance(st, dict):
+                continue
+            res = st.get("result")
+            stopped = res in ("rejected", "vetoed", "not_validated", "blocked", "error") or st.get("ok") is False
+            if not stopped:
+                continue
+            reasons = st.get("reasons") or (st.get("decision") or {}).get("reasons") or \
+                [st.get("reason") or st.get("error") or res]
+            text = "; ".join(str(x) for x in reasons if x) or str(res)
+            if res == "not_validated":
+                text = f"bot status {st.get('bot_status')}: not allowed to trade in this mode"
+            return DEPT_LABEL.get(st.get("dept", ""), st.get("dept", "") or "?"), text
+        return "", ""
+
+    @guard("read")
+    async def activity(request):
+        """What the engine is doing right now: signal funnel, decisions and shadow positions."""
+        e = eng()
+        lim = min(int(request.query_params.get("limit", 40)), 200)
+        since = now_ms() - 24 * 3_600_000
+        decisions = []
+        block_reasons: dict[str, int] = {}
+        outcomes: dict[str, int] = {}
+        for r in store.q("SELECT ts, evidence, approval FROM audit WHERE action='trade_decision' AND ts>? "
+                         "ORDER BY seq DESC LIMIT 400", (since,)):
+            try:
+                ev = json.loads(r["evidence"] or "{}")
+            except ValueError:
+                continue
+            outcome = r["approval"]
+            outcomes[outcome] = outcomes.get(outcome, 0) + 1
+            dept, why = _why(ev.get("steps"))
+            if why:
+                key = f"{dept}: {why}"[:140]
+                block_reasons[key] = block_reasons.get(key, 0) + 1
+            if len(decisions) < lim:
+                decisions.append({"ts": r["ts"], "bot": ev.get("bot"), "symbol": ev.get("symbol"),
+                                  "side": ev.get("side"), "outcome": outcome,
+                                  "outcome_label": OUTCOME_LABEL.get(outcome, outcome),
+                                  "stopped_at": dept, "reason": why})
+        sig_total = store.one("SELECT COUNT(*) n FROM signals WHERE ts>?", (since,))["n"]
+        sup_rej: dict[str, int] = {}
+        accepted = 0
+        for r in store.q("SELECT verdict FROM signals WHERE ts>? ORDER BY ts DESC LIMIT 2000", (since,)):
+            try:
+                v = json.loads(r["verdict"] or "{}")
+            except ValueError:
+                continue
+            if v.get("accepted"):
+                accepted += 1
+            else:
+                for x in v.get("reasons") or ["rejected"]:
+                    k = str(x).split(":")[0][:80]
+                    sup_rej[k] = sup_rej.get(k, 0) + 1
+        shadow = []
+        if e is not None:
+            for p in list(e.virtual.values()):
+                bars = e.bars.get(p.symbol)
+                px = float(bars.close[-1]) if bars is not None and len(bars) else p.entry_price
+                upnl = p.unrealized(px) + p.realized_pnl - p.fees_paid
+                shadow.append({"bot": p.bot_id, "symbol": p.symbol, "side": "LONG" if int(p.side) > 0 else "SHORT",
+                               "entry": p.entry_price, "price": px, "stop": p.stop, "tp1": p.tp1, "tp2": p.tp2,
+                               "r_now": upnl / p.risk_amount if p.risk_amount else 0.0, "opened_at": p.opened_at})
+            shadow.sort(key=lambda x: -x["opened_at"])
+        vt = store.one("SELECT COUNT(*) n, SUM(CASE WHEN net_pnl>0 THEN 1 ELSE 0 END) w, SUM(r_multiple) r "
+                       "FROM trades WHERE virtual=1 AND mode=? AND closed_at>?", (rt.s.mode, since))
+        top = sorted(block_reasons.items(), key=lambda kv: -kv[1])[:6]
+        return J({"window_h": 24,
+                  "funnel": {"signals": sig_total, "supervisor_accepted": accepted,
+                             "supervisor_rejected": sig_total - accepted,
+                             "executed": outcomes.get("executed", 0),
+                             "awaiting_approval": outcomes.get("awaiting_owner_approval", 0),
+                             "blocked": sum(v for k, v in outcomes.items()
+                                            if k not in ("executed", "awaiting_owner_approval"))},
+                  "top_block_reasons": [{"reason": k, "count": v} for k, v in top],
+                  "top_supervisor_reasons": [{"reason": k, "count": v}
+                                             for k, v in sorted(sup_rej.items(), key=lambda kv: -kv[1])[:5]],
+                  "execution": rt.s.execution, "mode": rt.s.mode,
+                  "shadow_open": shadow, "shadow_24h": {"trades": vt["n"] or 0, "wins": vt["w"] or 0,
+                                                        "sum_r": vt["r"] or 0.0},
+                  "decisions": decisions})
+
+    @guard("read")
+    async def candles(request):
+        """Last N one-minute candles of a symbol plus bot signals and open levels for the chart."""
+        e = eng()
+        sym = request.path_params["symbol"].upper()
+        n = max(20, min(int(request.query_params.get("n", 90)), 300))
+        if e is None or sym not in e.bars:
+            return J({"symbol": sym, "candles": [], "signals": [], "levels": [],
+                      "available": sorted(e.bars.keys()) if e else []})
+        b = e.bars[sym]
+        k = min(n, len(b))
+        ot = b.open_time[-k:]
+        rows = [{"t": int(ot[i]), "o": float(b.open[-k + i]), "h": float(b.high[-k + i]),
+                 "l": float(b.low[-k + i]), "c": float(b.close[-k + i]), "v": float(b.volume[-k + i])}
+                for i in range(k)]
+        t0 = int(ot[0]) if k else 0
+        sigs = []
+        for r in store.q("SELECT ts, bot_id, data, verdict FROM signals WHERE symbol=? AND ts>=? ORDER BY ts",
+                         (sym, t0)):
+            try:
+                d, v = json.loads(r["data"] or "{}"), json.loads(r["verdict"] or "{}")
+            except ValueError:
+                continue
+            sigs.append({"ts": r["ts"], "bot": r["bot_id"], "side": d.get("side"), "price": d.get("entry"),
+                         "accepted": bool(v.get("accepted")), "reason": d.get("reason", "")})
+        levels = []
+        for p in list(e.positions.values()) + [p for p in list(e.virtual.values())]:
+            if p.symbol != sym:
+                continue
+            levels.append({"bot": p.bot_id, "virtual": bool(p.virtual), "side": "LONG" if int(p.side) > 0 else "SHORT",
+                           "entry": p.entry_price, "stop": p.stop, "tp1": p.tp1, "tp2": p.tp2})
+        return J({"symbol": sym, "candles": rows, "signals": sigs[-60:], "levels": levels,
+                  "available": sorted(e.bars.keys())})
+
+    @guard("read")
+    async def competition_curves(request):
+        """Cumulative R of every bot's shadow (paper) trades: the strategy competition."""
+        hours = float(request.query_params.get("hours", 72))
+        since = now_ms() - int(hours * 3_600_000)
+        out: dict[str, dict[str, Any]] = {}
+        for r in store.q("SELECT bot_id, closed_at, r_multiple FROM trades WHERE virtual=1 AND mode=? AND closed_at>? "
+                         "ORDER BY closed_at", (rt.s.mode, since)):
+            c = out.setdefault(r["bot_id"], {"bot": r["bot_id"], "points": [], "trades": 0, "wins": 0, "sum_r": 0.0})
+            c["sum_r"] += r["r_multiple"] or 0.0
+            c["trades"] += 1
+            c["wins"] += 1 if (r["r_multiple"] or 0) > 0 else 0
+            c["points"].append([r["closed_at"], round(c["sum_r"], 4)])
+        res = sorted(out.values(), key=lambda c: -c["sum_r"])
+        for c in res:
+            if len(c["points"]) > 200:
+                step = len(c["points"]) / 200
+                c["points"] = [c["points"][int(i * step)] for i in range(200)] + [c["points"][-1]]
+        return J({"hours": hours, "bots": res})
+
+    # ---------------------------------------------------- AI model for agents
+    @guard("read")
+    async def org_activity(request):
+        lim = min(int(request.query_params.get("limit", 40)), 200)
+        return J({"llm": rt.org.llm.describe(), "next_cycle_in_ms": rt.org.next_cycle_in_ms(),
+                  "interval_min": rt.org.effective_interval_ms // 60_000, "runs": rt.org.activity(lim)})
+
+    @guard("read")
+    async def llm_get(request):
+        from .org.llm import PRESETS
+        return J({**rt.org.llm.describe(),
+                  "presets": {k: {"base_url": v[1], "model": v[2], "min_gap_s": v[3]} for k, v in PRESETS.items()}})
+
+    @guard("manage_keys")
+    async def llm_put(request):
+        import base64
+        body = await request.json()
+        if body.get("disconnect"):
+            rt.org.llm.disconnect()
+            store.kv_set("llm_config", {})
+            store.audit(request.state.actor, "llm_disconnected", {})
+            return J(rt.org.llm.describe())
+        if not rt.vault:
+            return J({"error": "no master key: cannot store the AI key encrypted"}, 500)
+        provider = str(body.get("provider", ""))
+        key = str(body.get("api_key", "")).strip()
+        if len(key) < 10:
+            return J({"error": "API key missing"}, 400)
+        from .org.llm import LLMClient
+        test = LLMClient()
+        test.configure(provider, key, str(body.get("base_url", "")), str(body.get("model", "")), min_gap_s=0)
+        r = await asyncio.to_thread(test.complete, "Reply with exactly: OK", "Connection test.", max_tokens=200)
+        if r.error:
+            store.audit(request.state.actor, "llm_connect_failed", {"provider": provider, "error": r.error[:200]})
+            return J({"error": f"connection test failed: {r.error}"}, 400)
+        rt.org.llm.configure(provider, key, test.base_url, test.model_override or str(body.get("model", "")))
+        store.kv_set("llm_config", {"provider": provider, "base_url": test.base_url,
+                                    "model": test.model_override, "key_enc": base64.b64encode(rt.vault.enc(key)).decode()})
+        store.audit(request.state.actor, "llm_connected", {"provider": provider, "model": test.model_override,
+                                                           "test_latency_ms": r.latency_ms})
+        rt.org.last_cycle = 0  # run the agents with the model on the next tick
+        return J({**rt.org.llm.describe(), "test_reply": r.text[:80], "test_latency_ms": r.latency_ms})
+
     # ------------------------------------------------------- organisation
     @guard("read")
     async def org_agents(request):
@@ -645,6 +838,9 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             rt.bus.unsubscribe(q)
 
     routes = [
+        Route("/api/activity", activity), Route("/api/candles/{symbol}", candles),
+        Route("/api/competition/curves", competition_curves), Route("/api/org/activity", org_activity),
+        Route("/api/settings/llm", llm_get), Route("/api/settings/llm", llm_put, methods=["PUT"]),
         Route("/api/health", health), Route("/api/pair", pair, methods=["POST"]), Route("/api/me", me),
         Route("/api/dashboard", dashboard), Route("/api/equity", equity),
         Route("/api/bots", bots), Route("/api/bots/{bot_id}/trades", bot_trades),

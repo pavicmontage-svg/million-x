@@ -97,8 +97,8 @@ fun Chip(text: String, color: Color = MX.Info) {
 }
 
 @Composable
-fun StatusDot(on: Boolean, label: String? = null) {
-    val c by animateColorAsState(if (on) MX.Up else MX.Down, label = "dot")
+fun StatusDot(on: Boolean, label: String? = null, color: Color? = null) {
+    val c by animateColorAsState(color ?: if (on) MX.Up else MX.Down, label = "dot")
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(c))
         if (label != null) {
@@ -108,9 +108,9 @@ fun StatusDot(on: Boolean, label: String? = null) {
 }
 
 fun statusColor(s: String): Color = when (s.uppercase()) {
-    "LIVE_ELIGIBLE", "ONLINE", "APPROVED", "EXECUTED", "FILLED", "OK", "PASS" -> MX.Up
+    "LIVE_ELIGIBLE", "ONLINE", "APPROVED", "EXECUTED", "FILLED", "OK", "PASS", "AI", "RULES" -> MX.Up
     "PAPER", "BACKTEST_PASSED", "DETERMINISTIC", "RUNNING", "QUEUED" -> MX.Info
-    "SUSPENDED", "WARNING", "AWAITING_OWNER_APPROVAL" -> MX.Warn
+    "SUSPENDED", "WARNING", "AWAITING_OWNER_APPROVAL", "IDLE" -> MX.Warn
     "DISABLED", "OFFLINE", "VETOED", "REJECTED", "ERROR", "CRITICAL" -> MX.Down
     else -> MX.Muted
 }
@@ -193,3 +193,13 @@ fun RefreshIcon(onClick: () -> Unit) {
 }
 
 val ScreenPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp)
+
+
+/** Agent status label in plain words. */
+fun agentStatusLabel(s: String): String = when (s) {
+    "ai" -> "working · AI model"
+    "rules" -> "working · rules"
+    "idle" -> "idle (waiting for next run)"
+    "disabled" -> "disabled"
+    else -> s
+}

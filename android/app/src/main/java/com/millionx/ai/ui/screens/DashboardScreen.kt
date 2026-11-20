@@ -55,6 +55,8 @@ import kotlinx.serialization.json.JsonElement
 fun DashboardScreen(nav: NavController) {
     val vm = rememberResource("/api/dashboard", 5_000, setOf("equity", "trade", "position_opened", "signal", "alert"))
     val eqVm = rememberResource("/api/equity?hours=24", 60_000, setOf("trade"))
+    val actVm = rememberResource("/api/activity?limit=3", 15_000, setOf("signal", "decision", "trade"))
+    val act by actVm.state.collectAsState()
     val live: LiveVM = viewModel()
     val connected by live.connected.collectAsState()
     val state by vm.state.collectAsState()
@@ -98,6 +100,24 @@ fun DashboardScreen(nav: NavController) {
                         SectionTitle("Equity — last 24 h")
                         val pts = ((eq as? Load.Ok<*>)?.data as? JsonElement).arr.map { it.num("equity") }
                         LineChart(pts, baseline = pts.firstOrNull())
+                    }
+
+                    (act as? Load.Ok<*>)?.data?.let { ad ->
+                        val ae = ad as JsonElement
+                        val f = ae["funnel"]
+                        MxCard(onClick = { nav.navigate("live") }) {
+                            SectionTitle("What the bots are doing (24 h)") { Text("Open charts ›", color = MX.Accent) }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Stat("Signals", f.num("signals").toInt().toString(), Modifier.weight(1f))
+                                Stat("Selected", f.num("supervisor_accepted").toInt().toString(), Modifier.weight(1f), MX.Info)
+                                Stat("Traded", f.num("executed").toInt().toString(), Modifier.weight(1f), MX.Up)
+                                Stat("Paper pos.", ae.list("shadow_open").size.toString(), Modifier.weight(1f), MX.Purple)
+                            }
+                            ae.list("top_block_reasons").firstOrNull()?.let { r ->
+                                Text("Main blocker: ${r.str("reason")} (×${r.num("count").toInt()})", color = MX.Warn,
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     }
 
                     MxCard {
