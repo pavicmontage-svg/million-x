@@ -1,0 +1,39 @@
+name: micro-data
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "extra arguments for millionx.micro.archive"
+        required: false
+        default: ""
+permissions:
+  contents: write
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, BNBUSDT, DOGEUSDT, ADAUSDT, LINKUSDT, AVAXUSDT, LTCUSDT]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pandas
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-10sym-2025-01-2026-06-v1
+      - run: mkdir -p /tmp/md && python -m millionx.micro.archive --symbol ${{ matrix.symbol }} --out /tmp/md/${{ matrix.symbol }}.json ${{ inputs.args }}
+      - run: ls -la /tmp/md && cat /tmp/md/${{ matrix.symbol }}.json | head -c 3000
+      - name: Publish to branch md-${{ matrix.symbol }}
+        run: |
+          cd /tmp/md && git init -q -b "md-${{ matrix.symbol }}" && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "micro data ${{ matrix.symbol }} ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "md-${{ matrix.symbol }}"
