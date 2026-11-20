@@ -103,6 +103,9 @@ jobs:
       - name: Publish APKs to branch 'apk'
         if: github.ref == 'refs/heads/main'
         run: |
+          # an older run finishing late must not overwrite a newer APK
+          HEAD_SHA=$(git ls-remote "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)
+          if [ -n "$HEAD_SHA" ] && [ "$HEAD_SHA" != "$GITHUB_SHA" ]; then echo "newer commit $HEAD_SHA on main: skip publish"; exit 0; fi
           mkdir -p /tmp/apk
           ls -la app/build/outputs/apk/debug app/build/outputs/apk/release || true
           cp app/build/outputs/apk/debug/app-debug.apk "/tmp/apk/MillionX-${GITHUB_SHA::7}-phone-arm64-DEBUG-not-for-production.apk"

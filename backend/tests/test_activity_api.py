@@ -128,3 +128,36 @@ def test_llm_connect_openai_compatible_and_persist_encrypted(client, monkeypatch
     assert out["mode"] in ("llm", "deterministic")  # "OK" is not JSON -> honest deterministic fallback
     agents = {a["id"]: a for a in c.get("/api/org/agents").json()}
     assert agents["brain_market"]["llm_connected"] is True
+
+
+def test_binance_account_view_read_only(client, monkeypatch):
+    c, eng, rt = client
+    from millionx.exchange import binance as bmod
+    from millionx.security import store_api_keys
+    d = c.get("/api/exchange/account").json()
+    assert d["connected"] is False and d["stored"] == {"demo": False, "live": False}
+    store_api_keys(rt.store, rt.vault, "binance", "demo", "k" * 20, "s" * 20)
+    import millionx.api as api_mod
+    now = api_mod.now_ms()
+    calls = []
+    monkeypatch.setattr(bmod.BinanceFutures, "balance",
+                        lambda self: calls.append(self.base) or {"equity": 5010.0, "wallet": 5000.0,
+                                                                 "available": 4900.0, "unrealized": 10.0})
+    monkeypatch.setattr(bmod.BinanceFutures, "position_details", lambda self: [
+        {"symbol": "ETHUSDT", "side": "SHORT", "qty": 0.01, "entry": 3000.0, "mark": 2990.0, "unrealized": 0.1,
+         "leverage": 3, "liquidation": 4000.0}])
+    monkeypatch.setattr(bmod.BinanceFutures, "income_history", lambda self, start, end=None, max_pages=5: [
+        {"time": now - 3_600_000, "symbol": "BTCUSDT", "incomeType": "REALIZED_PNL", "income": "2.5"},
+        {"time": now - 3_600_000, "symbol": "BTCUSDT", "incomeType": "COMMISSION", "income": "-0.4"},
+        {"time": now - 1_800_000, "symbol": "ETHUSDT", "incomeType": "REALIZED_PNL", "income": "-1.0"},
+        {"time": now - 1_000_000, "symbol": "", "incomeType": "TRANSFER", "income": "1000"},
+    ])
+    d = c.get("/api/exchange/account").json()
+    assert calls == ["https://demo-fapi.binance.com"]
+    assert d["connected"] and d["account"] == "demo" and d["bots_trade_here"] is False  # engine is in paper
+    p = d["pnl"]
+    assert abs(p["net"] - 1.1) < 1e-9 and p["closing_fills"] == 2 and p["winning_fills"] == 1
+    assert abs(p["curve"][-1][1] - 1.1) < 1e-6, "transfers are not profit"
+    assert d["positions"][0]["symbol"] == "ETHUSDT" and d["balance"]["wallet"] == 5000.0
+    c.get("/api/exchange/account")
+    assert len(calls) == 1, "cached for 15 s to respect Binance rate limits"

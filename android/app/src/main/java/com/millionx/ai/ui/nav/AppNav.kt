@@ -118,6 +118,7 @@ fun AppNav(onLogout: () -> Unit) {
         NavHost(nav, startDestination = "dashboard", modifier = Modifier.padding(pad)) {
             composable("dashboard") { DashboardScreen(nav) }
             composable("live") { com.millionx.ai.ui.screens.LiveScreen(nav) }
+            composable("exchange") { com.millionx.ai.ui.screens.ExchangeScreen(nav) }
             composable("bots") { BotsScreen(nav) }
             composable("bot/{id}") { BotDetailScreen(nav, it.arguments?.getString("id") ?: "") }
             composable("boardroom") { BoardroomScreen(nav) }

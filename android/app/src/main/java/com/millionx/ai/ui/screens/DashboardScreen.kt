@@ -57,6 +57,8 @@ fun DashboardScreen(nav: NavController) {
     val eqVm = rememberResource("/api/equity?hours=24", 60_000, setOf("trade"))
     val actVm = rememberResource("/api/activity?limit=3", 15_000, setOf("signal", "decision", "trade"))
     val act by actVm.state.collectAsState()
+    val exVm = rememberResource("/api/exchange/account?days=7", 30_000, setOf("trade"))
+    val exS by exVm.state.collectAsState()
     val live: LiveVM = viewModel()
     val connected by live.connected.collectAsState()
     val state by vm.state.collectAsState()
@@ -100,6 +102,28 @@ fun DashboardScreen(nav: NavController) {
                         SectionTitle("Equity — last 24 h")
                         val pts = ((eq as? Load.Ok<*>)?.data as? JsonElement).arr.map { it.num("equity") }
                         LineChart(pts, baseline = pts.firstOrNull())
+                    }
+
+                    (exS as? Load.Ok<*>)?.data?.let { xd ->
+                        val x = xd as JsonElement
+                        MxCard(onClick = { nav.navigate("exchange") }) {
+                            SectionTitle("Binance ${x.str("account").uppercase()} account") { Text("Open ›", color = MX.Accent) }
+                            when {
+                                !x.bool("connected") -> Text("Not connected — tap to connect your Binance Demo account and " +
+                                        "see real balance and profit/loss.", color = MX.Warn, style = MaterialTheme.typography.bodySmall)
+                                x.str("error").isNotEmpty() -> Text(x.str("error"), color = MX.Down, style = MaterialTheme.typography.bodySmall)
+                                else -> {
+                                    val pn = x["pnl"]
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Stat("Balance", "${x["balance"].num("equity").fmt(2)}", Modifier.weight(1f))
+                                        Stat("Today", "${pn.num("today_net").fmt(2)} $", Modifier.weight(1f), pnlColor(pn.num("today_net")))
+                                        Stat("7 days", "${pn.num("net").fmt(2)} $", Modifier.weight(1f), pnlColor(pn.num("net")))
+                                    }
+                                    if (!x.bool("bots_trade_here")) Text("Bots trade in ${x.str("engine_mode").uppercase()} mode, " +
+                                            "not on this account.", color = MX.Warn, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
                     }
 
                     (act as? Load.Ok<*>)?.data?.let { ad ->

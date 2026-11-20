@@ -264,6 +264,33 @@ class BinanceFutures(Exchange):
                 out[r["symbol"]] = (prev[0] + amt, float(r.get("entryPrice", 0)))
         return out
 
+    def position_details(self) -> list[dict[str, Any]]:
+        """Open positions as Binance reports them (read-only view)."""
+        out = []
+        for r in self._req("GET", "/fapi/v2/positionRisk", signed=True):
+            amt = float(r.get("positionAmt", 0) or 0)
+            if amt == 0:
+                continue
+            out.append({"symbol": r["symbol"], "side": "LONG" if amt > 0 else "SHORT", "qty": abs(amt),
+                        "entry": float(r.get("entryPrice", 0) or 0), "mark": float(r.get("markPrice", 0) or 0),
+                        "unrealized": float(r.get("unRealizedProfit", 0) or 0),
+                        "leverage": int(float(r.get("leverage", 0) or 0)),
+                        "liquidation": float(r.get("liquidationPrice", 0) or 0)})
+        return out
+
+    def income_history(self, start_ms: int, end_ms: Optional[int] = None, max_pages: int = 5) -> list[dict[str, Any]]:
+        """Account income (realized P/L, fees, funding, transfers), oldest first, paged by time."""
+        rows: list[dict[str, Any]] = []
+        start = start_ms
+        for _ in range(max_pages):
+            page = self._req("GET", "/fapi/v1/income", {"startTime": start, "endTime": end_ms, "limit": 1000},
+                             signed=True)
+            rows.extend(page)
+            if len(page) < 1000:
+                break
+            start = int(page[-1]["time"]) + 1
+        return rows
+
     def open_conditionals(self, symbol: str) -> list[dict[str, Any]]:
         rows = self._req("GET", "/fapi/v1/openAlgoOrders", {"symbol": symbol}, signed=True)
         rows = rows.get("orders", rows) if isinstance(rows, dict) else rows

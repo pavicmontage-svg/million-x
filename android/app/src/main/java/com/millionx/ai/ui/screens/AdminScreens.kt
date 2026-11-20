@@ -264,6 +264,7 @@ data class Module(val route: String, val title: String, val subtitle: String, va
 val MODULES = listOf(
     Module("dashboard", "Main Dashboard", "Capital, P/L, goal", Icons.Filled.Insights),
     Module("live", "Live Trading Floor", "Charts, signals, why", Icons.Filled.Speed),
+    Module("exchange", "Binance Account", "Balance, real P/L", Icons.Filled.AccountBalance),
     Module("boardroom", "AI Boardroom", "5 executives", Icons.Filled.Groups),
     Module("brains", "Six-Brain Control", "Prompts, logs, cost", Icons.Filled.Psychology),
     Module("bots", "Ten-Bot Trading Floor", "Status & stats", Icons.Filled.SmartToy),

@@ -473,6 +473,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             store.audit(request.state.actor, "api_key_rejected", {"mode": mode, "reason": "no futures permission"})
             return J({"error": "REFUSED: live key has no Futures trading permission."}, 400)
         store_api_keys(store, rt.vault, "binance", mode, body["api_key"], body["api_secret"])
+        _acct_cache.clear()
         if mode == "live":
             rt.gate.invalidate("live API key rotated", request.state.actor)
         store.kv_set("api_permissions", perms)
@@ -661,6 +662,87 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                 c["points"] = [c["points"][int(i * step)] for i in range(200)] + [c["points"][-1]]
         return J({"hours": hours, "bots": res})
 
+
+    # ------------------------------------------- Binance account (read-only)
+    _acct_cache: dict[tuple, tuple[float, dict]] = {}
+    PNL_TYPES = ("REALIZED_PNL", "COMMISSION", "FUNDING_FEE")
+
+    def _summarize_income(rows: list, since: int, day0: int) -> dict[str, Any]:
+        tot = {"realized": 0.0, "commission": 0.0, "funding": 0.0}
+        today = 0.0
+        closes = wins = 0
+        daily: dict[int, float] = {}
+        curve = []
+        cum = 0.0
+        for r in sorted(rows, key=lambda x: int(x.get("time", 0))):
+            t, typ, v = int(r.get("time", 0)), r.get("incomeType"), float(r.get("income", 0) or 0)
+            if typ not in PNL_TYPES or t < since:
+                continue
+            tot[{"REALIZED_PNL": "realized", "COMMISSION": "commission", "FUNDING_FEE": "funding"}[typ]] += v
+            if typ == "REALIZED_PNL":
+                closes += 1
+                wins += 1 if v > 0 else 0
+            if t >= day0:
+                today += v
+            d = t // 86_400_000 * 86_400_000
+            daily[d] = daily.get(d, 0.0) + v
+            cum += v
+            curve.append([t, round(cum, 6)])
+        if len(curve) > 300:
+            step = len(curve) / 300
+            curve = [curve[int(i * step)] for i in range(300)] + [curve[-1]]
+        return {**tot, "net": tot["realized"] + tot["commission"] + tot["funding"], "today_net": today,
+                "closing_fills": closes, "winning_fills": wins,
+                "daily": [{"day": k, "net": v} for k, v in sorted(daily.items())], "curve": curve}
+
+    @guard("read")
+    async def exchange_account(request):
+        """Read-only view of the connected Binance futures account: balance, positions, real P/L."""
+        from .exchange.base import ExchangeError
+        from .exchange.binance import BinanceFutures
+        from .security import load_api_keys
+        stored = {m: bool(store.one("SELECT 1 FROM api_keys WHERE exchange='binance' AND mode=?", (m,)))
+                  for m in ("demo", "live")}
+        which = request.query_params.get("account") or (
+            rt.s.mode if rt.s.mode in ("demo", "live") else ("demo" if stored["demo"] or not stored["live"] else "live"))
+        if which not in ("demo", "live"):
+            return J({"error": "account must be demo or live"}, 400)
+        days = max(1.0, min(float(request.query_params.get("days", 7)), 30.0))
+        base = {"account": which, "stored": stored, "engine_mode": rt.s.mode,
+                "bots_trade_here": rt.s.mode == which, "days": days}
+        keys = load_api_keys(store, rt.vault, "binance", which) if rt.vault else None
+        if not keys:
+            return J({**base, "connected": False})
+        ck = (which, days)
+        hit = _acct_cache.get(ck)
+        if hit and hit[0] > now_ms() - 15_000:
+            data = hit[1]
+        else:
+            ex = BinanceFutures("https://fapi.binance.com" if which == "live" else "https://demo-fapi.binance.com",
+                                keys[0], keys[1], live=which == "live")
+            now = now_ms()
+
+            def fetch():
+                return ex.balance(), ex.position_details(), ex.income_history(now - int(days * 86_400_000))
+            try:
+                bal, pos, inc = await asyncio.to_thread(fetch)
+            except ExchangeError as e:
+                msg = str(e)
+                if e.code in (401, -2014, -2015) or "-2015" in msg or "-2014" in msg:
+                    msg = "Binance rejected the API key (wrong key/secret, or Futures permission missing). " + msg
+                return J({**base, "connected": True, "error": msg[:300]})
+            day0 = now // 86_400_000 * 86_400_000
+            data = {"balance": bal, "positions": pos, "pnl": _summarize_income(inc, now - int(days * 86_400_000), day0),
+                    "income": [{"time": int(r.get("time", 0)), "symbol": r.get("symbol", ""),
+                                "type": r.get("incomeType"), "amount": float(r.get("income", 0) or 0),
+                                "asset": r.get("asset", "")}
+                               for r in sorted(inc, key=lambda x: -int(x.get("time", 0)))[:60]],
+                    "fetched_at": now}
+            _acct_cache[ck] = (now_ms(), data)
+        bots = store.q("SELECT bot_id, COUNT(*) n, SUM(CASE WHEN net_pnl>0 THEN 1 ELSE 0 END) w, SUM(net_pnl) pnl "
+                       "FROM trades WHERE virtual=0 AND mode=? GROUP BY bot_id ORDER BY pnl DESC", (which,))
+        return J({**base, "connected": True, **data, "bot_results": bots})
+
     # ---------------------------------------------------- AI model for agents
     @guard("read")
     async def org_activity(request):
@@ -838,6 +920,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             rt.bus.unsubscribe(q)
 
     routes = [
+        Route("/api/exchange/account", exchange_account),
         Route("/api/activity", activity), Route("/api/candles/{symbol}", candles),
         Route("/api/competition/curves", competition_curves), Route("/api/org/activity", org_activity),
         Route("/api/settings/llm", llm_get), Route("/api/settings/llm", llm_put, methods=["PUT"]),
