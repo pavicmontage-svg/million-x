@@ -574,6 +574,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                      "rejected": "Rejected", "vetoed": "Vetoed by risk", "rejected_at_approval": "Rejected at approval",
                      "duplicate_blocked": "Duplicate blocked", "blocked_by_governance": "Blocked by governance",
                      "execution_error": "Execution error", "rejected_by_exchange": "Rejected by exchange",
+                     "awaiting_ai_supervisor": "Waiting for AI supervisor",
                      "no_symbol_rules": "No exchange rules for symbol"}
 
     PLAIN = {"loss_streak_cooldown": "paused after several losses in a row (risk rule; Risk → Reset pause or change profile)",
@@ -857,6 +858,110 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                        "FROM trades WHERE virtual=0 AND mode=? GROUP BY bot_id ORDER BY pnl DESC", (which,))
         return J({**base, "connected": True, **data, "bot_results": bots})
 
+
+    # ------------------------------------------------- AI command center (1.9)
+    @guard("read")
+    async def ai_status(request):
+        agents = rt.org.overview()
+        e = eng()
+        return J({"chain": rt.ai_chain.status(), "desk": rt.ai_desk.status(),
+                  "agents": [{k: a.get(k) for k in ("id", "name", "title", "kind", "status", "active", "last_run",
+                                                     "last_summary", "last_error")} for a in agents],
+                  "pending_ai_review": [sid for sid, p in (e.pending.items() if e else [])
+                                        if p.record.get("stage") == "ai_review"]})
+
+    @guard("manage_keys")
+    async def ai_provider_put(request):
+        pid = request.path_params["pid"]
+        if pid not in rt.ai_chain.providers:
+            return J({"error": "unknown provider"}, 404)
+        if not rt.vault and request.method == "PUT":
+            return J({"error": "no master key: cannot store AI keys encrypted"}, 500)
+        body = await request.json()
+        p = rt.ai_chain.configure(pid, key=body.get("api_key"), model=body.get("model"),
+                                  enabled=body.get("enabled"), timeout_s=body.get("timeout_s"))
+        hc = await asyncio.to_thread(p.health_check) if p.key else {"ok": False, "error": "no key"}
+        store.audit(request.state.actor, "ai_provider_configured",
+                    {"provider": pid, "model": p.model or "auto", "enabled": p.enabled, "health": hc.get("ok")})
+        return J({"status": p.status(), "health": hc})
+
+    @guard("read")
+    async def ai_provider_test(request):
+        pid = request.path_params["pid"]
+        p = rt.ai_chain.providers.get(pid)
+        if not p or not p.key:
+            return J({"error": "provider not configured"}, 400)
+        hc = await asyncio.to_thread(p.health_check)
+        if not hc.get("ok"):
+            return J({"health": hc, "status": p.status()})
+        from .ai.providers import parse_json_obj
+        r = await asyncio.to_thread(p.chat, "Return the JSON object {\"ok\": true} and nothing else.",
+                                    "health check", 50, 0.0)
+        fmt_ok = False
+        if r.get("ok"):
+            try:
+                fmt_ok = parse_json_obj(r["text"]).get("ok") is True
+            except Exception:
+                fmt_ok = False
+        return J({"health": hc, "chat_ok": bool(r.get("ok")), "json_format_ok": fmt_ok, "model": r.get("model"),
+                  "latency_ms": r.get("latency_ms"), "error": r.get("error"), "status": p.status()})
+
+    @guard("read")
+    async def ai_decisions(request):
+        lim = min(int(request.query_params.get("limit", 60)), 300)
+        agent = request.query_params.get("agent")
+        q, a = "SELECT * FROM ai_decisions", []
+        if agent:
+            q, a = q + " WHERE agent=?", [agent]
+        rows = store.q(q + " ORDER BY ts DESC LIMIT ?", (*a, lim))
+        for r in rows:
+            r["payload"] = json.loads(r["payload"] or "{}")
+        return J(rows)
+
+    @guard("read")
+    async def ai_errors(request):
+        return J(store.q("SELECT * FROM ai_errors ORDER BY id DESC LIMIT 100"))
+
+    @guard("change_settings")
+    async def ai_control(request):
+        body = await request.json()
+        act = str(body.get("action", ""))
+        d = rt.ai_desk
+        if act == "pause":
+            rt.ai_chain.paused = True
+            rt.ai_chain.save()
+        elif act == "resume":
+            rt.ai_chain.paused = False
+            rt.ai_chain.save()
+        elif act in ("trader_on", "trader_off"):
+            d.update_settings(trader_enabled=act == "trader_on")
+        elif act in ("supervisor_on", "supervisor_off"):
+            d.update_settings(supervisor_enabled=act == "supervisor_on")
+        elif act == "settings":
+            d.update_settings(**{k: body.get(k) for k in ("trader_interval_min", "trader_min_confidence",
+                                                          "trader_max_trades_per_run")})
+        elif act == "run_trader_now":
+            e = eng()
+            if not e:
+                return J({"error": "engine not running"}, 400)
+            if not d.trader_active():
+                return J({"error": "Independent Trader is disabled, paused or has no AI provider"}, 400)
+            res = await asyncio.to_thread(d.run_trader, e)
+            store.audit(request.state.actor, "ai_control", {"action": act})
+            return J({"ok": True, "result": res})
+        else:
+            return J({"error": "unknown action"}, 400)
+        store.audit(request.state.actor, "ai_control", {"action": act}, "owner")
+        return J({"ok": True, "chain": rt.ai_chain.status(), "desk": d.status()})
+
+    @guard("read")
+    async def performance_audit(request):
+        from .auditor import report
+        days = max(1.0, min(float(request.query_params.get("days", 30)), 365.0))
+        e = eng()
+        start = e.start_capital_usdt if e else rt.s.starting_capital_eur * rt.s.eur_usdt
+        return J(await asyncio.to_thread(report, store, rt.s.mode, start, days))
+
     # ---------------------------------------------------- AI model for agents
     @guard("read")
     async def org_activity(request):
@@ -1035,6 +1140,11 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
 
     routes = [
         Route("/api/exchange/account", exchange_account),
+        Route("/api/ai/status", ai_status), Route("/api/ai/decisions", ai_decisions), Route("/api/ai/errors", ai_errors),
+        Route("/api/ai/providers/{pid}", ai_provider_put, methods=["PUT"]),
+        Route("/api/ai/providers/{pid}/test", ai_provider_test, methods=["POST"]),
+        Route("/api/ai/control", ai_control, methods=["POST"]),
+        Route("/api/performance/audit", performance_audit),
         Route("/api/activity", activity), Route("/api/candles/{symbol}", candles),
         Route("/api/competition/curves", competition_curves), Route("/api/org/activity", org_activity),
         Route("/api/settings/llm", llm_get), Route("/api/settings/llm", llm_put, methods=["PUT"]),

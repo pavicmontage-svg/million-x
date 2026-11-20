@@ -76,6 +76,16 @@ CREATE INDEX IF NOT EXISTS auth_failures_ip ON auth_failures(ip, ts);
 CREATE TABLE IF NOT EXISTS incidents (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, severity TEXT, symbol TEXT,
     kind TEXT, detail TEXT, resolved INTEGER DEFAULT 0);
 """),
+    (3, "AI desk: independent trader + supervisor decisions, provider errors, performance snapshots", """
+CREATE TABLE IF NOT EXISTS ai_decisions (id TEXT PRIMARY KEY, ts INTEGER, agent TEXT, symbol TEXT, decision TEXT,
+    payload TEXT, market_data_id TEXT, provider TEXT, model TEXT, status TEXT, signal_id TEXT);
+CREATE INDEX IF NOT EXISTS ai_decisions_ts ON ai_decisions(agent, ts);
+CREATE TABLE IF NOT EXISTS ai_errors (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, provider TEXT, model TEXT,
+    purpose TEXT, error TEXT);
+CREATE TABLE IF NOT EXISTS perf_snapshots (ts INTEGER PRIMARY KEY, data TEXT);
+CREATE TABLE IF NOT EXISTS tv_signals (id TEXT PRIMARY KEY, ts INTEGER, received_at INTEGER, symbol TEXT, side TEXT,
+    timeframe TEXT, payload TEXT, status TEXT, reason TEXT);
+"""),
 ]
 
 

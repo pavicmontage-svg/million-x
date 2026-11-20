@@ -93,6 +93,9 @@ class TradingEngine:
         self._lock = threading.RLock()
         self.thread: Optional[threading.Thread] = None
         self.errors: list[str] = []
+        self.ai = None                # AIDesk (independent trader + AI supervisor), set by the runtime
+        self._ai_requeue: set[str] = set()
+        self._last_audit = 0
         self.bars_processed = 0       # closed candles analysed since start
         self.signals_seen = 0         # raw bot signals since start
         self.last_tick_ms = 0
@@ -371,6 +374,22 @@ class TradingEngine:
                 self.org.on_new_day(self)
         if self.org:
             self.org.on_tick(self)
+        if self.ai is not None:
+            try:
+                self.ai.on_tick(self)
+                for sid in list(self._ai_requeue):
+                    self._ai_requeue.discard(sid)
+                    if sid in self.pending:
+                        self.ai.queue_review(self, sid)
+            except Exception as e:  # the AI layer must never stop trading protection
+                self.errors = (self.errors + [f"ai: {e}"])[-50:]
+        if now_ms() - self._last_audit > 15 * 60_000:  # Performance Auditor snapshot
+            self._last_audit = now_ms()
+            try:
+                from ..auditor import snapshot
+                snapshot(self.store, self.s.mode, self.start_capital_usdt)
+            except Exception as e:
+                self.errors = (self.errors + [f"auditor: {e}"])[-50:]
 
     # ------------------------------------------------------------- per bar
     def on_bar(self, sym: str) -> None:
@@ -506,6 +525,19 @@ class TradingEngine:
         if not cro_ok:
             self._log_decision(s, steps, "vetoed")
             return
+        if self.ai is not None and self.ai.supervisor_active():
+            # AI SIGNAL -> SUPERVISOR -> RISK ENGINE -> EXECUTION: the AI review runs in a worker thread;
+            # on APPROVE the engine re-sizes at the current price and governance re-checks everything
+            pa = PendingApproval(s, dec, now_ms(), now_ms() + self.approval_ttl_ms, {"steps": steps, "stage": "ai_review",
+                                 "quality": {"score": v.score, "spread_bps": self.books[s.symbol].spread_bps
+                                             if s.symbol in self.books else None}})
+            self.pending[s.id] = pa
+            self.store.x("INSERT OR REPLACE INTO pending_approvals(signal_id,created_at,expires_at,data,status) "
+                         "VALUES(?,?,?,?,?)", (s.id, pa.created, pa.expires,
+                                               _j({"signal": s.to_dict(), "decision": dec.to_dict()}), "ai_review"))
+            self._log_decision(s, steps, "awaiting_ai_supervisor")
+            self.ai.queue_review(self, s.id)
+            return
         if self.s.execution == "manual":
             pa = PendingApproval(s, dec, now_ms(), now_ms() + self.approval_ttl_ms, {"steps": steps})
             self.pending[s.id] = pa
@@ -538,6 +570,43 @@ class TradingEngine:
             return {"ok": False, "reason": "order would exceed 10% of depth within 10 bps"}
         return {"ok": True, "order_type": "MARKET", "spread_bps": book.spread_bps, "depth_10bps": side_depth,
                 "why": "scalp entry needs certainty of fill; spread and depth within limits"}
+
+    # ---- external signals (AI trader, TradingView) and AI supervisor hooks ----
+    def submit_external(self, sig: Signal, origin: str) -> dict[str, Any]:
+        """Entry point for signals that do not come from the bots. They take exactly the
+        same path: shadow book -> (AI) supervisor -> deterministic risk engine -> execution."""
+        with self._lock:
+            md = self.mds.get(sig.symbol)
+            if md is None or sig.symbol not in self.bars:
+                return {"ok": False, "error": f"{sig.symbol} is not tracked by the engine"}
+            ts = now_ms()
+            price = float(self.bars[sig.symbol].close[-1])
+            self._open_virtual(sig, price, ts, md)
+            from ..supervisor import Verdict
+            v = Verdict(signal=sig, accepted=True, score=float(sig.confidence), reasons=[f"external:{origin}"])
+            rec = {"signal": sig.to_dict(), "verdict": v.to_dict()}
+            self.store.x("INSERT OR IGNORE INTO signals(id,ts,bot_id,symbol,data,verdict) VALUES(?,?,?,?,?,?)",
+                         (sig.id, ts, sig.bot_id, sig.symbol, _j(sig.to_dict()), _j(v.to_dict())))
+            self.last_signals = ([rec] + self.last_signals)[:100]
+            self.bus.publish("signal", rec)
+            self._decide(v, md, ts)
+            return {"ok": True, "signal_id": sig.id}
+
+    def mark_supervisor_approved(self, signal_id: str, review: dict[str, Any]) -> None:
+        """Manual execution: the AI supervisor approved, the owner still has to approve."""
+        with self._lock:
+            p = self.pending.get(signal_id)
+            if not p:
+                return
+            p.record["stage"] = "owner"
+            self.store.x("UPDATE pending_approvals SET status='pending' WHERE signal_id=?", (signal_id,))
+            s = p.signal
+            self.alert("info", "approval", f"AI supervisor approved {s.bot_id} {s.side.name} {s.symbol} — your approval?",
+                       f"max leverage {review.get('max_leverage')}x; " + "; ".join(map(str, review.get("reasons", [])))[:300])
+            self.bus.publish("approval_request", {"signal": s.to_dict(), "decision": p.decision.to_dict()})
+
+    def requeue_review(self, signal_id: str) -> None:
+        self._ai_requeue.add(signal_id)
 
     def approve(self, signal_id: str, approved: bool, by: str) -> dict[str, Any]:
         with self._lock:
@@ -572,7 +641,8 @@ class TradingEngine:
         s_now = copy.copy(s)
         s_now.entry = px
         dec = self.risk.size(s_now, rules, list(self.positions.values()), md.atr_pct15_at_1m(len(md.b1) - 1),
-                             now_ms(), min(1.0, p.decision.risk_fraction / max(1e-12, self.risk.risk_fraction())))
+                             now_ms(), min(1.0, p.decision.risk_fraction / max(1e-12, self.risk.risk_fraction())),
+                             quality=p.record.get("quality"), max_leverage=p.record.get("supervisor_max_leverage"))
         steps = p.record.get("steps", []) + [{"step": 6.2, "dept": "capital_intelligence", "result":
                                               "resized_at_approval" if dec.approved else "rejected_at_approval",
                                               "price_at_signal": s.entry, "price_now": px, "decision": dec.to_dict()}]

@@ -38,6 +38,11 @@ class Runtime:
         self.notifier = FCMNotifier(store)
         self.org = Organization(store, brain_interval_min=int(store.kv_get("brain_interval_min", 60)))
         self.load_llm_config()
+        from .ai.desk import AIDesk
+        from .ai.providers import ChainLLM, ProviderChain
+        self.ai_chain = ProviderChain(store, vault)
+        self.org.llm = ChainLLM(self.ai_chain, self.org.llm)
+        self.ai_desk = AIDesk(store, self.ai_chain)
         self.engine: Optional[TradingEngine] = None
         self.engine_error: Optional[str] = None
         saved = store.kv_get("runtime_settings", {})
@@ -93,6 +98,7 @@ class Runtime:
         try:
             ex = self.build_exchange()
             self.engine = TradingEngine(self.s, self.store, ex, self.bus, self.notifier, self.org, gate=self.gate)
+            self.engine.ai = self.ai_desk
             if self.s.mode != "live":
                 # rank the TOP symbols by REAL Binance volume (public endpoint, no key);
                 # orders still go to the selected venue (demo / paper)

@@ -181,7 +181,7 @@ class RiskManager:
 
     def size(self, sig: Signal, rules: SymbolRules, open_positions: list[Position], atr_pct15: float,
              ts_ms: int, size_multiplier: float = 1.0,
-             quality: Optional[dict[str, Any]] = None) -> SizingDecision:
+             quality: Optional[dict[str, Any]] = None, max_leverage: Optional[int] = None) -> SizingDecision:
         L = self.limits
         ok, why = self.can_open(ts_ms)
         if not ok:
@@ -215,7 +215,10 @@ class RiskManager:
 
         # leverage by setup quality (5/10/15/20x), never the exchange maximum; ISOLATED margin
         tier, why_tier = self.leverage_tier(quality, atr_pct15)
-        lev_cap = int(max(1, min(L.max_leverage, rules.max_leverage or L.max_leverage, tier)))
+        lev_cap = int(max(1, min(L.max_leverage, rules.max_leverage or L.max_leverage, tier,
+                                 max_leverage or L.max_leverage)))
+        if max_leverage and max_leverage < tier:
+            why_tier = why_tier + [f"supervisor approved max {max_leverage}x"]
         used_margin = sum(p.qty * p.entry_price / max(1, p.leverage) for p in open_positions)
         free = max(0.0, equity - used_margin) * 0.9
         notional = qty * entry

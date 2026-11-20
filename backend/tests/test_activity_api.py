@@ -127,7 +127,7 @@ def test_llm_connect_openai_compatible_and_persist_encrypted(client, monkeypatch
     rt.org.llm.disconnect()
     rt.load_llm_config()
     assert rt.org.llm.available and rt.org.llm.model_override == "openai/gpt-oss-120b"
-    rt.org.llm.min_gap_s = 0
+    rt.org.llm.legacy.min_gap_s = 0
     out = rt.org.run_agent("brain_market", eng)
     assert out["mode"] in ("llm", "deterministic")  # "OK" is not JSON -> honest deterministic fallback
     agents = {a["id"]: a for a in c.get("/api/org/agents").json()}

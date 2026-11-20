@@ -18,11 +18,11 @@ def test_migration_from_pre_migration_database(tmp_path):
     db.commit()
     db.close()
     st = Store(p)
-    assert st.schema_version() == 2
+    assert st.schema_version() == 3
     assert st.one("SELECT COUNT(*) n FROM trades")["n"] == 1, "existing data preserved"
     cols = {r["name"] for r in st.q("PRAGMA table_info(orders)")}
     assert {"filled_qty", "avg_price"} <= cols
-    assert Store(p).schema_version() == 2, "re-running migrations is a no-op"
+    assert Store(p).schema_version() == 3, "re-running migrations is a no-op"
 
 
 def test_backup_is_consistent_and_rotated(tmp_path):
