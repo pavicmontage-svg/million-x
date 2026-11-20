@@ -49,8 +49,12 @@ class RateLimiter:
         ip = (scope.get("client") or ("?", 0))[0]
         path = scope.get("path", "")
         auth = dict(scope.get("headers") or []).get(b"authorization", b"")[-16:].decode(errors="ignore")
-        ok = self._allow(f"pair:{ip}", self.pair_per_minute) if path == "/api/pair" else \
-            self._allow(f"k:{auth or ip}", self.per_minute)
+        if path == "/api/pair":
+            ok = self._allow(f"pair:{ip}", self.pair_per_minute)
+        elif path == "/api/tradingview/webhook":
+            ok = self._allow(f"tv:{ip}", 30)
+        else:
+            ok = self._allow(f"k:{auth or ip}", self.per_minute)
         if ok:
             return await self.app(scope, receive, send)
         if scope["type"] == "websocket":
@@ -954,6 +958,39 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         store.audit(request.state.actor, "ai_control", {"action": act}, "owner")
         return J({"ok": True, "chain": rt.ai_chain.status(), "desk": d.status()})
 
+    async def tradingview_webhook(request):
+        """Public endpoint (TradingView cannot send tokens): authenticated by the secret in the body."""
+        from .tradingview import handle
+        raw = await request.body()
+        if len(raw) > 8192:
+            return J({"error": "payload too large"}, 413)
+        code, out = handle(store, eng(), raw, {k.lower(): v for k, v in request.headers.items()})
+        return J(out, code)
+
+    @guard("manage_keys")
+    async def tradingview_setup(request):
+        from .tradingview import secret
+        rotate = request.method == "POST"
+        s = secret(store, rotate=rotate)
+        if rotate:
+            store.audit(request.state.actor, "tv_secret_rotated", {})
+        return J({"webhook_path": "/api/tradingview/webhook", "secret": s,
+                  "alert_message": {"secret": s, "id": "{{strategy.order.id}}-{{timenow}}", "symbol": "{{ticker}}",
+                                    "side": "LONG", "timeframe": "{{interval}}", "time": "{{timenow}}",
+                                    "price": "{{close}}", "stop": 0, "take_profit": 0},
+                  "note": "Needs a public HTTPS server (VPS). The phone engine on 127.0.0.1 cannot receive webhooks.",
+                  "recent": store.q("SELECT id, received_at, symbol, side, timeframe, status, reason FROM tv_signals "
+                                    "ORDER BY received_at DESC LIMIT 30")})
+
+    @guard("read")
+    async def moneyline_status(request):
+        return J({"implemented": False, "strategy": "Moneyline Breakout Entry v3.5",
+                  "reason": "No specification or source code has been provided; it is not invented or substituted.",
+                  "needed": ["exact entry/exit rules or the original Pine Script source",
+                             "parameter defaults", "timeframe(s)", "example trades to verify the implementation"],
+                  "comparison_plan": "once implemented: backtest + walk-forward against bot4_breakout and "
+                                     "bot9_rangeexp on the same data"})
+
     @guard("read")
     async def performance_audit(request):
         from .auditor import report
@@ -1145,6 +1182,9 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         Route("/api/ai/providers/{pid}/test", ai_provider_test, methods=["POST"]),
         Route("/api/ai/control", ai_control, methods=["POST"]),
         Route("/api/performance/audit", performance_audit),
+        Route("/api/tradingview/webhook", tradingview_webhook, methods=["POST"]),
+        Route("/api/tradingview/setup", tradingview_setup, methods=["GET", "POST"]),
+        Route("/api/strategies/moneyline", moneyline_status),
         Route("/api/activity", activity), Route("/api/candles/{symbol}", candles),
         Route("/api/competition/curves", competition_curves), Route("/api/org/activity", org_activity),
         Route("/api/settings/llm", llm_get), Route("/api/settings/llm", llm_put, methods=["PUT"]),

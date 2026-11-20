@@ -283,3 +283,44 @@ def test_live_mode_blocked_without_gate(env):
     r = eng._execute(sig, decision(eng, sig), [])
     assert not r["ok"] and "live authorisation" in r["error"]
     eng.s.mode = "paper"
+
+
+def test_real_balance_checked_before_every_order(tmp_path, clock, monkeypatch):
+    """Demo/live: the order is blocked when Binance's available balance cannot carry the margin."""
+    import millionx.engine.live as live
+    import millionx.engine.execution as exec_mod
+    import millionx.exchange.paper as paper_mod
+    from millionx.config import Settings
+    from millionx.exchange.paper import PaperExchange
+    from millionx.models import MINUTE_MS, Side, Signal
+    from millionx.risk import SizingDecision
+    from millionx.storage import Store
+    from conftest import FakeMarket
+    for m in (live, exec_mod, paper_mod):
+        monkeypatch.setattr(m, "now_ms", clock)
+    s = Settings(mode="demo", execution="auto")
+    s.min_depth_usdt = 1.0
+    s.risk.min_depth_usdt = 1.0
+    s.risk.max_spread_bps = 5
+    px = PaperExchange(FakeMarket(clock), 540.0, s.fees)
+    eng = live.TradingEngine(s, Store(str(tmp_path / "b.db")), px)
+    for _ in range(5):
+        clock.t += MINUTE_MS
+        eng.tick()
+
+    class Real:  # behaves like Binance: not paper, small available balance
+        is_paper = False
+
+        def __getattr__(self, k):
+            return getattr(px, k)
+
+        def balance(self):
+            return {"equity": 540.0, "wallet": 540.0, "available": 3.0, "unrealized": 0.0}
+    eng.ex = Real()
+    sym = eng.universe[0]
+    p = float(eng.bars[sym].close[-1])
+    sig = Signal("bot2_ema", sym, Side.LONG, p, p * 0.99, p * 1.02, p * 1.03, 0.7, clock.t, 5)
+    dec = SizingDecision(True, qty=round(400 / p, 3), leverage=5, notional=400.0, risk_amount=2.7,
+                         risk_fraction=0.005, expected_cost=0.6)
+    v, _ = eng.execm.pretrade(sig, dec)
+    assert any("available balance" in x for x in v), v

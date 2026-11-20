@@ -29,6 +29,25 @@ from .storage import Store
 log = logging.getLogger("millionx.runtime")
 
 
+def process_stats() -> dict[str, Any]:
+    """Memory/CPU of this process for VPS and phone monitoring (no extra packages)."""
+    out: dict[str, Any] = {"threads": threading.active_count()}
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    out["rss_mb"] = round(int(line.split()[1]) / 1024, 1)
+    except OSError:
+        pass
+    try:
+        t = os.times()
+        out["cpu_seconds"] = round(t.user + t.system, 1)
+        out["load_avg_1m"] = round(os.getloadavg()[0], 2)
+    except (OSError, AttributeError):
+        pass
+    return out
+
+
 class Runtime:
     def __init__(self, settings: Settings, store: Store, vault: Optional[Vault]):
         self.s = settings
@@ -145,6 +164,7 @@ class Runtime:
         tick_age = (now - e.last_tick_ms) / 1000 if e and e.last_tick_ms else None
         unresolved = self.store.one("SELECT COUNT(*) n FROM incidents WHERE resolved=0 AND severity='critical'")["n"]
         h = {"ts": now, "mode": self.s.mode, "engine_running": alive, "engine_error": self.engine_error,
+             "process": process_stats(),
              "last_tick_age_s": tick_age, "data_fresh": e.risk.state.data_fresh if e else None,
              "connection_ok": e.risk.state.connection_ok if e else None,
              "emergency_stop": e.risk.state.emergency_stop if e else self.store.kv_get("emergency_stop", False),

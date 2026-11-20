@@ -62,9 +62,10 @@ def test_ten_distinct_modules():
     assert len({inspect.getmodule(type(b)).__name__ for b in bots}) == 10
 
 
-def test_slot9_is_clearly_labelled_replacement():
+def test_bot9_is_not_presented_as_moneyline():
     slot9 = [c for c in BASE_CLASSES if c.bot_id == "bot9_rangeexp"][0]
-    assert slot9.is_replacement and "not Moneyline" in slot9.name
+    assert not slot9.is_replacement and "not Moneyline" in slot9.name
+    assert "not implemented" in slot9.description
 
 
 def test_adaptive_stays_flat_without_validated_stats():

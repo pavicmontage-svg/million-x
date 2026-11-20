@@ -260,3 +260,42 @@ def test_time_stop_scales_with_signal_timeframe():
                      best_price=100.0, timeframe=tf)
         ev = update_on_bar(p, 100.0, 100.5, 99.5, 100.0, 1.0, 4 * 3_600_000, pol, 0.0005)  # 4 h later
         assert any(e.reason == "time_stop" for e in ev) == expect_closed
+
+
+def test_tradingview_webhook_security_and_pipeline(client, monkeypatch):
+    import hashlib
+    import hmac
+    import json as _j
+    import millionx.tradingview as tvm
+    c, eng, rt = client
+    monkeypatch.setattr(tvm, "now_ms", lambda: 1_800_000_000_000)
+    setup = c.get("/api/tradingview/setup").json()
+    sec = setup["secret"]
+    sym = eng.universe[0]
+    px = float(eng.bars[sym].close[-1])
+    submitted = []
+    monkeypatch.setattr(eng, "submit_external", lambda sig, origin: submitted.append((sig, origin)) or
+                        {"ok": True, "signal_id": sig.id})
+    base = {"id": "a1", "symbol": sym, "side": "LONG", "timeframe": "5", "time": 1_800_000_000_000,
+            "price": px, "stop": px * 0.99, "take_profit": px * 1.03}
+    no_auth = c.post("/api/tradingview/webhook", content=_j.dumps({**base, "secret": "wrong"}))
+    assert no_auth.status_code == 401 and not submitted
+    ok = c.post("/api/tradingview/webhook", content=_j.dumps({**base, "secret": sec}))
+    assert ok.status_code == 202 and submitted[0][1] == "tradingview"
+    assert c.post("/api/tradingview/webhook", content=_j.dumps({**base, "secret": sec})).status_code == 409  # dedup
+    old = c.post("/api/tradingview/webhook", content=_j.dumps({**base, "id": "a2", "secret": sec,
+                                                               "time": 1_800_000_000_000 - 120_000}))
+    assert old.status_code == 400 and "replay" in old.json()["reason"]
+    bad_side = c.post("/api/tradingview/webhook", content=_j.dumps({**base, "id": "a3", "secret": sec,
+                                                                    "stop": px * 1.01}))
+    assert bad_side.status_code == 400 and "wrong side" in bad_side.json()["reason"]
+    unknown = c.post("/api/tradingview/webhook", content=_j.dumps({**base, "id": "a4", "secret": sec,
+                                                                   "symbol": "DOGEUSDT"}))
+    assert unknown.status_code == 400
+    raw = _j.dumps({**base, "id": "a5"}).encode()
+    mac = hmac.new(sec.encode(), raw, hashlib.sha256).hexdigest()
+    signed = c.post("/api/tradingview/webhook", content=raw, headers={"X-MX-Signature": mac})
+    assert signed.status_code == 202 and len(submitted) == 2
+    stored = rt.store.q("SELECT payload FROM tv_signals")
+    assert stored and all(sec not in r["payload"] for r in stored), "secret never stored"
+    assert c.get("/api/strategies/moneyline").json()["implemented"] is False

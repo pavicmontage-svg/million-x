@@ -82,7 +82,7 @@ Evaluate:
 - RSI divergence.
 - Liquidity sweeps.
 - Supertrend.
-- Slot 9 (Moneyline Breakout Entry v3.5 is not available; slot 9 runs the documented Range Expansion Breakout replacement).
+- Bot 9 is Range Expansion Breakout, an independent strategy. Moneyline Breakout Entry v3.5 is NOT implemented (no specification); never describe bot 9 as Moneyline.
 - Adaptive AI scalping.
 
 Do not assume that any strategy is profitable.

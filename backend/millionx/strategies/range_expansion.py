@@ -1,9 +1,8 @@
-"""BOT 9 — RANGE EXPANSION BREAKOUT (replacement slot).
+"""BOT 9 — RANGE EXPANSION BREAKOUT (an independent strategy).
 
-IMPORTANT: this is NOT "Moneyline Breakout Entry v3.5". No public definition
-of that indicator could be found, so by the owner's decision slot 9 runs a
-separate, fully documented breakout method until the original source is
-provided:
+This is NOT "Moneyline Breakout Entry v3.5" and does not stand in for it (1.9.0
+spec). Moneyline v3.5 is NOT implemented: no specification or source has been
+provided (see /api/strategies/moneyline and docs/AUDIT_REPORT.md). Method:
 
   1. Compression: an NR7 bar (narrowest range of the last 7) while
      ATR(5)/ATR(50) < compression_ratio.
@@ -24,9 +23,10 @@ from .base import Strategy
 
 class RangeExpansionBreakout(Strategy):
     bot_id = "bot9_rangeexp"
-    name = "Range Expansion Breakout (slot 9 — not Moneyline)"
-    description = "NR7 + ATR compression, expansion breakout with volume; replaces Moneyline v3.5 until its source is supplied."
-    is_replacement = True
+    name = "Range Expansion Breakout (not Moneyline)"
+    description = ("NR7 + ATR compression, expansion breakout with volume. Independent strategy; "
+                   "Moneyline Breakout Entry v3.5 is not implemented (specification required).")
+    is_replacement = False
     default_params = {"timeframe": 5, "nr_n": 7, "compression_ratio": 0.75, "valid_bars": 3,
                       "trigger_atr": 0.1, "expansion_mult": 1.2, "vol_mult": 1.5, "r1": 1.0, "r2": 2.0}
     param_grid = {"compression_ratio": [0.65, 0.75, 0.85], "valid_bars": [2, 3, 5], "r2": [1.6, 2.0, 2.6]}
