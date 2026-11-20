@@ -179,7 +179,7 @@ fun RiskScreen(nav: NavController) {
                             KV("Feasible", if (f.bool("feasible")) "YES" else "NO", if (f.bool("feasible")) MX.Up else MX.Down)
                             KV("Risk per trade", "${f.numOrNull("risk_per_trade_usdt").fmt(4)} USDT")
                             KV("Exchange min notional", "${f.numOrNull("exchange_min_notional").fmt(2)} USDT")
-                            KV("Max notional allowed by 0.5% risk", "${f.numOrNull("max_notional_allowed_by_risk").fmt(2)} USDT")
+                            KV("Max notional allowed by ${lim.numOrNull("risk_per_trade").pct(1)} risk", "${f.numOrNull("max_notional_allowed_by_risk").fmt(2)} USDT")
                             KV("Fees at min size, % of risk", "${f.numOrNull("fees_as_pct_of_risk").fmt(0)}%")
                         }
                         Text(d.str("feasibility_assumption"), color = MX.Muted, style = MaterialTheme.typography.bodySmall)

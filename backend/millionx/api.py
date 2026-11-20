@@ -316,7 +316,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         feas = {}
         for name, cap in (("experimental_4eur", rt.s.experimental_capital_eur), ("multi_40eur", rt.s.multi_capital_eur)):
             if price:
-                feas[name] = feasibility_report(cap * rt.s.eur_usdt, price, 0.004, rules, rt.s.risk, rt.s.fees)
+                feas[name] = feasibility_report(cap * rt.s.eur_usdt, price, 0.0042, rules, rt.s.risk, rt.s.fees)
         from .governance import RISK_PROFILES
         return J({"limits": rt.s.risk.__dict__, "fees": rt.s.fees.__dict__,
                   "profile": store.kv_get("risk_profile", "standard"), "profiles": RISK_PROFILES, "mode": rt.s.mode,
@@ -325,7 +325,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                   "risk_fraction_now": e.risk.risk_fraction() if e else None,
                   "tighten_factor": e.risk.tighten_factor if e else None,
                   "exposure": sum(p.qty * p.entry_price for p in e.positions.values()) if e else 0.0,
-                  "feasibility": feas, "feasibility_assumption": "ETHUSDT, 0.4% stop, configured fees"})
+                  "feasibility": feas, "feasibility_assumption": "ETHUSDT, 0.42% stop (fee-aware minimum), configured fees"})
 
     @guard("change_risk_limits")
     async def risk_limits(request):
