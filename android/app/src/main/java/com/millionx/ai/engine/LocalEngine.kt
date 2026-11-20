@@ -55,8 +55,8 @@ object LocalEngine {
         port = p
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt("port", p).apply()
         // a previously paired local session must follow the server to its new port
-        val store = MillionXApp.instance.store
-        if (isLocalUrl(store.serverUrl) && store.serverUrl != URL) store.serverUrl = URL
+        val st = MillionXApp.instance.store
+        if (isLocalUrl(st.serverUrl) && st.serverUrl != URL) st.serverUrl = URL
     }
 
     private fun entry() = Python.getInstance().getModule("millionx.android_entry")
