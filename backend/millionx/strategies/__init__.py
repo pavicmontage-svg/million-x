@@ -20,11 +20,26 @@ BASE_CLASSES = [VWAPScalper, EMAMomentum, OrderFlowIntelligence, BreakoutHunter,
 ALL_IDS = [c.bot_id for c in BASE_CLASSES] + [AdaptiveAIScalper.bot_id]
 
 
-def build_bots(stats=None, params: Optional[dict[str, dict[str, Any]]] = None) -> list[Strategy]:
+# 2.0 research strategies (versioned v2 bots and prototypes A-D). They are built only when a
+# research run asks for them by id; the live/paper engine never includes them.
+RESEARCH_CLASSES: list[type] = []
+
+
+def register_research(cls: type) -> type:
+    if cls not in RESEARCH_CLASSES:
+        RESEARCH_CLASSES.append(cls)
+    return cls
+
+
+def build_bots(stats=None, params: Optional[dict[str, dict[str, Any]]] = None,
+               include: Optional[list[str]] = None) -> list[Strategy]:
     params = params or {}
     base = [c(params.get(c.bot_id)) for c in BASE_CLASSES]
     adaptive = AdaptiveAIScalper(params.get(AdaptiveAIScalper.bot_id), members=base, stats=stats)
-    return base + [adaptive]
+    extra = [c(params.get(c.bot_id)) for c in RESEARCH_CLASSES if include and c.bot_id in include]
+    return base + [adaptive] + extra
 
 
 __all__ = ["build_bots", "BASE_CLASSES", "ALL_IDS", "MarketData", "Strategy"]
+
+from . import research_protos  # noqa: E402,F401  (registers research-only prototypes)

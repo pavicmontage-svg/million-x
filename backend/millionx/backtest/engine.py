@@ -95,7 +95,7 @@ def _rejected(key: str, p: float) -> bool:
 def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> BacktestResult:
     sim = _Sim(settings, cfg)
     # one competition / regime book for the whole portfolio
-    probe = build_bots()
+    probe = build_bots(include=cfg.bots)
     comp_ids = [b.bot_id for b in probe if cfg.bots is None or b.bot_id in cfg.bots]
     comp = CompetitionEngine(comp_ids)
     sup = Supervisor(comp, tradable_statuses=(BotStatus.PAPER, BotStatus.BACKTEST_PASSED, BotStatus.LIVE_ELIGIBLE))
@@ -112,7 +112,7 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
     for sym, b in data.items():
         md = MarketData(sym, b)
         mds[sym] = md
-        allb = build_bots(comp.regimes, cfg.params)
+        allb = build_bots(comp.regimes, cfg.params, include=cfg.bots)
         need_all = "bot10_adaptive" in comp_ids
         members = {m.bot_id: m for m in allb if m.bot_id != "bot10_adaptive"
                    and (need_all or m.bot_id in comp_ids)}

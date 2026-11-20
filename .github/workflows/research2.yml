@@ -1,0 +1,58 @@
+name: research2
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        bot: [bot1_vwap, bot2_ema, bot3_orderflow, bot4_breakout, bot5_squeeze, bot6_rsidiv, bot7_liquidity,
+              bot8_supertrend, bot9_rangeexp, bot10_adaptive, protoA_trend_pullback, protoB_sweep_reversal,
+              protoC_breakout_retest, protoD_cost_momentum]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-10sym-2025-01-2026-06-v1
+      - run: mkdir -p /tmp/r2 && python -m millionx.research2 run --bot ${{ matrix.bot }} --out /tmp/r2/r2_${{ matrix.bot }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r2_${{ matrix.bot }}
+          path: /tmp/r2/r2_${{ matrix.bot }}.json
+  aggregate:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/r2
+          merge-multiple: true
+      - run: python -m millionx.research2 aggregate --inputs "/tmp/r2/r2_*.json" --out /tmp/r2/research2.json
+      - run: cat /tmp/r2/research2.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch research2
+        run: |
+          cd /tmp/r2 && git init -q -b research2 && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "research2 ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" research2
