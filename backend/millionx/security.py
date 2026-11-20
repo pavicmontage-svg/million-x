@@ -145,3 +145,19 @@ def authenticate(store: Store, token: str) -> Optional[dict[str, Any]]:
     # sliding expiry: active devices stay paired; idle ones must re-pair
     store.x("UPDATE devices SET last_seen=?, expires_at=? WHERE id=?", (now, now + TOKEN_TTL_MS, r["id"]))
     return {k: r[k] for k in ("id", "name", "role")}
+
+
+def bootstrap_owner_code(store: Store, code: Optional[str], ttl_h: int = 72) -> bool:
+    """First-run pairing without a terminal: if no owner device exists yet, the
+    code from MX_BOOTSTRAP_CODE becomes a single-use owner pairing code."""
+    if not code or len(code.strip()) < 12:
+        return False
+    if store.one("SELECT 1 FROM devices WHERE role='owner' AND revoked=0"):
+        return False
+    h = _h(code.strip().upper())
+    if store.one("SELECT 1 FROM pairing WHERE code_hash=?", (h,)):
+        return False
+    store.x("INSERT INTO pairing(code_hash,role,expires_at) VALUES(?,?,?)",
+            (h, "owner", int(time.time() * 1000) + ttl_h * 3_600_000))
+    store.audit("system", "bootstrap_pairing_code_created", {"ttl_h": ttl_h})
+    return True

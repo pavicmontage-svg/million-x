@@ -1,0 +1,43 @@
+#cloud-config
+# MILLION-X AI — one-paste server install (Hetzner/any cloud with cloud-init, Ubuntu 24.04).
+# Replace the TWO values marked >>> below, paste everything into "Cloud config" when creating the server.
+# Mode after install: PAPER (no real orders). Progress log on the server: /var/log/millionx-install.log
+write_files:
+  - path: /root/mx-install.env
+    permissions: "0600"
+    content: |
+      # >>> 1) GitHub fine-grained token with READ-ONLY "Contents" access to pavicmontage-svg/million-x
+      GH_TOKEN=PASTE_GITHUB_TOKEN_HERE
+      # >>> 2) One-time owner pairing code you will type into the app (keep it private; min. 12 characters)
+      PAIR_CODE=PASTE_PAIRING_CODE_HERE
+      REPO=pavicmontage-svg/million-x
+  - path: /root/mx-install.sh
+    permissions: "0700"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec >>/var/log/millionx-install.log 2>&1
+      echo "== MILLION-X install $(date -u)"
+      source /root/mx-install.env
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y && apt-get install -y git curl openssl ufw
+      curl -fsSL https://get.docker.com | sh
+      IP=$(curl -fsS --max-time 5 http://169.254.169.254/hetzner/v1/metadata/public-ipv4 || curl -fsS --max-time 10 https://api.ipify.org)
+      DOMAIN="$(echo "$IP" | tr . -).sslip.io"
+      rm -rf /opt/million-x
+      git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /opt/million-x
+      git -C /opt/million-x remote set-url origin "https://github.com/${REPO}.git"   # token not kept in git config
+      cd /opt/million-x/backend
+      MK=$(openssl rand -base64 32 | tr '+/' '-_')
+      cp .env.example .env
+      sed -i "s|^MX_MASTER_KEY=.*|MX_MASTER_KEY=${MK}|; s|^MX_DOMAIN=.*|MX_DOMAIN=${DOMAIN}|; s|^MX_MODE=.*|MX_MODE=paper|" .env
+      echo "MX_BOOTSTRAP_CODE=${PAIR_CODE}" >> .env
+      chmod 600 .env
+      mkdir -p data/backups secrets && chown -R 10001:10001 data secrets
+      ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
+      docker compose up -d --build
+      sed -i 's|^GH_TOKEN=.*|GH_TOKEN=removed-after-install|' /root/mx-install.env
+      echo "== DONE. App URL: https://${DOMAIN}"
+      echo "https://${DOMAIN}" > /root/MILLIONX-URL.txt
+runcmd:
+  - [bash, /root/mx-install.sh]

@@ -93,3 +93,14 @@ def test_live_mode_not_resumed_after_restart_without_valid_unlock(tmp_path):
     rt = Runtime(Settings(db_path=str(tmp_path / "r.db")), st, None)
     assert rt.s.mode == "paper"
     assert st.one("SELECT COUNT(*) n FROM audit WHERE action='live_not_resumed'")["n"] == 1
+
+
+def test_bootstrap_owner_code_only_until_owner_exists(tmp_path):
+    st = Store(str(tmp_path / "bs.db"))
+    assert not sec.bootstrap_owner_code(st, "short")
+    assert sec.bootstrap_owner_code(st, "ABCD-1234-EF56")
+    assert not sec.bootstrap_owner_code(st, "ABCD-1234-EF56"), "created once"
+    r = sec.redeem_pairing_code(st, "abcd-1234-ef56", "S25", ip="1.1.1.1")
+    assert r and r["role"] == "owner"
+    assert sec.redeem_pairing_code(st, "ABCD-1234-EF56", "x", ip="2.2.2.2") is None, "single use"
+    assert not sec.bootstrap_owner_code(st, "FFFF-1234-EF56"), "never once an owner is paired"

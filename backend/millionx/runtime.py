@@ -51,6 +51,9 @@ class Runtime:
                 store.notify("critical", "risk", "Stored risk limits rejected", f"{e}; defaults kept")
         from .live_gate import LiveGate
         self.gate = LiveGate(store, self.s)
+        import os
+        from .security import bootstrap_owner_code
+        bootstrap_owner_code(store, os.environ.get("MX_BOOTSTRAP_CODE"))
         if self.s.mode == "live" and not self.gate.is_valid():
             # never resume real trading without a valid, unexpired authorisation
             self.s.mode = "paper"

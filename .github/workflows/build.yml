@@ -18,6 +18,32 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -v tests
 
+  docker-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image and run the server exactly like the cloud-init install
+        run: |
+          cp .env.example .env
+          MK=$(openssl rand -base64 32 | tr '+/' '-_')
+          sed -i "s|^MX_MASTER_KEY=.*|MX_MASTER_KEY=${MK}|; s|^MX_DOMAIN=.*|MX_DOMAIN=localhost|" .env
+          echo "MX_BOOTSTRAP_CODE=TEST-CODE-1234" >> .env
+          mkdir -p data/backups secrets && sudo chown -R 10001:10001 data secrets
+          docker compose config -q
+          docker build -t mx-backend .
+          docker run -d --name mx --env-file .env -p 8080:8080 -v "$PWD/data:/app/data" mx-backend
+          for i in $(seq 1 30); do curl -s -o /dev/null -w "%{http_code}" localhost:8080/api/health | grep -qE "200|503" && break; sleep 2; done
+          echo "health:"; curl -s localhost:8080/api/health; echo
+          TOKEN=$(curl -s -X POST localhost:8080/api/pair -H 'content-type: application/json' \
+                  -d '{"code":"test-code-1234","device_name":"ci"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
+          curl -sf localhost:8080/api/dashboard -H "authorization: Bearer $TOKEN" | head -c 600; echo
+          curl -sf localhost:8080/api/bots -H "authorization: Bearer $TOKEN" | python3 -c "import json,sys; assert len(json.load(sys.stdin))==10; print('10 bots OK')"
+          test -f data/millionx.db && echo "database persisted on the host volume"
+          docker logs mx 2>&1 | tail -20
+
   android-apk:
     runs-on: ubuntu-latest
     permissions:
