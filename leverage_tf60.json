@@ -1,0 +1,59 @@
+{
+ "period": [
+  "2025-07-01",
+  "2026-10-31"
+ ],
+ "timeframe": 60,
+ "symbols": [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "XRPUSDT"
+ ],
+ "rows": [
+  {
+   "leverage": 5,
+   "trades": 324,
+   "net_profit": -85.92796867700588,
+   "profit_factor": 0.6587933081558426,
+   "expectancy_r": -0.19110209785935042,
+   "max_drawdown": 0.16959179776119837,
+   "win_rate": 0.42901234567901236,
+   "sharpe": -2.7838071143411747,
+   "liquidations": 0
+  },
+  {
+   "leverage": 10,
+   "trades": 324,
+   "net_profit": -85.92796867700588,
+   "profit_factor": 0.6587933081558426,
+   "expectancy_r": -0.19110209785935042,
+   "max_drawdown": 0.16959179776119837,
+   "win_rate": 0.42901234567901236,
+   "sharpe": -2.7838071143411747,
+   "liquidations": 0
+  },
+  {
+   "leverage": 15,
+   "trades": 324,
+   "net_profit": -85.92796867700588,
+   "profit_factor": 0.6587933081558426,
+   "expectancy_r": -0.19110209785935042,
+   "max_drawdown": 0.16959179776119837,
+   "win_rate": 0.42901234567901236,
+   "sharpe": -2.7838071143411747,
+   "liquidations": 0
+  },
+  {
+   "leverage": 20,
+   "trades": 324,
+   "net_profit": -85.92796867700588,
+   "profit_factor": 0.6587933081558426,
+   "expectancy_r": -0.19110209785935042,
+   "max_drawdown": 0.16959179776119837,
+   "win_rate": 0.42901234567901236,
+   "sharpe": -2.7838071143411747,
+   "liquidations": 0
+  }
+ ]
+}
