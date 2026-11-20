@@ -88,6 +88,8 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
     for b in comp_ids:
         sup.set_status(b, BotStatus.PAPER, "backtest")
     risk = RiskManager(settings.risk, settings.fees)
+    from ..strategies.base import set_min_stop_from_fees
+    set_min_stop_from_fees(settings.fees, settings.target_fee_share)
 
     # ---- per symbol preparation (strategies are causal, verified in tests)
     mds: dict[str, MarketData] = {}

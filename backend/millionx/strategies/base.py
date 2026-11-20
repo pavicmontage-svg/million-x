@@ -17,6 +17,23 @@ from .. import indicators as ind
 from ..models import Bars, OrderBookSnapshot, Side, Signal, MINUTE_MS
 from ..regime import RegimeSeries, detect
 
+# Minimum stop distance (fraction of price). A stop tighter than this makes
+# exchange fees a large share of the risk (on 1-minute scalps often 40-50 %),
+# so the stop is widened and both targets are scaled by the same factor: the
+# reward/risk structure of the strategy is kept, only the size of the move grows.
+MIN_STOP_FRAC = 0.0042
+
+
+def set_min_stop_from_fees(fees, target_fee_share: float) -> float:
+    """min stop = round-trip cost rate * (1/share - 1). Returns the value set."""
+    global MIN_STOP_FRAC
+    if target_fee_share <= 0:
+        MIN_STOP_FRAC = 0.0
+    else:
+        cost = 2 * fees.taker + 2 * fees.slippage_bps / 1e4
+        MIN_STOP_FRAC = cost * (1 / min(0.95, target_fee_share) - 1)
+    return MIN_STOP_FRAC
+
 
 class MarketData:
     """All market information for one symbol up to "now" (no future bars)."""
@@ -148,10 +165,20 @@ class Strategy:
             return None
         if side == Side.SHORT and not (stop > entry > tp1 >= tp2):
             return None
+        feats = {"atr": float(self.f["atr"][j])}
+        d = abs(entry - stop)
+        if MIN_STOP_FRAC > 0 and d < entry * MIN_STOP_FRAC:
+            k = entry * MIN_STOP_FRAC / d
+            sgn = int(side)
+            stop = entry - sgn * d * k
+            tp1 = entry + (tp1 - entry) * k
+            tp2 = entry + (tp2 - entry) * k
+            feats["stop_widened_from_pct"] = d / entry * 100
+            reason = f"{reason} [stop widened {d / entry * 100:.2f}%→{MIN_STOP_FRAC * 100:.2f}% for fees]"
         return Signal(bot_id=self.bot_id, symbol=self.md.symbol, side=side, entry=entry, stop=float(stop),
                       tp1=float(tp1), tp2=float(tp2), confidence=float(np.clip(conf, 0, 1)),
                       bar_time=int(self.b.open_time[j] + self.timeframe * MINUTE_MS), timeframe=self.timeframe,
-                      reason=reason, features={"atr": float(self.f["atr"][j])})
+                      reason=reason, features=feats)
 
     # ---- helpers ---------------------------------------------------------
     @staticmethod

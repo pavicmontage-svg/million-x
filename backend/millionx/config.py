@@ -86,6 +86,9 @@ class Settings:
     api_host: str = "0.0.0.0"
     api_port: int = 8080
     fees: FeeModel = field(default_factory=FeeModel)
+    # Stops tighter than fees allow are widened (targets scaled with them) so that
+    # round-trip costs are at most this share of the risk. 0 disables.
+    target_fee_share: float = 0.25
     risk: RiskLimits = field(default_factory=RiskLimits)
     activation: ActivationCriteria = field(default_factory=ActivationCriteria)
 

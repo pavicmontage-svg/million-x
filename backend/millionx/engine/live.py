@@ -65,6 +65,8 @@ class TradingEngine:
         self.comp = CompetitionEngine(list(ALL_IDS))
         self.sup = Supervisor(self.comp, tradable_statuses=self._tradable())
         self.risk = RiskManager(settings.risk, settings.fees)
+        from ..strategies.base import set_min_stop_from_fees
+        set_min_stop_from_fees(settings.fees, settings.target_fee_share)
         self.rules: dict[str, SymbolRules] = {}
         self.universe: list[str] = []
         self.scanner: dict[str, dict[str, Any]] = {}
