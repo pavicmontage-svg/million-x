@@ -28,16 +28,20 @@ class FeeModel:
 
 @dataclass
 class RiskLimits:
-    risk_per_trade: float = 0.005          # 0.5 % of equity at the stop
-    max_daily_loss: float = 0.03           # stop opening trades after -3 % on the day
+    risk_per_trade: float = 0.005          # 0.5 % of equity at the stop (2.50 EUR on 500 EUR)
+    max_daily_loss: float = 0.02           # stop opening trades after -2 % on the day (10 EUR on 500 EUR)
+    max_daily_loss_eur: float = 10.0       # absolute daily loss limit in EUR (0 = off); the stricter limit wins
     max_total_drawdown: float = 0.20       # hard stop at -20 % from equity peak
     max_consecutive_losses: int = 4        # then cool down
     cooldown_minutes: int = 60
     loss_streak_risk_scale: float = 0.5    # risk multiplier after a loss streak
     drawdown_risk_scale_start: float = 0.08  # start scaling risk down from this DD
-    max_open_positions: int = 3
+    max_open_positions: int = 2
     max_total_exposure: float = 3.0        # sum(notional) / equity
-    max_leverage: int = 10                 # hard ceiling, never exchange max
+    max_leverage: int = 20                 # hard ceiling, never exchange max
+    # leverage tiers by setup quality (5x weak / 10x standard / 15x very good / 20x exceptional)
+    leverage_tiers: str = "5,10,15,20"
+    min_liq_buffer: float = 3.0            # liquidation distance must be >= this x stop distance
     leverage_vol_target: float = 0.02      # lev <= target / ATR%(15m)
     max_fee_to_risk: float = 0.35          # reject if round-trip cost > 35 % of risk
     min_reward_risk: float = 1.2           # net of fees
@@ -69,9 +73,10 @@ class ActivationCriteria:
 class Settings:
     mode: str = "paper"                 # paper | demo | live
     execution: str = "manual"           # manual | auto (approval of real orders)
-    capital_mode: str = "multi"         # experimental (4 EUR) | multi (40 EUR)
+    capital_mode: str = "pro"           # experimental (4 EUR) | multi (40 EUR) | pro (500 EUR)
     experimental_capital_eur: float = 4.0
     multi_capital_eur: float = 40.0
+    pro_capital_eur: float = 500.0
     eur_usdt: float = 1.08              # display only; overwritten from market if available
     goal_eur: float = 1_048_576.0
     quote_asset: str = "USDT"
@@ -89,6 +94,8 @@ class Settings:
     # Stops tighter than fees allow are widened (targets scaled with them) so that
     # round-trip costs are at most this share of the risk. 0 disables.
     target_fee_share: float = 0.25
+    # Owner-selected timeframe (minutes) for all base bots; 0 = each bot's own default.
+    strategy_timeframe: int = 0
     risk: RiskLimits = field(default_factory=RiskLimits)
     activation: ActivationCriteria = field(default_factory=ActivationCriteria)
 
@@ -108,7 +115,8 @@ class Settings:
 
     @property
     def starting_capital_eur(self) -> float:
-        return self.experimental_capital_eur if self.capital_mode == "experimental" else self.multi_capital_eur
+        return {"experimental": self.experimental_capital_eur, "multi": self.multi_capital_eur}.get(
+            self.capital_mode, self.pro_capital_eur)
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

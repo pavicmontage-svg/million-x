@@ -41,7 +41,7 @@ class Runtime:
         self.engine: Optional[TradingEngine] = None
         self.engine_error: Optional[str] = None
         saved = store.kv_get("runtime_settings", {})
-        for k in ("mode", "execution", "capital_mode"):
+        for k in ("mode", "execution", "capital_mode", "strategy_timeframe"):
             if k in saved:
                 setattr(self.s, k, saved[k])
         lim = store.kv_get("risk_limits")
@@ -187,7 +187,8 @@ class Runtime:
 
     def save_runtime(self) -> None:
         self.store.kv_set("runtime_settings", {"mode": self.s.mode, "execution": self.s.execution,
-                                               "capital_mode": self.s.capital_mode})
+                                               "capital_mode": self.s.capital_mode,
+                                               "strategy_timeframe": self.s.strategy_timeframe})
 
     # -------------------------------------------------------------- jobs
     def submit_job(self, kind: str, req: dict[str, Any]) -> str:
@@ -219,9 +220,14 @@ class Runtime:
             t0 = int(datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp() * 1000)
             t1 = int(datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp() * 1000) + 86_400_000
             data = {k: v.slice(int((v.open_time < t0).sum()), int((v.open_time < t1).sum())) for k, v in data.items()}
+            tf = int(req.get("timeframe") or 0)
+            if tf not in (0, 5, 15, 30, 60, 240):
+                raise ValueError("timeframe must be 0, 5, 15, 30, 60 or 240")
+            from .strategies import ALL_IDS
+            tf_params = {b: {"timeframe": tf} for b in ALL_IDS if b != "bot10_adaptive"} if tf else {}
             if kind == "backtest":
                 cfg = BacktestConfig(start_equity=float(req.get("start_equity", 40.0)), bots=req.get("bots"),
-                                     use_supervisor=bool(req.get("use_supervisor", True)))
+                                     use_supervisor=bool(req.get("use_supervisor", True)), params=tf_params)
                 res = run_backtest(data, self.s, cfg)
                 out = res.summary()
                 out["equity_curve"] = res.equity_curve[:: max(1, len(res.equity_curve) // 500)]
@@ -231,8 +237,10 @@ class Runtime:
                     self.store.x("UPDATE jobs SET progress=? WHERE id=?", (json.dumps({"bot": bot, "window": k, "text": f"walk-forward {bot}: window {k}"}), jid))
                 out = {}
                 for b in req.get("bots") or []:
+                    import math as _m
+                    warm = max(3, _m.ceil((tf or 5) * 60 / 1440) + 1)
                     wf = walk_forward(data, self.s, b, int(req.get("train_days", 60)), int(req.get("test_days", 20)),
-                                      progress=prog)
+                                      warmup_days=warm, progress=prog, base_params={"timeframe": tf} if tf else None)
                     out[b] = wf.to_dict()
                     self.store.audit("quant_research", "walk_forward_completed",
                                      {"job": jid, "bot": b}, "n/a", wf.activation)

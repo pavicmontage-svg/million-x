@@ -43,6 +43,7 @@ class BacktestConfig:
     rules: dict[str, SymbolRules] = field(default_factory=dict)
     record_equity_every: int = 15             # minutes
     daily_competition: bool = True
+    assumed_spread_bps: float = 1.0           # historical klines carry no book: spread assumed for leverage tiers
 
 
 @dataclass
@@ -87,7 +88,7 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
     sup = Supervisor(comp, tradable_statuses=(BotStatus.PAPER, BotStatus.BACKTEST_PASSED, BotStatus.LIVE_ELIGIBLE))
     for b in comp_ids:
         sup.set_status(b, BotStatus.PAPER, "backtest")
-    risk = RiskManager(settings.risk, settings.fees)
+    risk = RiskManager(settings.risk, settings.fees, settings.eur_usdt)
     from ..strategies.base import set_min_stop_from_fees
     set_min_stop_from_fees(settings.fees, settings.target_fee_share)
 
@@ -178,6 +179,7 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
         fill = sim.fill_entry(sig.side, px_open)
         # keep the strategy's stop/targets in price terms
         p = Position(id=uuid.uuid4().hex[:12], bot_id=sig.bot_id, symbol=sig.symbol, side=sig.side, qty=qty,
+                     timeframe=sig.timeframe,
                      entry_price=fill, stop=sig.stop, tp1=sig.tp1, tp2=sig.tp2, initial_stop=sig.stop,
                      opened_at=ts, leverage=lev, risk_amount=risk_amt, qty_initial=qty, best_price=fill,
                      atr_at_entry=sig.features.get("atr", 0.0), signal_id=sig.id, virtual=virtual_)
@@ -237,6 +239,15 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
                     p.funding_paid += f
                     if not p.virtual:
                         equity -= f
+                if not p.virtual and p.leverage > 1:
+                    # ISOLATED margin liquidation: only reachable when the open gaps past the stop
+                    mmr = cfg.rules[p.symbol].maint_margin_rate if p.symbol in cfg.rules else 0.004
+                    liq = p.entry_price * (1 - int(p.side) * (1 / p.leverage - mmr))
+                    o = float(b.open[k])
+                    if (p.side == Side.LONG and o <= liq) or (p.side == Side.SHORT and o >= liq):
+                        close_pos(p, liq, t, "liquidation", store)
+                        del book[key]
+                        continue
                 atr = p.atr_at_entry  # trailing distance fixed at the signal-timeframe ATR
                 for ev in update_on_bar(p, float(b.open[k]), float(b.high[k]), float(b.low[k]), float(b.close[k]),
                                         atr, t, cfg.exit_policy, taker):
@@ -283,18 +294,18 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
 
             if cfg.use_supervisor:
                 verdicts = sup.review(all_sigs, regime_of, open_syms, enforce_status=True)
-                cands = [(v.signal, v.size_multiplier) for v in verdicts if v.accepted]
+                cands = [(v.signal, v.size_multiplier, v.score) for v in verdicts if v.accepted]
                 for v in verdicts:
                     if not v.accepted:
                         key = v.reasons[0].split(" ")[0]
                         rejections[key] = rejections.get(key, 0) + 1
             else:
-                cands = [(s, 1.0) for s in all_sigs if s.symbol not in open_syms]
-            for s, mult in cands:
+                cands = [(s, 1.0, s.confidence) for s in all_sigs if s.symbol not in open_syms]
+            for s, mult, score in cands:
                 positions = list(real.values())
                 ap = mds[s.symbol].atr_pct15_at_1m(pos_idx[s.symbol][t])
                 dec = risk.size(s, cfg.rules[s.symbol], positions + [_pseudo(x, d) for x, d in pending_real],
-                                ap, t, mult)
+                                ap, t, mult, quality={"score": score, "spread_bps": cfg.assumed_spread_bps})
                 if dec.approved:
                     pending_real.append((s, dec))
                 else:
@@ -319,5 +330,6 @@ def run(data: dict[str, Bars], settings: Settings, cfg: BacktestConfig) -> Backt
 
 def _pseudo(sig: Signal, dec) -> Position:
     return Position(id="pending", bot_id=sig.bot_id, symbol=sig.symbol, side=sig.side, qty=dec.qty,
+                    timeframe=sig.timeframe,
                     entry_price=sig.entry, stop=sig.stop, tp1=sig.tp1, tp2=sig.tp2, initial_stop=sig.stop,
                     opened_at=0, leverage=dec.leverage)

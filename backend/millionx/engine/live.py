@@ -64,7 +64,7 @@ class TradingEngine:
         self.policy = ExitPolicy()
         self.comp = CompetitionEngine(list(ALL_IDS))
         self.sup = Supervisor(self.comp, tradable_statuses=self._tradable())
-        self.risk = RiskManager(settings.risk, settings.fees)
+        self.risk = RiskManager(settings.risk, settings.fees, settings.eur_usdt)
         from ..strategies.base import set_min_stop_from_fees
         set_min_stop_from_fees(settings.fees, settings.target_fee_share)
         self.rules: dict[str, SymbolRules] = {}
@@ -258,12 +258,16 @@ class TradingEngine:
 
     def window(self) -> int:
         """1m bars kept per symbol: enough for every bot's timeframe and warm-up
-        (e.g. 60-minute bots need ~90 hourly bars = 5,400 one-minute bars)."""
-        need = WINDOW
-        for bots in list(self.bots.values())[:1] or [build_bots(None, self._bot_params())]:
-            for x in bots:
+        (e.g. 4-hour bots need ~90 four-hour bars = 21,600 one-minute bars)."""
+        import json
+        params = self._bot_params()
+        key = json.dumps(params, sort_keys=True, default=str)
+        if getattr(self, "_window_key", None) != key:
+            need = WINDOW
+            for x in build_bots(None, params):
                 need = max(need, x.timeframe * (getattr(x, "warmup_bars", 60) + 30))
-        return int(min(need, 6000))
+            self._window_key, self._window_val = key, int(min(need, 22000))
+        return self._window_val
 
     def _history(self, sym: str, n: int) -> Bars:
         """Initial history; Binance returns at most 1,500 klines per request, so page backwards."""
@@ -425,7 +429,7 @@ class TradingEngine:
                 self._decide(v, md, ts)
 
     def _bot_params(self) -> dict[str, dict[str, Any]]:
-        out = {}
+        out: dict[str, dict[str, Any]] = {}
         for r in self.store.q("SELECT bot_id, params FROM bot_state"):
             try:
                 import json
@@ -434,6 +438,11 @@ class TradingEngine:
                     out[r["bot_id"]] = p
             except ValueError:
                 pass
+        tf = int(getattr(self.s, "strategy_timeframe", 0) or 0)
+        if tf:  # owner-selected timeframe for every base bot (the adaptive bot relays them)
+            for bid in ALL_IDS:
+                if bid != "bot10_adaptive":
+                    out[bid] = {**out.get(bid, {}), "timeframe": tf}
         return out
 
     def _price_corr(self, a: str, b: str) -> float:
@@ -473,8 +482,10 @@ class TradingEngine:
                           "reason": "exchange rules for this symbol not loaded"})
             self._log_decision(s, steps, "no_symbol_rules")
             return
+        bk = self.books.get(s.symbol)
+        quality = {"score": v.score, "confidence": s.confidence, "spread_bps": bk.spread_bps if bk else None}
         dec = self.risk.size(s, rules, list(self.positions.values()), md.atr_pct15_at_1m(len(md.b1) - 1), ts,
-                             v.size_multiplier * self._budget_multiplier(s.bot_id))
+                             v.size_multiplier * self._budget_multiplier(s.bot_id), quality=quality)
         steps.append({"step": 4, "dept": "capital_intelligence", "result": "sized" if dec.approved else "rejected",
                       "decision": dec.to_dict()})
         book = self.books.get(s.symbol)
@@ -685,6 +696,7 @@ class TradingEngine:
             return
         trend, vol = md.regime_at_1m(len(md.b1) - 1)
         p = Position(id=uuid.uuid4().hex[:12], bot_id=s.bot_id, symbol=s.symbol, side=s.side, qty=0.5 / d,
+                     timeframe=s.timeframe,
                      entry_price=fill, stop=s.stop, tp1=s.tp1, tp2=s.tp2, initial_stop=s.stop, opened_at=ts,
                      risk_amount=0.5, qty_initial=0.5 / d, best_price=fill, atr_at_entry=s.features.get("atr", 0.0),
                      signal_id=s.id, regime=regime_key(trend, vol), virtual=True)

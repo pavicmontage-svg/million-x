@@ -214,7 +214,7 @@ def test_max_profile_only_with_virtual_money(client):
     assert c.put("/api/risk/limits", json={"risk_per_trade": 0.05}).status_code == 400
     rt.s.mode = "paper"
     c.post("/api/risk/profile", json={"profile": "standard"})
-    assert rt.s.risk.max_leverage == 10 and rt.s.risk.leverage_vol_target == 0.02
+    assert rt.s.risk.max_leverage == 20 and rt.s.risk.leverage_tiers == "5,10,15,20"
 
 
 def test_max_profile_sizes_with_high_leverage_on_4_eur():
@@ -233,3 +233,30 @@ def test_max_profile_sizes_with_high_leverage_on_4_eur():
                                    max_leverage=100), [], 0.003, 0)
     assert dec.approved, dec.reasons
     assert dec.leverage >= 5 and dec.notional >= 20.0
+
+
+def test_owner_timeframe_applies_to_all_base_bots(client, monkeypatch):
+    c, eng, rt = client
+    restarted = []
+    monkeypatch.setattr(rt, "start_engine", lambda: restarted.append(True))
+    assert c.put("/api/settings", json={"timeframe": 45}).status_code == 400
+    r = c.put("/api/settings", json={"timeframe": 240})
+    assert r.status_code == 200 and restarted and rt.s.strategy_timeframe == 240
+    assert c.get("/api/settings").json()["timeframe"] == 240
+    assert rt.store.kv_get("runtime_settings")["strategy_timeframe"] == 240
+    p = eng._bot_params()
+    assert all(p[b]["timeframe"] == 240 for b in p if b != "bot10_adaptive") and "bot10_adaptive" not in p
+    assert eng.window() == 21600  # 240 min x (60 warm-up + 30) one-minute bars
+    rt.s.strategy_timeframe = 0
+
+
+def test_time_stop_scales_with_signal_timeframe():
+    from millionx.engine.position import ExitPolicy, update_on_bar
+    from millionx.models import Position, Side
+    pol = ExitPolicy()
+    for tf, expect_closed in ((5, True), (240, False)):
+        p = Position(id="x", bot_id="b", symbol="S", side=Side.LONG, qty=1.0, entry_price=100.0, stop=90.0,
+                     tp1=120.0, tp2=130.0, initial_stop=90.0, opened_at=0, risk_amount=10.0, qty_initial=1.0,
+                     best_price=100.0, timeframe=tf)
+        ev = update_on_bar(p, 100.0, 100.5, 99.5, 100.0, 1.0, 4 * 3_600_000, pol, 0.0005)  # 4 h later
+        assert any(e.reason == "time_stop" for e in ev) == expect_closed

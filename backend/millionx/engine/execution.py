@@ -102,6 +102,15 @@ class ExecutionManager:
         if self.e.org is not None:
             ok_cro, _, why = self.e.org.cro_review(self.e, s, dec)
         v = pre_trade(self.e.risk.limits, ctx)
+        if not self.ex.is_paper:
+            # real Binance balance before every order: margin for this order must be available
+            try:
+                bal = self.ex.balance()
+                need = dec.notional / max(1, dec.leverage) * 1.05 + dec.expected_cost
+                if bal.get("available", 0.0) < need:
+                    v.append(f"Binance available balance {bal.get('available', 0.0):.2f} < required margin {need:.2f} USDT")
+            except ExchangeError as ex:
+                v.append(f"cannot read Binance balance before order: {ex}")
         if not ok_cro:
             v.append(f"CRO veto: {why}")
         return v, {"exec_price": exec_px, "spread_bps": book.spread_bps, "depth": ctx.depth_usdt}
@@ -160,6 +169,7 @@ class ExecutionManager:
         md = e.mds.get(sym)
         trend, vol = md.regime_at_1m(len(md.b1) - 1) if md else ("SIDEWAYS", "NORMAL_VOL")
         p = Position(id=s.id, bot_id=s.bot_id, symbol=sym, side=s.side, qty=filled, entry_price=avg, stop=s.stop,
+                     timeframe=s.timeframe,
                      tp1=s.tp1, tp2=s.tp2, initial_stop=s.stop, opened_at=t_submit, leverage=dec.leverage,
                      risk_amount=dec.risk_amount, qty_initial=filled, best_price=avg,
                      atr_at_entry=s.features.get("atr", 0.0), signal_id=s.id, regime=regime_key(trend, vol))

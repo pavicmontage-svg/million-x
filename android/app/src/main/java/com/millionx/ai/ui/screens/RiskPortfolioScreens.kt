@@ -53,7 +53,8 @@ import kotlinx.serialization.json.JsonPrimitive
 
 private val PROFILE_TEXT = mapOf(
     "safe" to ("Safe" to "0.25% risk per trade, pause after 3 losses for 2 h, max 2 positions, leverage ≤ 5x."),
-    "standard" to ("Standard" to "0.5% risk per trade, pause after 4 losses for 1 h, max 3 positions, leverage ≤ 10x."),
+    "standard" to ("Standard" to "Owner spec: 0.5% risk per trade (2.50 EUR on 500 EUR), max 10 EUR loss per day, " +
+            "2 positions, ISOLATED margin, leverage 5x/10x/15x/20x by setup quality with liquidation buffer."),
     "aggressive" to ("Aggressive" to "2% risk per trade (the hard maximum for real money), pause only after 10 losses " +
             "for 15 min, up to 6 positions, leverage ≤ 15x, daily loss limit 10%, drawdown stop 35%. " +
             "Losses grow 4x faster than Standard."),

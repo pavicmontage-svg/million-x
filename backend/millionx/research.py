@@ -105,6 +105,42 @@ def cmd_holdout(a) -> None:
     print("\n".join(lines))
 
 
+
+
+def cmd_leverage(a) -> None:
+    """Same historical signals at fixed 5x / 10x / 15x / 20x (fees, slippage, funding, isolated liquidation)."""
+    import copy
+    from .backtest.engine import BacktestConfig, run
+    from .strategies import ALL_IDS
+    start, end = date.fromisoformat(a.start), date.fromisoformat(a.end)
+    data = _load(start, end, a.data_dir)
+    params = {b: {"timeframe": a.tf} for b in ALL_IDS if b != "bot10_adaptive"} if a.tf else {}
+    rows = []
+    for lev in (5, 10, 15, 20):
+        s = Settings()
+        s.risk = copy.deepcopy(s.risk)
+        s.risk.leverage_tiers = str(lev)
+        res = run(data, s, BacktestConfig(start_equity=540.0, params=params))
+        m = res.summary()["metrics"]
+        liq = sum(1 for t in res.trades if t.exit_reason == "liquidation")
+        rows.append({"leverage": lev, "trades": m.get("trades"), "net_profit": m.get("net_profit"),
+                     "profit_factor": m.get("profit_factor"), "expectancy_r": m.get("expectancy_r"),
+                     "max_drawdown": m.get("max_drawdown_mtm"), "win_rate": m.get("win_rate"),
+                     "sharpe": m.get("sharpe"), "liquidations": liq})
+        print(rows[-1], flush=True)
+    out = {"period": [a.start, a.end], "timeframe": a.tf, "symbols": SYMBOLS, "rows": rows}
+    with open(a.out, "w") as fh:
+        json.dump(metrics.json_safe(out), fh, default=str, indent=1)
+    lines = [f"Leverage comparison {a.start}..{a.end}, timeframe {a.tf or 'bot default'}, 540 USDT, 0.5 % risk",
+             "| leverage | trades | net profit | PF | exp R | max DD | win rate | Sharpe | liquidations |",
+             "|---|---|---|---|---|---|---|---|---|"]
+    for r in rows:
+        lines.append(f"| {r['leverage']}x | {r['trades']} | {r['net_profit']} | {r['profit_factor']} | "
+                     f"{r['expectancy_r']} | {r['max_drawdown']} | {r['win_rate']} | {r['sharpe']} | {r['liquidations']} |")
+    open(a.out.replace(".json", ".md"), "w").write("\n".join(lines))
+    print("\n".join(lines))
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -117,8 +153,14 @@ def main() -> None:
     h.add_argument("--inputs", required=True)
     h.add_argument("--out", required=True)
     h.add_argument("--data-dir", default=os.environ.get("MX_DATA_DIR", "data/klines"))
+    lv = sub.add_parser("leverage")
+    lv.add_argument("--start", default="2025-07-01")
+    lv.add_argument("--end", default="2026-10-31")
+    lv.add_argument("--tf", type=int, default=0)
+    lv.add_argument("--out", required=True)
+    lv.add_argument("--data-dir", default=os.environ.get("MX_DATA_DIR", "data/klines"))
     a = p.parse_args()
-    {"wf": cmd_wf, "holdout": cmd_holdout}[a.cmd](a)
+    {"wf": cmd_wf, "holdout": cmd_holdout, "leverage": cmd_leverage}[a.cmd](a)
 
 
 if __name__ == "__main__":

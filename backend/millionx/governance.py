@@ -36,7 +36,10 @@ BOUNDS: dict[str, tuple[float, float]] = {
     "max_spread_bps": (0.5, 20.0),
     "min_depth_usdt": (1_000.0, 1e9),
     "max_unlock_hours": (1, 24),
+    "max_daily_loss_eur": (0.0, 1_000_000.0),
+    "min_liq_buffer": (2.0, 20.0),
 }
+STR_FIELDS = {"leverage_tiers"}
 BOOL_FIELDS = {"disconnect_flatten"}
 
 # PAPER/DEMO only (virtual money): wider bounds so the owner can experiment with
@@ -65,6 +68,16 @@ def validate_limits(d: dict[str, Any], mode: str = "live") -> list[str]:
             if not isinstance(v, bool):
                 errs.append(f"{k} must be true/false")
             continue
+        if k in STR_FIELDS:
+            try:
+                tiers = [int(x) for x in str(v).split(",")]
+            except ValueError:
+                errs.append(f"{k} must be comma-separated integers")
+                continue
+            hi = bounds.get("max_leverage", (1, 20))[1]
+            if not tiers or tiers != sorted(tiers) or tiers[0] < 1 or tiers[-1] > hi:
+                errs.append(f"{k}={v}: ascending integers between 1 and {hi}")
+            continue
         if k not in bounds:
             errs.append(f"{k} is not a known risk parameter")
             continue
@@ -90,20 +103,21 @@ RISK_PROFILES: dict[str, dict[str, Any]] = {
     "safe": {"risk_per_trade": 0.0025, "max_daily_loss": 0.02, "max_total_drawdown": 0.10,
              "max_consecutive_losses": 3, "cooldown_minutes": 120, "loss_streak_risk_scale": 0.5,
              "max_open_positions": 2, "max_leverage": 5, "max_total_exposure": 1.5,
-             "leverage_vol_target": 0.02},
-    "standard": {"risk_per_trade": 0.005, "max_daily_loss": 0.03, "max_total_drawdown": 0.20,
-                 "max_consecutive_losses": 4, "cooldown_minutes": 60, "loss_streak_risk_scale": 0.5,
-                 "max_open_positions": 3, "max_leverage": 10, "max_total_exposure": 3.0,
-                 "leverage_vol_target": 0.02},
+             "leverage_vol_target": 0.02, "leverage_tiers": "2,3,4,5"},
+    # owner specification (500 EUR, 0.5 %, 10 EUR/day, 2 positions, 5-20x by setup quality, isolated)
+    "standard": {"risk_per_trade": 0.005, "max_daily_loss": 0.02, "max_daily_loss_eur": 10.0,
+                 "max_total_drawdown": 0.20, "max_consecutive_losses": 4, "cooldown_minutes": 60,
+                 "loss_streak_risk_scale": 0.5, "max_open_positions": 2, "max_leverage": 20,
+                 "max_total_exposure": 3.0, "leverage_vol_target": 0.02, "leverage_tiers": "5,10,15,20"},
     "aggressive": {"risk_per_trade": 0.02, "max_daily_loss": 0.10, "max_total_drawdown": 0.35,
                    "max_consecutive_losses": 10, "cooldown_minutes": 15, "loss_streak_risk_scale": 1.0,
                    "max_open_positions": 6, "max_leverage": 15, "max_total_exposure": 5.0,
-                   "leverage_vol_target": 0.02},
+                   "leverage_vol_target": 0.02, "leverage_tiers": "5,10,15,15"},
     # PAPER/DEMO only: 5 % risk per trade, up to 50x, no volatility leverage cap.
     "max": {"risk_per_trade": 0.05, "max_daily_loss": 0.50, "max_total_drawdown": 0.90,
             "max_consecutive_losses": 50, "cooldown_minutes": 5, "loss_streak_risk_scale": 1.0,
             "max_open_positions": 10, "max_leverage": 50, "max_total_exposure": 50.0,
-            "leverage_vol_target": 1.0},
+            "leverage_vol_target": 1.0, "leverage_tiers": "20,30,40,50"},
 }
 SIM_ONLY_PROFILES = {"max"}
 
@@ -115,7 +129,8 @@ def apply_limit_changes(limits, changes: dict[str, Any], mode: str = "live") -> 
         if k not in merged:
             raise ValueError(f"unknown limit {k}")
         cur = merged[k]
-        merged[k] = (v if isinstance(v, bool) else bool(v)) if isinstance(cur, bool) else type(cur)(v)
+        merged[k] = (v if isinstance(v, bool) else bool(v)) if isinstance(cur, bool) else (
+            str(v) if isinstance(cur, str) else type(cur)(v))
     errs = validate_limits(merged, mode)
     if errs:
         raise ValueError("; ".join(errs))

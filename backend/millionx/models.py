@@ -155,6 +155,7 @@ class Position:
     signal_id: str = ""
     regime: str = ""
     virtual: bool = False         # shadow (competition) position
+    timeframe: int = 0            # signal timeframe in minutes (scales the time stop)
     exchange_ids: dict[str, Any] = field(default_factory=dict)
 
     def unrealized(self, price: float) -> float:

@@ -2,6 +2,7 @@
 
 package com.millionx.ai.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,8 +63,9 @@ fun QuantLabScreen(nav: NavController) {
     var symbols by remember { mutableStateOf("BTCUSDT,ETHUSDT") }
     var start by remember { mutableStateOf(java.time.LocalDate.now().minusDays(90).toString()) }
     var end by remember { mutableStateOf(java.time.LocalDate.now().minusDays(1).toString()) }
-    var equity by remember { mutableStateOf("40") }
+    var equity by remember { mutableStateOf("540") }
     var kind by remember { mutableStateOf("backtest") }
+    var tf by remember { mutableStateOf(0) }
     val chosen = remember { mutableStateOf(setOf("bot2_ema")) }
     Screen("Quant Research Lab", nav, vm.messages, actions = { RefreshIcon { vm.refresh() } }) {
         item {
@@ -79,6 +81,13 @@ fun QuantLabScreen(nav: NavController) {
                     FilterChip(kind == "walkforward", { kind = "walkforward" }, { Text("Walk-forward + MC") })
                 }
                 OutlinedTextField(symbols, { symbols = it }, label = { Text("Symbols") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Timeframe", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0 to "Bot default", 30 to "30 min", 60 to "1 h", 240 to "4 h", 15 to "15 min").forEach { (v, l) ->
+                        FilterChip(tf == v, { tf = v }, { Text(l) })
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(start, { start = it }, label = { Text("From") }, singleLine = true, modifier = Modifier.weight(1f))
                     OutlinedTextField(end, { end = it }, label = { Text("To") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -102,7 +111,8 @@ fun QuantLabScreen(nav: NavController) {
                         val syms = JsonArray(symbols.split(",").map { JsonPrimitive(it.trim().uppercase()) })
                         val bots = JsonArray(chosen.value.map { JsonPrimitive(it) })
                         val body = jsonBody("kind" to kind, "symbols" to syms, "start" to start, "end" to end,
-                            "start_equity" to (equity.toDoubleOrNull() ?: 40.0), "bots" to if (kind == "walkforward") bots else null)
+                            "start_equity" to (equity.toDoubleOrNull() ?: 540.0), "timeframe" to tf,
+                            "bots" to if (kind == "walkforward") bots else null)
                         vm.action("POST", "/api/backtests", body, "Job queued")
                     }
                 }) { Text("Run") }

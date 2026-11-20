@@ -18,6 +18,7 @@ class ExitPolicy:
     be_buffer_fee_mult: float = 2.0   # stop moved to entry +/- round-trip fees
     trail_atr: float = 1.0
     max_hold_minutes: int = 180
+    max_hold_bars: int = 36           # time stop scales with the signal timeframe (36 x 5m = 180 min)
 
 
 @dataclass
@@ -60,7 +61,8 @@ def update_on_bar(pos: Position, o: float, h: float, l: float, c: float, atr: fl
         ev.append(ExitEvent("CLOSE", pos.tp2, pos.qty, "take_profit_2"))
         return ev
     # 4) time stop
-    if ts_ms - pos.opened_at >= policy.max_hold_minutes * 60_000:
+    hold_min = max(policy.max_hold_minutes, policy.max_hold_bars * int(getattr(pos, "timeframe", 0) or 0))
+    if ts_ms - pos.opened_at >= hold_min * 60_000:
         ev.append(ExitEvent("CLOSE", c, pos.qty, "time_stop"))
         return ev
     # 5) trailing stop evaluated at the close, effective from next bar

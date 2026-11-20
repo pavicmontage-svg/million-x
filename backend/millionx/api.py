@@ -458,6 +458,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
     async def settings_get(request):
         keys = {r["mode"]: True for r in store.q("SELECT mode FROM api_keys WHERE exchange='binance'")}
         return J({"mode": rt.s.mode, "execution": rt.s.execution, "capital_mode": rt.s.capital_mode,
+                  "timeframe": rt.s.strategy_timeframe,
                   "rest_base": rt.s.rest_base, "keys_stored": keys, "live_gate": rt.gate.status(),
                   "live_unlocked": rt.gate.is_valid(),
                   "preflight": store.kv_get("preflight_demo") or store.kv_get("preflight"),
@@ -470,7 +471,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         body = await request.json()
         changes = {}
         for k, allowed in (("mode", ("paper", "demo", "live")), ("execution", ("manual", "auto")),
-                           ("capital_mode", ("experimental", "multi"))):
+                           ("capital_mode", ("experimental", "multi", "pro"))):
             if k in body:
                 if body[k] not in allowed:
                     return J({"error": f"{k} must be one of {allowed}"}, 400)
@@ -483,6 +484,11 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             if errs:
                 return J({"error": "current risk limits are only allowed with virtual money; choose the Standard "
                                    "or Aggressive profile first: " + "; ".join(errs)}, 400)
+        if "timeframe" in body:
+            tf = int(body["timeframe"])
+            if tf not in (0, 5, 15, 30, 60, 240):
+                return J({"error": "timeframe must be 0 (bot defaults), 5, 15, 30, 60 or 240 minutes"}, 400)
+            changes["strategy_timeframe"] = tf
         if "brain_interval_min" in body:
             store.kv_set("brain_interval_min", max(15, int(body["brain_interval_min"])))
             rt.org.interval_ms = max(15, int(body["brain_interval_min"])) * 60_000
@@ -490,7 +496,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             setattr(rt.s, k, v)
         rt.save_runtime()
         store.audit(request.state.actor, "settings_changed", body, "owner")
-        if {"mode", "capital_mode"} & set(changes):
+        if {"mode", "capital_mode", "strategy_timeframe"} & set(changes):
             await asyncio.get_running_loop().run_in_executor(None, rt.start_engine)
         return J({"ok": True, "engine_error": rt.engine_error})
 

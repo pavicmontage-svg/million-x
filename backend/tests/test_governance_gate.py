@@ -11,7 +11,8 @@ from millionx.storage import Store
 def test_every_limit_has_bounds_and_defaults_are_valid():
     L = RiskLimits()
     for k, v in L.__dict__.items():
-        assert k in BOUNDS or isinstance(v, bool), f"{k} has no hard bounds"
+        from millionx.governance import STR_FIELDS
+        assert k in BOUNDS or isinstance(v, bool) or k in STR_FIELDS, f"{k} has no hard bounds"
     assert validate_limits(L.__dict__) == []
 
 
@@ -148,3 +149,10 @@ def test_stale_demo_preflight_refused(gate):
     g.record_demo_preflight({"ok": True, "ts": t["now"] - 25 * 3_600_000})
     g.live_check(FakeLive(), 40.0)
     assert "demo preflight older than 24 h" in g.unlock("owner", lg.CONFIRM_PHRASE)["problems"]
+
+
+def test_leverage_tiers_validated():
+    assert validate_limits({"leverage_tiers": "5,10,15,20"}) == []
+    assert validate_limits({"leverage_tiers": "5,10,15,25"})  # above the live 20x bound
+    assert validate_limits({"leverage_tiers": "10,5"})        # not ascending
+    assert validate_limits({"leverage_tiers": "x"})

@@ -124,3 +124,56 @@ def test_time_stop():
     p = _pos()
     ev = update_on_bar(p, 100, 100.2, 99.9, 100.1, 0.5, T0 + 181 * 60_000, ExitPolicy(), 0.0005)
     assert ev[-1].reason == "time_stop"
+
+
+def _sig(stop_pct=0.0042, tf=5):
+    from millionx.models import Side, Signal
+    e = 100.0
+    return Signal("b", "ETHUSDT", Side.LONG, e, e * (1 - stop_pct), e * (1 + 2 * stop_pct), e * (1 + 3 * stop_pct),
+                  0.9, 0, tf)
+
+
+def _rm(equity=540.0):
+    from millionx.config import FeeModel, RiskLimits
+    from millionx.risk import RiskManager
+    rm = RiskManager(RiskLimits(), FeeModel())
+    rm.reset(equity, 0)
+    return rm
+
+
+def test_owner_spec_500_eur_sizing_and_leverage_tiers():
+    """500 EUR, 0.5 % risk (2.50 EUR), notional = risk budget / stop distance net of costs."""
+    from millionx.risk import SymbolRules
+    rules = SymbolRules("ETHUSDT", min_notional=20.0, step_size=0.001, min_qty=0.001, max_leverage=100)
+    rm = _rm()
+    weak = rm.size(_sig(), rules, [], 0.004, 0, quality={"score": 0.4, "spread_bps": 3.0})
+    best = rm.size(_sig(), rules, [], 0.004, 0, quality={"score": 0.8, "spread_bps": 0.5})
+    conf_only = rm.size(_sig(), rules, [], 0.010, 0, quality={"score": 0.99, "confidence": 1.0, "spread_bps": 5.0})
+    assert weak.approved and best.approved and conf_only.approved
+    assert weak.leverage == 5 and best.leverage == 20
+    assert conf_only.leverage == 10, "high confidence alone must not reach 20x"
+    # same money at risk whatever the leverage: leverage only changes the margin locked
+    assert abs(weak.notional - best.notional) < 1e-9
+    assert abs(weak.risk_amount - 2.70) < 0.03  # 0.5 % of 540 USDT incl. costs
+    assert any("ISOLATED" in a for a in best.adjustments)
+
+
+def test_liquidation_buffer_lowers_leverage_for_wide_stops():
+    from millionx.risk import SymbolRules
+    rules = SymbolRules("ETHUSDT", min_notional=20.0, step_size=0.001, min_qty=0.001, max_leverage=100)
+    dec = _rm().size(_sig(stop_pct=0.02, tf=240), rules, [], 0.004, 0, quality={"score": 0.8, "spread_bps": 0.5})
+    assert dec.approved
+    assert dec.leverage <= 15  # 2 % stop x 3 buffer needs >= 6 % to liquidation
+    assert (1 / dec.leverage - 0.004) >= 3 * 0.02
+
+
+def test_absolute_daily_loss_limit_10_eur():
+    rm = _rm(540.0)
+    rm.update_equity(540.0 - 10.01 * 1.08, 1000)  # just over 10 EUR lost (under 2 %? no: limits agree)
+    ok, why = rm.can_open(1000)
+    assert not ok and why == "daily_loss_limit"
+    # the EUR limit also binds when the fractional limit is looser
+    rm2 = _rm(5400.0)
+    rm2.limits.max_daily_loss = 0.10
+    rm2.update_equity(5400.0 - 10.01 * 1.08, 1000)
+    assert rm2.can_open(1000) == (False, "daily_loss_limit")

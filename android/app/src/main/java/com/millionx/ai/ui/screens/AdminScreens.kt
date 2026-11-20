@@ -3,6 +3,7 @@
 package com.millionx.ai.ui.screens
 
 import android.os.Build
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -117,13 +118,29 @@ fun AdminScreen(nav: NavController, onLogout: () -> Unit) {
                             }
                         }
                         SectionTitle("Capital mode")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("experimental" to "4 EUR", "multi" to "40 EUR · 10 bots").forEach { (m, l) ->
+                        Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("pro" to "500 EUR", "multi" to "40 EUR · 10 bots", "experimental" to "4 EUR").forEach { (m, l) ->
                                 FilterChip(s.str("capital_mode") == m, {
                                     auth("Set capital mode") { vm.action("PUT", "/api/settings", jsonBody("capital_mode" to m), "Capital: $l") }
                                 }, { Text(l) })
                             }
                         }
+                        SectionTitle("Strategy timeframe (all bots)")
+                        Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(0 to "Bot default", 30 to "30 min", 60 to "1 h", 240 to "4 h", 15 to "15 min", 5 to "5 min")
+                                .forEach { (tf, l) ->
+                                    FilterChip(s.num("timeframe").toInt() == tf, {
+                                        auth("Set timeframe") {
+                                            vm.action("PUT", "/api/settings", jsonBody("timeframe" to tf), "Timeframe: $l — engine restarted")
+                                        }
+                                    }, { Text(l) })
+                                }
+                        }
+                        Text("Changing it restarts the engine and reloads history (4 h needs ~15 days of 1-minute candles; " +
+                                "first start takes longer). Test each in Quant Lab with the same timeframe.",
+                            color = MX.Muted, style = MaterialTheme.typography.bodySmall)
                         KV("AI brains (LLM)", if (s.bool("llm_available")) "connected" else "offline — deterministic only")
                         KV("Push notifications (server)", if (s.bool("push_enabled")) "configured" else "not configured")
                         KV("Brain cycle (min)", s.num("brain_interval_min").toInt().toString())

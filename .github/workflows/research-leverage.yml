@@ -1,0 +1,33 @@
+name: research-leverage
+on:
+  workflow_dispatch:
+    inputs:
+      tf:
+        description: "timeframe in minutes (0 = bot defaults)"
+        default: "60"
+permissions:
+  contents: write
+jobs:
+  leverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-leverage-2025-07-2026-10-v1
+      - run: mkdir -p /tmp/lev && python -m millionx.research leverage --tf ${{ github.event.inputs.tf }} --out /tmp/lev/leverage_tf${{ github.event.inputs.tf }}.json
+      - run: cat /tmp/lev/*.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch research-leverage
+        run: |
+          cd /tmp/lev && git init -q -b research-leverage && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "leverage ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" research-leverage

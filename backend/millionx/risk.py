@@ -68,9 +68,10 @@ class AccountRiskState:
 
 
 class RiskManager:
-    def __init__(self, limits: RiskLimits, fees: FeeModel):
+    def __init__(self, limits: RiskLimits, fees: FeeModel, eur_usdt: float = 1.08):
         self.limits = limits
         self.fees = fees
+        self.eur_usdt = eur_usdt
         self.state = AccountRiskState()
         self.tighten_factor = 1.0   # set by CRO/AI layer, can only be <= 1
 
@@ -131,6 +132,10 @@ class RiskManager:
         if self.daily_pnl_frac <= -L.max_daily_loss:
             st.halted_reason = "daily_loss"
             return False, "daily_loss_limit"
+        lim_eur = getattr(L, "max_daily_loss_eur", 0.0) or 0.0
+        if lim_eur > 0 and st.day_start_equity > 0 and (st.day_start_equity - st.equity) >= lim_eur * self.eur_usdt:
+            st.halted_reason = "daily_loss"
+            return False, "daily_loss_limit"
         if ts_ms < st.cooldown_until:
             return False, "loss_streak_cooldown"
         if self.tighten_factor <= 0:
@@ -149,8 +154,34 @@ class RiskManager:
         return f * self.tighten_factor
 
     # ---- sizing ----------------------------------------------------------
+    # ---- leverage --------------------------------------------------------
+    def leverage_tier(self, quality: Optional[dict[str, Any]], atr_pct15: float) -> tuple[int, list[str]]:
+        """5x weak / 10x standard / 15x very good / 20x exceptional. Confidence alone
+        can never reach 20x: it needs a strong setup score AND calm volatility AND a
+        tight, liquid book."""
+        tiers = [int(x) for x in str(getattr(self.limits, "leverage_tiers", "5,10,15,20")).split(",")]
+        q = quality or {}
+        pts, why = 0, []
+        score = float(q.get("score", 0.0) or 0.0)
+        if score >= 0.5:
+            pts += 1
+            why.append(f"setup score {score:.2f} >= 0.5")
+        if score >= 0.7:
+            pts += 1
+            why.append("setup score >= 0.7")
+        if atr_pct15 and 0 < atr_pct15 <= 0.006:
+            pts += 1
+            why.append(f"calm volatility (ATR15 {atr_pct15 * 100:.2f}%)")
+        sp = q.get("spread_bps")
+        if sp is not None and sp <= 1.0:
+            pts += 1
+            why.append(f"tight spread {sp:.2f} bps")
+        idx = max(0, min(len(tiers) - 1, pts - 1))
+        return tiers[idx], why
+
     def size(self, sig: Signal, rules: SymbolRules, open_positions: list[Position], atr_pct15: float,
-             ts_ms: int, size_multiplier: float = 1.0) -> SizingDecision:
+             ts_ms: int, size_multiplier: float = 1.0,
+             quality: Optional[dict[str, Any]] = None) -> SizingDecision:
         L = self.limits
         ok, why = self.can_open(ts_ms)
         if not ok:
@@ -171,7 +202,9 @@ class RiskManager:
         d = abs(entry - sig.stop)
         if d <= 0:
             return SizingDecision(False, reasons=["invalid_stop"])
-        per_unit_cost = entry * (2 * taker + 2 * slip)
+        hold_h = 3.0 * max(1, int(getattr(sig, "timeframe", 5) or 5)) / 5.0  # expected hold ~36 bars
+        funding = self.fees.funding_rate_8h * min(hold_h, 72.0) / 8.0
+        per_unit_cost = entry * (2 * taker + 2 * slip + funding)
         qty = rules.round_qty(risk_amt / (d + per_unit_cost))
         dec = SizingDecision(False, risk_fraction=frac)
         if qty < rules.min_qty or qty * entry < rules.min_notional:
@@ -180,10 +213,9 @@ class RiskManager:
                                f"{need * 100:.2f}% risk vs allowed {frac * 100:.2f}%)")
             return dec
 
-        # dynamic leverage cap from volatility, never the exchange maximum
-        lev_cap = L.max_leverage
-        if atr_pct15 and atr_pct15 > 0 and not math.isnan(atr_pct15):
-            lev_cap = int(max(1, min(L.max_leverage, rules.max_leverage, math.floor(L.leverage_vol_target / atr_pct15))))
+        # leverage by setup quality (5/10/15/20x), never the exchange maximum; ISOLATED margin
+        tier, why_tier = self.leverage_tier(quality, atr_pct15)
+        lev_cap = int(max(1, min(L.max_leverage, rules.max_leverage or L.max_leverage, tier)))
         used_margin = sum(p.qty * p.entry_price / max(1, p.leverage) for p in open_positions)
         free = max(0.0, equity - used_margin) * 0.9
         notional = qty * entry
@@ -191,23 +223,30 @@ class RiskManager:
         if need_lev > lev_cap:
             qty = rules.round_qty(free * lev_cap / entry)
             notional = qty * entry
-            dec.adjustments.append(f"size reduced to fit leverage cap {lev_cap}x")
+            dec.adjustments.append(f"size reduced to fit {lev_cap}x margin")
             if qty < rules.min_qty or notional < rules.min_notional:
                 dec.reasons.append(f"leverage_cap_{lev_cap}x_prevents_min_notional")
                 return dec
-            need_lev = lev_cap
-        lev = need_lev
-        # liquidation distance must be well beyond the stop
-        liq_dist = 1 / lev - rules.maint_margin_rate
         stop_dist = d / entry
-        if stop_dist > 0.5 * liq_dist:
-            dec.reasons.append(f"stop {stop_dist * 100:.2f}% too close to liquidation {liq_dist * 100:.2f}% at {lev}x")
+        lev = lev_cap
+        # liquidation protection: the stop must sit far before the estimated liquidation price
+        while lev > 1 and (1 / lev - rules.maint_margin_rate) < L.min_liq_buffer * stop_dist:
+            lev -= 1
+        liq_dist = 1 / lev - rules.maint_margin_rate
+        if liq_dist < L.min_liq_buffer * stop_dist or notional / lev > free:
+            dec.reasons.append(f"stop {stop_dist * 100:.2f}% too close to liquidation {liq_dist * 100:.2f}% at {lev}x "
+                               f"(needs {L.min_liq_buffer}x buffer)")
             return dec
+        if lev < tier:
+            dec.adjustments.append(f"leverage {tier}x lowered to {lev}x for liquidation buffer")
+        dec.adjustments.append(f"leverage {lev}x ISOLATED (" + ("; ".join(why_tier) or "base tier") + ")")
+        liq_price = entry * (1 - int(sig.side) * liq_dist)
+        dec.adjustments.append(f"est. liquidation {liq_price:.6g} vs stop {sig.stop:.6g}")
         total_notional = sum(p.qty * p.entry_price for p in open_positions) + notional
         if total_notional > L.max_total_exposure * equity:
             dec.reasons.append("max_total_exposure")
             return dec
-        cost = notional * (2 * taker + 2 * slip)
+        cost = notional * (2 * taker + 2 * slip + funding)
         actual_risk = qty * d + cost
         if cost > L.max_fee_to_risk * actual_risk:
             dec.reasons.append(f"fees {cost:.4f} are {cost / actual_risk * 100:.0f}% of risk (max {L.max_fee_to_risk * 100:.0f}%)")
