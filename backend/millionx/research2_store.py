@@ -68,11 +68,16 @@ def import_results(store, agg: dict[str, Any], source: str) -> dict[str, Any]:
 
 def load_snapshot(store) -> bool:
     """Import the packaged snapshot once (or when a newer one ships with an update)."""
-    if not os.path.exists(SNAPSHOT):
+    import pkgutil
+    try:  # pkgutil works inside the APK (Chaquopy importer) and from a normal checkout
+        raw = pkgutil.get_data("millionx", "data/research2_summary.json")
+    except (OSError, FileNotFoundError):
+        raw = None
+    if not raw:
         return False
     try:
-        agg = json.load(open(SNAPSHOT))
-    except (OSError, ValueError):
+        agg = json.loads(raw)
+    except ValueError:
         return False
     cur = store.kv_get("research2:report") or {}
     if cur.get("run") and cur.get("run") == agg.get("run"):
