@@ -205,13 +205,15 @@ def evaluate(data: dict[str, Bars], bot_id: str, grid: list[dict[str, Any]], per
         "max_drawdown": (dd <= crit.max_drawdown, round(dd, 4)),
         "mc_dd_p95": ((mc.get("max_dd_p95") if mc.get("available", True) else 9) <= crit.mc_dd_p95_max,
                       mc.get("max_dd_p95")),
-        "net_ev_after_costs_ci": ((boot.get("exp_r_ci95") or [-1])[0] > 0, boot.get("exp_r_ci95")),
-        "deflated_sharpe": ((dsr.get("dsr") or 0) >= 0.95, dsr.get("dsr")),
-        "pbo": ((pbo.get("pbo") if pbo.get("pbo") is not None else 1) <= 0.5, pbo.get("pbo")),
-        "parameter_stability": ((stability or 0) >= 0.5, stability),
-        "cross_asset": ((xa or {}).get("exp_r") is not None and (xa or {}).get("exp_r", -1) > 0, (xa or {}).get("exp_r")),
-        "multi_regime": (len(good_regimes) >= 2, good_regimes),
-        "stressed_costs": (cs["survives_stressed"], scen.get("STRESSED")),
+        "net_ev_after_costs_ci": ((boot.get("exp_r_ci95") or [-1])[0] > 0 or not crit.require_positive_ci_low,
+                                  boot.get("exp_r_ci95")),
+        "deflated_sharpe": ((dsr.get("dsr") or 0) >= crit.min_deflated_sharpe, dsr.get("dsr")),
+        "pbo": ((pbo.get("pbo") if pbo.get("pbo") is not None else 1) <= crit.max_pbo, pbo.get("pbo")),
+        "parameter_stability": ((stability or 0) >= crit.min_param_stability, stability),
+        "cross_asset": (((xa or {}).get("exp_r") is not None and (xa or {}).get("exp_r", -1) > 0)
+                        or not crit.require_cross_asset, (xa or {}).get("exp_r")),
+        "multi_regime": (len(good_regimes) >= crit.min_positive_regimes, good_regimes),
+        "stressed_costs": (cs["survives_stressed"] or not crit.require_stressed_costs, scen.get("STRESSED")),
     }
     passed = all(v[0] for v in checks.values())
     return {"bot": bot_id, "grid": grid, "configs_tried": len(grid),

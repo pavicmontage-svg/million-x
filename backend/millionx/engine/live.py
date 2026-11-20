@@ -404,6 +404,7 @@ class TradingEngine:
         except ExchangeError:
             self.books.pop(sym, None)
         md = MarketData(sym, b, self.books.get(sym))
+        md.live = True  # a missing order book here is missing data, not a historical run
         self.mds[sym] = md
         if sym not in self.bots:
             self.bots[sym] = build_bots(self.comp.regimes, self._bot_params())

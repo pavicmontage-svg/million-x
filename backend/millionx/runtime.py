@@ -62,6 +62,11 @@ class Runtime:
         self.ai_chain = ProviderChain(store, vault)
         self.org.llm = ChainLLM(self.ai_chain, self.org.llm)
         self.ai_desk = AIDesk(store, self.ai_chain)
+        try:  # Research 2.0 results packaged with this build (CI, real data); never activates anything
+            from . import research2_store
+            research2_store.load_snapshot(store)
+        except Exception as ex:  # a broken snapshot must not stop the app
+            store.audit("system", "research2_snapshot_error", {"error": str(ex)[:200]})
         self.engine: Optional[TradingEngine] = None
         self.engine_error: Optional[str] = None
         saved = store.kv_get("runtime_settings", {})

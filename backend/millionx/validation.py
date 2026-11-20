@@ -4,7 +4,8 @@ A bot can become LIVE_ELIGIBLE only when ALL of these exist:
   * a walk-forward job (out-of-sample + Monte Carlo) whose activation verdict
     was BACKTEST_PASSED, applied by the owner, not older than 90 days;
   * real paper/demo trades (not shadow, not backtest) by this bot meeting the
-    paper criteria (count, profit factor, drawdown).
+    paper criteria (count, profit factor, drawdown) over at least 30 days;
+  * (2.0) a Research Engine 2.0 verdict CANDIDATE_FOR_PAPER for this bot.
 Nothing else (prompts, executives, settings) can set the status directly.
 """
 from __future__ import annotations
@@ -39,6 +40,8 @@ def eligibility(store, settings, bot_id: str, now_ms: Optional[int] = None) -> d
     v = store.kv_get(f"validation:{bot_id}") or {}
     paper = _trades(store, bot_id, ("paper", "demo"), virtual=False)
     pm = metrics.compute(paper, 100.0)
+    r2 = store.kv_get(f"research2:{bot_id}") or {}
+    paper_days = (now_ms - min(t.opened_at for t in paper)) / 86_400_000 if paper else 0.0
     checks = {
         "walk_forward_passed": (v.get("status") in ("BACKTEST_PASSED", "LIVE_ELIGIBLE"),
                                 f"validation record: {v.get('status', 'none')} (job {v.get('job', '-')})"),
@@ -48,6 +51,11 @@ def eligibility(store, settings, bot_id: str, now_ms: Optional[int] = None) -> d
         "paper_profit_factor": ((pm["profit_factor"] or 0) >= c.min_paper_pf,
                                 f"{pm['profit_factor']} >= {c.min_paper_pf}"),
         "paper_drawdown": (pm["max_drawdown"] <= c.max_drawdown, f"{pm['max_drawdown']:.3f} <= {c.max_drawdown}"),
+        # 2.0: the Research Engine 2.0 verdict (nested WF, DSR, PBO, costs, cross-asset, regimes) and
+        # at least `min_paper_days` of real paper/demo trading
+        "research2_passed": (r2.get("verdict") == "CANDIDATE_FOR_PAPER",
+                             f"Research 2.0 verdict: {r2.get('verdict', 'none')} ({r2.get('run', '-')})"),
+        "paper_days": (paper_days >= c.min_paper_days, f"{paper_days:.1f} d >= {c.min_paper_days} d"),
     }
     ok = all(x[0] for x in checks.values())
     return {"bot_id": bot_id, "eligible": ok, "paper_metrics": pm,

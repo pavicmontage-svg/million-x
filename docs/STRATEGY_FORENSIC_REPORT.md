@@ -17,7 +17,7 @@ Završni holdout (2026-07-01 – 2026-10-31) nije korišten.
    Scalping na 1–5 min uz taker naknade troši 15–17 % rizika po trgovini prije ikakve prednosti.
 4. **Struktura izlaza:** prosječni stop je ≈ −0,97 R, a medijan MFE (najveći povoljni pomak) je 0,57–0,87 R, tj.
    polovina trgovina nikad ne dosegne +1 R. Time-stop izlazi su uglavnom negativni na 5m i 1m.
-5. **LONG strana je lošija od SHORT u 24/27 slučajeva** u razdoblju 2025-01 – 2026-06. To je svojstvo razdoblja,
+5. **LONG strana je lošija od SHORT u 23/27 slučajeva** u razdoblju 2025-01 – 2026-06. To je svojstvo razdoblja,
    ne pravilo; v2 strategije NEĆE uvesti jednostrani bias (to bi bila prilagodba povijesti).
 6. **LOW_VOL režimi se ponavljaju u listi "isključiti"** kod gotovo svih strategija — u niskoj volatilnosti
    stop je mali u odnosu na fiksne troškove. To je mehaničko (trošak/ATR), pa je opravdano kao opći filtar.

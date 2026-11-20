@@ -67,6 +67,15 @@ class ActivationCriteria:
     min_positive_wf_windows: float = 0.6
     min_paper_trades: int = 50
     min_paper_pf: float = 1.05
+    # 2.0 additions (the values above stay as the minimum; these are extra requirements)
+    min_deflated_sharpe: float = 0.95     # probability the Sharpe is real after all configurations tried
+    max_pbo: float = 0.5                  # probability of backtest overfitting (CSCV)
+    min_param_stability: float = 0.5      # share of neighbouring configurations also positive
+    min_positive_regimes: int = 2         # regimes with n >= 30 and positive expectancy
+    require_positive_ci_low: bool = True  # block-bootstrap 95 % CI of exp R must exclude 0
+    require_cross_asset: bool = True      # chosen on majors, positive on the other instruments
+    require_stressed_costs: bool = True   # still positive under the STRESSED cost scenario
+    min_paper_days: int = 30
 
 
 @dataclass

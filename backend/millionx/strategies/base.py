@@ -42,6 +42,7 @@ class MarketData:
         self.symbol = symbol
         self.b1 = bars_1m
         self.book = book
+        self.live = False  # set by the live engine; historical runs have no order book by design
         self._tf: dict[int, tuple[Bars, np.ndarray]] = {}
         self._regime: Optional[RegimeSeries] = None
         self._trend15: Optional[np.ndarray] = None

@@ -93,3 +93,67 @@ def test_evaluate_end_to_end_small(tmp_path):
     assert "deflated_sharpe" in rep["checks"] and "pbo" in rep["checks"]
     # a synthetic random walk must not be declared tradeable
     assert rep["verdict"] == "RESEARCH"
+
+
+def test_v2_strategies_registered_versioned_and_gated():
+    from millionx.strategies import v2 as V2
+    ids = [c.bot_id for c in RESEARCH_CLASSES if c.bot_id.endswith("_v2")]
+    assert len(ids) == 9 and "bot3_orderflow_v2" in ids
+    assert "CVD-only" in V2.OrderFlowV2.name
+    assert not {b.bot_id for b in build_bots()} & set(ids), "v2 never in the live set"
+    bars = synthetic_bars(40_000, seed=12)
+    md = MarketData("TESTUSDT", bars)
+    n = 0
+    for c in RESEARCH_CLASSES:
+        if not c.bot_id.endswith("_v2"):
+            continue
+        s = c()
+        s.prepare(md)
+        assert s.version == "2.0.0"
+        for i in s.close_idx:
+            sig = s.signal_at(int(i))
+            if sig is None:
+                continue
+            n += 1
+            j = int(s.j_of_i[int(i)])
+            if s.kind == "trend":
+                assert s.f["t60"][j] == int(sig.side)
+            else:
+                assert s.f["adx15"][j] < s.params["adx_max"] and s.f["t60"][j] != -int(sig.side)
+    assert n > 0
+
+
+def test_v2_orderflow_rejects_missing_live_book():
+    from millionx.strategies.v2 import OrderFlowV2
+    bars = synthetic_bars(40_000, seed=13)
+    md = MarketData("TESTUSDT", bars)
+    s = OrderFlowV2({"min_cost_mult": 4.0})
+    s.prepare(md)
+    hist = [i for i in s.close_idx if s.signal_at(int(i))]
+    assert hist, "fixture must produce at least one historical (CVD-only) signal"
+    md.live = True  # live with no book = missing data
+    assert all(s.signal_at(int(i)) is None for i in hist)
+
+
+def test_research2_import_and_api(tmp_path):
+    import json
+    from starlette.testclient import TestClient
+    from millionx import research2_store
+    from millionx.storage import Store
+    st = Store(str(tmp_path / "r.db"))
+    agg = {"run": "ci-1", "reports": [
+        {"bot": "bot2_ema_v2", "timeframe": 15, "verdict": "RESEARCH", "oos": {"trades": 10}, "checks": {}},
+        {"bot": "protoD_cost_momentum", "timeframe": 15, "verdict": "CANDIDATE_FOR_PAPER", "oos": {"trades": 300},
+         "checks": {}}],
+        "selection": {"cells": {"BTCUSDT|SIDEWAYS": {"symbol": "BTCUSDT", "regime": "SIDEWAYS", "selected": "NO_TRADE",
+                                                     "why": "none", "candidates": []}},
+                      "chosen_strategies": [], "no_trade_cells": 1}}
+    out = research2_store.import_results(st, agg, "test")
+    assert out["reports"] == 2
+    assert st.kv_get("research2:protoD_cost_momentum")["verdict"] == "CANDIDATE_FOR_PAPER"
+    ov = research2_store.overview(st, None, None)
+    assert ov["available"] and ov["report"]["cells"][0]["selected"] == "NO_TRADE"
+    assert any(c["id"] == "bot3_orderflow_v2" and c["research_only"] for c in ov["catalog"])
+    assert ov["param_history"][0]["action"] == "research2_imported"
+    with __import__("pytest").raises(ValueError):
+        research2_store.summarise({"nope": 1})

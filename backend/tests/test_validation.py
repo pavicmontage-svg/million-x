@@ -30,7 +30,21 @@ def test_eligibility_with_evidence_and_shadow_trades_do_not_count(tmp_path):
     assert not eligibility(st, s, "bot2_ema")["eligible"], "shadow trades are not paper evidence"
     for i in range(60):
         _trade(st, i, "bot2_ema", 1.0 if i % 2 else -0.5)
+    el = eligibility(st, s, "bot2_ema")
+    assert not el["eligible"] and not el["checks"]["research2_passed"]["pass"], "2.0 needs the Research 2.0 verdict"
+    st.kv_set("research2:bot2_ema", {"verdict": "CANDIDATE_FOR_PAPER", "run": "r"})
     assert eligibility(st, s, "bot2_ema")["eligible"]
+
+
+def test_paper_days_required(tmp_path):
+    st, s = Store(str(tmp_path / "v.db")), Settings()
+    now = int(time.time() * 1000)
+    st.kv_set("validation:b", {"status": "BACKTEST_PASSED", "job": "j", "ts": now})
+    st.kv_set("research2:b", {"verdict": "CANDIDATE_FOR_PAPER"})
+    for i in range(60):
+        _trade(st, now - 10 * 86_400_000 + i, "b", 1.0 if i % 2 else -0.5)
+    el = eligibility(st, s, "b")
+    assert not el["checks"]["paper_days"]["pass"] and not el["eligible"]
 
 
 def test_stale_validation_expires(tmp_path):

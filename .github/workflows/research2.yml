@@ -13,7 +13,9 @@ jobs:
       matrix:
         bot: [bot1_vwap, bot2_ema, bot3_orderflow, bot4_breakout, bot5_squeeze, bot6_rsidiv, bot7_liquidity,
               bot8_supertrend, bot9_rangeexp, bot10_adaptive, protoA_trend_pullback, protoB_sweep_reversal,
-              protoC_breakout_retest, protoD_cost_momentum]
+              protoC_breakout_retest, protoD_cost_momentum, bot1_vwap_v2, bot2_ema_v2, bot3_orderflow_v2,
+              bot4_breakout_v2, bot5_squeeze_v2, bot6_rsidiv_v2, bot7_liquidity_v2, bot8_supertrend_v2,
+              bot9_rangeexp_v2]
     defaults:
       run:
         working-directory: backend

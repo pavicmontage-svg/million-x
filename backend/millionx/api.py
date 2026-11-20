@@ -1175,7 +1175,28 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         finally:
             rt.bus.unsubscribe(q)
 
+    # ---- Research 2.0 (results from CI, selection, parameter history) ---------------
+    @guard("read")
+    async def research2_overview(request):
+        from . import research2_store
+        return J(research2_store.overview(store, eng(), rt.s))
+
+    @guard("manage_bots")
+    async def research2_import(request):
+        from . import research2_store
+        raw = await request.body()
+        if len(raw) > 8_000_000:
+            return J({"error": "file too large"}, 413)
+        try:
+            agg = json.loads(raw)
+            out = research2_store.import_results(store, agg, f"upload by {request.state.actor}")
+        except (ValueError, TypeError, AttributeError) as ex:
+            return J({"error": f"not a research2.json: {ex}"}, 400)
+        return J(out)
+
     routes = [
+        Route("/api/research2", research2_overview),
+        Route("/api/research2/import", research2_import, methods=["POST"]),
         Route("/api/exchange/account", exchange_account),
         Route("/api/ai/status", ai_status), Route("/api/ai/decisions", ai_decisions), Route("/api/ai/errors", ai_errors),
         Route("/api/ai/providers/{pid}", ai_provider_put, methods=["PUT"]),

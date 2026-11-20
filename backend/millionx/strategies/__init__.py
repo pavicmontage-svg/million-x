@@ -43,3 +43,4 @@ def build_bots(stats=None, params: Optional[dict[str, dict[str, Any]]] = None,
 __all__ = ["build_bots", "BASE_CLASSES", "ALL_IDS", "MarketData", "Strategy"]
 
 from . import research_protos  # noqa: E402,F401  (registers research-only prototypes)
+from . import v2  # noqa: E402,F401  (registers versioned v2 research strategies)
