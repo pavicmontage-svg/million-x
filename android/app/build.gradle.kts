@@ -22,8 +22,11 @@ android {
         versionCode = 2
         versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // arm64 = the phone (S25 Ultra); x86_64 = emulator used by the UI tests
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        // arm64-v8a = real phones (S25 Ultra); x86_64 = emulator for the UI tests.
+        // CI builds the phone APK with -PmxAbis=arm64-v8a: the embedded Python makes a
+        // two-ABI APK larger than GitHub's 100 MB file limit.
+        val abis = (project.findProperty("mxAbis") as String? ?: "arm64-v8a,x86_64").split(",").map { it.trim() }
+        ndk { abiFilters += abis }
     }
 
     signingConfigs {
@@ -54,16 +57,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
-    // One APK per CPU type keeps the download small: arm64-v8a = real phones (S25 Ultra),
-    // x86_64 = emulator for the UI tests. The embedded Python makes a universal APK >100 MB.
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "x86_64")
-            isUniversalApk = false
-        }
-    }
     lint {
         abortOnError = false
         checkReleaseBuilds = false
