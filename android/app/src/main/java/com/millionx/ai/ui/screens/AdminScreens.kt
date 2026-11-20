@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.millionx.ai.MillionXApp
@@ -189,6 +190,26 @@ fun AdminScreen(nav: NavController, onLogout: () -> Unit) {
             }
         }
         item {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            var enabled by remember { mutableStateOf(com.millionx.ai.engine.LocalEngine.isEnabled(ctx)) }
+            MxCard {
+                SectionTitle("Engine on this phone")
+                KV("Local engine", if (enabled) "ON (background service)" else "OFF", if (enabled) MX.Up else MX.Muted)
+                KV("Battery optimisation", if (com.millionx.ai.engine.LocalEngine.ignoringBatteryOptimizations(ctx))
+                    "disabled for this app ✓" else "ACTIVE — Android may stop the engine",
+                    if (com.millionx.ai.engine.LocalEngine.ignoringBatteryOptimizations(ctx)) MX.Up else MX.Warn)
+                Text("Samsung: Settings → Apps → MILLION-X → Battery → Unrestricted, and remove it from 'Sleeping apps'.",
+                    color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { com.millionx.ai.engine.LocalEngine.start(ctx); enabled = true }) { Text("Start") }
+                    OutlinedButton(onClick = { auth("Stop local engine") {
+                        com.millionx.ai.engine.LocalEngine.stop(ctx); enabled = false } }) { Text("Stop", color = MX.Down) }
+                    OutlinedButton(onClick = { runCatching {
+                        ctx.startActivity(com.millionx.ai.engine.LocalEngine.batteryOptimizationIntent(ctx)) } }) { Text("Battery") }
+                }
+            }
+        }
+        item {
             MxCard {
                 SectionTitle("Devices & roles")
                 LoadBox(ds, { dev.refresh() }) { list ->
@@ -285,7 +306,25 @@ fun PairingScreen(onPaired: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Spacer(Modifier.height(48.dp))
         Text("MILLION-X AI", style = MaterialTheme.typography.headlineLarge, color = MX.Accent)
-        Text("Connect this phone to your trading server.", color = MX.Muted)
+        Text("Run the trading engine on this phone (free), or connect to your own server.", color = MX.Muted)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        var localStatus by remember { mutableStateOf<String?>(null) }
+        Button(enabled = !busy, modifier = Modifier.fillMaxWidth().height(56.dp).testTag("start_local"), onClick = {
+            busy = true; error = null
+            localStatus = "Starting the engine on this phone… first start takes 1–3 minutes"
+            scope.launch {
+                val err = com.millionx.ai.engine.LocalEngine.startAndPair(ctx)
+                busy = false
+                if (err == null) {
+                    if (!com.millionx.ai.engine.LocalEngine.ignoringBatteryOptimizations(ctx)) {
+                        runCatching { ctx.startActivity(com.millionx.ai.engine.LocalEngine.batteryOptimizationIntent(ctx)) }
+                    }
+                    onPaired()
+                } else { error = err; localStatus = null }
+            }
+        }) { Text("▶  Run engine on this phone (free)") }
+        localStatus?.let { Text(it, color = MX.Info, style = MaterialTheme.typography.bodySmall) }
+        Text("— or connect to a server —", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(server, { server = it }, label = { Text("Server URL (https://…)") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
         OutlinedTextField(code, { code = it.uppercase() }, label = { Text("Pairing code") }, singleLine = true,
@@ -303,7 +342,8 @@ fun PairingScreen(onPaired: () -> Unit) {
                 } finally { busy = false }
             }
         }) { Text(if (busy) "Connecting…" else "Pair device") }
-        Text("This app controls a trading server. Trading leveraged futures can lose all deposited capital. " +
+        Text("Local mode keeps running in the background (notification \"MILLION-X engine\"), but stops if the phone is " +
+                "off or offline. This app controls a trading engine. Trading leveraged futures can lose all deposited capital. " +
                 "The 1M EUR goal is an experiment, not a promise.", color = MX.Muted, style = MaterialTheme.typography.bodySmall)
     }
 }

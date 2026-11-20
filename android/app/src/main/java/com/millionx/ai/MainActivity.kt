@@ -64,6 +64,9 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         val app = MillionXApp.instance
         paired = app.store.token != null
+        if (com.millionx.ai.engine.LocalEngine.isEnabled(this)) {
+            runCatching { com.millionx.ai.engine.LocalEngine.start(this) }  // keep the local engine alive
+        }
         // BiometricPrompt must be created while the activity is being created
         prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {

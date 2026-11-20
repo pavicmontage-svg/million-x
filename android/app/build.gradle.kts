@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.chaquo.python")
 }
 
 // Firebase push is enabled only when app/google-services.json exists
@@ -21,6 +22,8 @@ android {
         versionCode = 2
         versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // arm64 = the phone (S25 Ultra); x86_64 = emulator used by the UI tests
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     signingConfigs {
@@ -54,6 +57,28 @@ android {
     lint {
         abortOnError = false
         checkReleaseBuilds = false
+    }
+}
+
+// The complete Python backend (trading engine + API) is embedded in the app and runs
+// in a foreground service on the phone. Versions are the Android builds available
+// in the Chaquopy package repository for Python 3.12.
+chaquopy {
+    defaultConfig {
+        version = "3.12"
+        pip {
+            install("numpy==1.26.2")
+            install("cryptography==42.0.8")
+            install("starlette>=0.40")
+            install("uvicorn>=0.30")
+            install("wsproto>=1.2")
+            install("requests>=2.31")
+        }
+    }
+    sourceSets {
+        getByName("main") {
+            srcDir("../../backend")
+        }
     }
 }
 

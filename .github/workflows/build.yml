@@ -18,6 +18,20 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -v tests
 
+  backend-tests-android-versions:
+    # same library versions as the APK's embedded Python (Chaquopy builds)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "numpy==1.26.2" "cryptography==42.0.8" starlette uvicorn wsproto requests pyyaml pytest
+      - run: python -m pytest -q tests
+
   docker-smoke:
     runs-on: ubuntu-latest
     defaults:
@@ -57,6 +71,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: gradle/actions/setup-gradle@v4
       - name: Optional Firebase config (secret GOOGLE_SERVICES_JSON_B64)
         env:
@@ -106,6 +123,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: gradle/actions/setup-gradle@v4
       - name: Enable KVM
         run: |
