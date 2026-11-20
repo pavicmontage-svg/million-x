@@ -141,6 +141,44 @@ def cmd_leverage(a) -> None:
     print("\n".join(lines))
 
 
+SYMBOLS_10 = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT",
+              "AVAXUSDT", "LTCUSDT"]
+
+
+def cmd_forensic(a) -> None:
+    """Phase 1 of 2.0: per-strategy forensics on real data, holdout untouched."""
+    from . import forensic
+    s = Settings()
+    syms = a.symbols.split(",") if a.symbols else SYMBOLS_10
+    global SYMBOLS
+    SYMBOLS = syms
+    data = _load(*SELECT, a.data_dir)
+    rep = {"period": [str(x) for x in SELECT], "holdout": [str(x) for x in HOLDOUT], "symbols": syms, "bots": {}}
+    by_bot_default = {}
+    for cls in BASE_CLASSES:
+        tfs = []
+        for tf in (int(cls.default_params.get("timeframe", 5)), 15, 60):
+            if tf not in tfs:
+                tfs.append(tf)
+        rep["bots"][cls.bot_id] = {}
+        for tf in tfs:
+            t = time.time()
+            warm = max(3, math.ceil(tf * getattr(cls, "warmup_bars", 60) / 1440) + 1)
+            t0 = min(int(b.open_time[0]) for b in data.values()) + warm * DAY_MS
+            trs = _virtual(data, s, cls.bot_id, {"timeframe": tf}, t0)
+            rep["bots"][cls.bot_id][f"{tf}m"] = forensic.analyse(trs, data)
+            if tf == tfs[0]:
+                by_bot_default[cls.bot_id] = trs
+            o = rep["bots"][cls.bot_id][f"{tf}m"]["overall"]
+            print(f"{cls.bot_id} {tf}m n={o.get('n')} expR={o.get('exp_r')} gross={o.get('gross_exp_r')} "
+                  f"({time.time() - t:.0f}s)", flush=True)
+    rep["overlap"] = forensic.overlap(by_bot_default)
+    with open(a.out, "w") as fh:
+        json.dump(metrics.json_safe(rep), fh, default=str)
+    open(a.out.replace(".json", ".md"), "w").write(forensic.to_markdown(rep))
+    print(forensic.to_markdown(rep)[:3000])
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -159,8 +197,12 @@ def main() -> None:
     lv.add_argument("--tf", type=int, default=0)
     lv.add_argument("--out", required=True)
     lv.add_argument("--data-dir", default=os.environ.get("MX_DATA_DIR", "data/klines"))
+    fo = sub.add_parser("forensic")
+    fo.add_argument("--out", required=True)
+    fo.add_argument("--symbols", default="")
+    fo.add_argument("--data-dir", default=os.environ.get("MX_DATA_DIR", "data/klines"))
     a = p.parse_args()
-    {"wf": cmd_wf, "holdout": cmd_holdout, "leverage": cmd_leverage}[a.cmd](a)
+    {"wf": cmd_wf, "holdout": cmd_holdout, "leverage": cmd_leverage, "forensic": cmd_forensic}[a.cmd](a)
 
 
 if __name__ == "__main__":
