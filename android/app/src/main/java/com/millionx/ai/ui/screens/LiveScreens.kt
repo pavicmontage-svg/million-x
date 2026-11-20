@@ -198,6 +198,16 @@ private fun FunnelCard(d: JsonElement, nav: NavController) {
             Text("• ${x.str("symbol")}: spread ${x.num("spread_bps").fmt(2)} bps, depth ${x.num("depth").fmt(0)} USDT",
                 color = MX.Warn, style = MaterialTheme.typography.bodySmall)
         }
+        val rt = eg.list("recent_trades")
+        if (rt.isNotEmpty()) {
+            Text("Last real (${eg.str("mode").uppercase()}) trades:", fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodySmall)
+            rt.forEach { t ->
+                Text("${fmtTime(t.long("closed_at"))} ${t.str("side")} ${t.str("symbol")} · ${t.str("bot_id")} · " +
+                        "${t.num("net_pnl").fmt(4)} $ · ${t.str("exit_reason")}",
+                    color = pnlColor(t.num("net_pnl")), style = MaterialTheme.typography.bodySmall)
+            }
+        }
         eg.list("errors").takeLast(3).forEach { e ->
             Text("! ${e.toString().trim('"').take(160)}", color = MX.Down, style = MaterialTheme.typography.bodySmall)
         }

@@ -604,7 +604,9 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
              "liquidity_failed": [{"symbol": v["symbol"], "spread_bps": v.get("spread_bps"),
                                    "depth": min(v.get("depth_bid_10bps") or 0, v.get("depth_ask_10bps") or 0),
                                    "reason": v.get("reason")} for v in failed[:10]],
-             "limits": {"max_spread_bps": rt.s.max_spread_bps, "min_depth_usdt": rt.s.min_depth_usdt}}
+             "limits": {"max_spread_bps": rt.s.max_spread_bps, "min_depth_usdt": rt.s.min_depth_usdt},
+             "recent_trades": store.q("SELECT bot_id, symbol, side, net_pnl, exit_reason, closed_at FROM trades "
+                                      "WHERE virtual=0 AND mode=? ORDER BY closed_at DESC LIMIT 6", (rt.s.mode,))}
         if not alive:
             d.update(level="critical", verdict="Engine thread stopped. Open Admin → Engine on this phone → Start.")
         elif e.risk.state.emergency_stop:
