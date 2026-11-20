@@ -1,0 +1,345 @@
+{
+ "protocol": "Timeframe research with a pre-registered protocol (run on CI, real data).\n\nProtocol (fixed BEFORE looking at results):\n  1. Selection period: walk-forward (train 60 d / test 30 d, parameters chosen on\n     train only) for every base bot at each timeframe. Only out-of-sample trades count.\n  2. A (bot, timeframe) is a candidate only if its OOS result meets the activation\n     criteria (trades >= 100, PF >= 1.15, expectancy >= 0.05 R, >= 60 % positive windows).\n  3. Holdout period (never used in steps 1-2): candidates are run once with the\n     parameters chosen in their last walk-forward window. No re-tuning.\nCosts: configured taker fees both sides + slippage + funding estimate.\n\n  python -m millionx.research wf --tf 15 --out wf_15.json\n  python -m millionx.research holdout --inputs wf_*.json --out holdout.json\n",
+ "selection": [
+  "2025-01-01",
+  "2026-06-30"
+ ],
+ "holdout": [
+  "2026-07-01",
+  "2026-10-31"
+ ],
+ "symbols": [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "XRPUSDT"
+ ],
+ "table": [
+  {
+   "bot": "bot1_vwap",
+   "tf": 15,
+   "oos_trades": 848,
+   "oos_pf": 0.5191912692230208,
+   "oos_exp_r": -0.21551235915186415,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot2_ema",
+   "tf": 15,
+   "oos_trades": 6596,
+   "oos_pf": 0.5906134016295176,
+   "oos_exp_r": -0.1748535816237031,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot3_orderflow",
+   "tf": 15,
+   "oos_trades": 517,
+   "oos_pf": 0.5753856333143479,
+   "oos_exp_r": -0.1793290639811426,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot4_breakout",
+   "tf": 15,
+   "oos_trades": 2452,
+   "oos_pf": 0.5858455098612857,
+   "oos_exp_r": -0.18643905326205573,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot5_squeeze",
+   "tf": 15,
+   "oos_trades": 911,
+   "oos_pf": 0.5821617255064641,
+   "oos_exp_r": -0.19241224931561676,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot6_rsidiv",
+   "tf": 15,
+   "oos_trades": 895,
+   "oos_pf": 0.566739717333314,
+   "oos_exp_r": -0.17895805452512473,
+   "positive_windows": 0.0625,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot7_liquidity",
+   "tf": 15,
+   "oos_trades": 3889,
+   "oos_pf": 0.5896181644869642,
+   "oos_exp_r": -0.18567004785331145,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot8_supertrend",
+   "tf": 15,
+   "oos_trades": 1305,
+   "oos_pf": 0.657638614793961,
+   "oos_exp_r": -0.12503277764176668,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot9_rangeexp",
+   "tf": 15,
+   "oos_trades": 715,
+   "oos_pf": 0.5524700415071726,
+   "oos_exp_r": -0.1856405290345295,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot1_vwap",
+   "tf": 30,
+   "oos_trades": 383,
+   "oos_pf": 0.5388190460100235,
+   "oos_exp_r": -0.2097322262342703,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot2_ema",
+   "tf": 30,
+   "oos_trades": 3567,
+   "oos_pf": 0.6397761470817432,
+   "oos_exp_r": -0.13472967482643183,
+   "positive_windows": 0.0625,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot3_orderflow",
+   "tf": 30,
+   "oos_trades": 536,
+   "oos_pf": 0.6551857292624031,
+   "oos_exp_r": -0.14320695551440715,
+   "positive_windows": 0.1875,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot4_breakout",
+   "tf": 30,
+   "oos_trades": 1405,
+   "oos_pf": 0.6725440048562856,
+   "oos_exp_r": -0.13534759400414095,
+   "positive_windows": 0.0625,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot5_squeeze",
+   "tf": 30,
+   "oos_trades": 502,
+   "oos_pf": 0.5659748155276295,
+   "oos_exp_r": -0.18325122577450423,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot6_rsidiv",
+   "tf": 30,
+   "oos_trades": 569,
+   "oos_pf": 0.5956451914636285,
+   "oos_exp_r": -0.13206385860074205,
+   "positive_windows": 0.1875,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot7_liquidity",
+   "tf": 30,
+   "oos_trades": 1990,
+   "oos_pf": 0.6072397087429146,
+   "oos_exp_r": -0.16679556778718993,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot8_supertrend",
+   "tf": 30,
+   "oos_trades": 695,
+   "oos_pf": 0.7405580466201286,
+   "oos_exp_r": -0.0675723880607902,
+   "positive_windows": 0.25,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot9_rangeexp",
+   "tf": 30,
+   "oos_trades": 439,
+   "oos_pf": 0.6071415626890085,
+   "oos_exp_r": -0.15210930712418694,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot1_vwap",
+   "tf": 5,
+   "oos_trades": 2276,
+   "oos_pf": 0.49751229601336017,
+   "oos_exp_r": -0.23681065928009,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot2_ema",
+   "tf": 5,
+   "oos_trades": 10852,
+   "oos_pf": 0.53986588831241,
+   "oos_exp_r": -0.21448112819196213,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot3_orderflow",
+   "tf": 5,
+   "oos_trades": 6800,
+   "oos_pf": 0.486794204349248,
+   "oos_exp_r": -0.238753619507279,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot4_breakout",
+   "tf": 5,
+   "oos_trades": 5790,
+   "oos_pf": 0.5122027736104799,
+   "oos_exp_r": -0.2301380885614966,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot5_squeeze",
+   "tf": 5,
+   "oos_trades": 1035,
+   "oos_pf": 0.4856285747068933,
+   "oos_exp_r": -0.24572042110876488,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot6_rsidiv",
+   "tf": 5,
+   "oos_trades": 2730,
+   "oos_pf": 0.5807814347866805,
+   "oos_exp_r": -0.19913017611341857,
+   "positive_windows": 0.0625,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot7_liquidity",
+   "tf": 5,
+   "oos_trades": 7814,
+   "oos_pf": 0.5145428356950855,
+   "oos_exp_r": -0.22919703338275627,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot8_supertrend",
+   "tf": 5,
+   "oos_trades": 1574,
+   "oos_pf": 0.596055722846117,
+   "oos_exp_r": -0.18222749147907974,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot9_rangeexp",
+   "tf": 5,
+   "oos_trades": 1347,
+   "oos_pf": 0.4468757677064014,
+   "oos_exp_r": -0.25585131729545774,
+   "positive_windows": 0.0,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot1_vwap",
+   "tf": 60,
+   "oos_trades": 152,
+   "oos_pf": 0.48452597279582704,
+   "oos_exp_r": -0.22571532143693215,
+   "positive_windows": 0.1875,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot2_ema",
+   "tf": 60,
+   "oos_trades": 1303,
+   "oos_pf": 0.626210353908282,
+   "oos_exp_r": -0.11791359325642083,
+   "positive_windows": 0.0625,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot3_orderflow",
+   "tf": 60,
+   "oos_trades": 89,
+   "oos_pf": 0.5037104505146554,
+   "oos_exp_r": -0.20912565720754178,
+   "positive_windows": 0.25,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot4_breakout",
+   "tf": 60,
+   "oos_trades": 757,
+   "oos_pf": 0.6607036896947674,
+   "oos_exp_r": -0.1291341064196146,
+   "positive_windows": 0.25,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot5_squeeze",
+   "tf": 60,
+   "oos_trades": 371,
+   "oos_pf": 0.9632250645442714,
+   "oos_exp_r": -0.010933683161006394,
+   "positive_windows": 0.4375,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot6_rsidiv",
+   "tf": 60,
+   "oos_trades": 310,
+   "oos_pf": 0.7108932916344255,
+   "oos_exp_r": -0.06126429127876128,
+   "positive_windows": 0.4375,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot7_liquidity",
+   "tf": 60,
+   "oos_trades": 1121,
+   "oos_pf": 0.6160831189995677,
+   "oos_exp_r": -0.14627776245587262,
+   "positive_windows": 0.125,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot8_supertrend",
+   "tf": 60,
+   "oos_trades": 525,
+   "oos_pf": 0.7690899813943187,
+   "oos_exp_r": -0.04792325977758714,
+   "positive_windows": 0.375,
+   "status": "RESEARCH"
+  },
+  {
+   "bot": "bot9_rangeexp",
+   "tf": 60,
+   "oos_trades": 275,
+   "oos_pf": 0.666228982338624,
+   "oos_exp_r": -0.11016429748070587,
+   "positive_windows": 0.3125,
+   "status": "RESEARCH"
+  }
+ ],
+ "candidates": 0,
+ "holdout_results": []
+}
