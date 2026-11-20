@@ -332,7 +332,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         body = await request.json()
         from .governance import apply_limit_changes, BOUNDS
         try:
-            old = apply_limit_changes(rt.s.risk, body)
+            old = apply_limit_changes(rt.s.risk, body, rt.s.mode)
         except ValueError as e:
             store.audit(request.state.actor, "risk_limits_refused", {"requested": body, "error": str(e)})
             return J({"error": f"refused by risk governance: {e}", "bounds": BOUNDS}, 400)
@@ -344,15 +344,17 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
     @guard("change_risk_limits")
     async def risk_profile(request):
         """Switch between safe / standard / aggressive presets (hard BOUNDS still apply)."""
-        from .governance import RISK_PROFILES, apply_limit_changes
+        from .governance import RISK_PROFILES, SIM_ONLY_PROFILES, apply_limit_changes
         body = await request.json()
         name = str(body.get("profile", ""))
         if name not in RISK_PROFILES:
             return J({"error": f"profile must be one of {list(RISK_PROFILES)}"}, 400)
+        if name in SIM_ONLY_PROFILES and rt.s.mode == "live":
+            return J({"error": "MAX is only available in PAPER or DEMO (virtual money)"}, 400)
         if rt.s.mode == "live" and name == "aggressive" and body.get("confirm") != "I ACCEPT HIGH RISK":
             return J({"error": "LIVE + aggressive needs confirm='I ACCEPT HIGH RISK'"}, 400)
         try:
-            old = apply_limit_changes(rt.s.risk, RISK_PROFILES[name])
+            old = apply_limit_changes(rt.s.risk, RISK_PROFILES[name], rt.s.mode)
         except ValueError as e:
             return J({"error": f"refused by risk governance: {e}"}, 400)
         store.kv_set("risk_limits", rt.s.risk.__dict__)
@@ -475,6 +477,12 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
                 changes[k] = body[k]
         if changes.get("mode") == "live" and not rt.gate.is_valid():
             return J({"error": f"live mode locked: {rt.gate.status()['reason']}"}, 400)
+        if changes.get("mode") == "live":
+            from .governance import validate_limits
+            errs = validate_limits(rt.s.risk.__dict__, "live")
+            if errs:
+                return J({"error": "current risk limits are only allowed with virtual money; choose the Standard "
+                                   "or Aggressive profile first: " + "; ".join(errs)}, 400)
         if "brain_interval_min" in body:
             store.kv_set("brain_interval_min", max(15, int(body["brain_interval_min"])))
             rt.org.interval_ms = max(15, int(body["brain_interval_min"])) * 60_000
@@ -553,7 +561,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
 
 
     # ------------------------------------------------ live activity & charts
-    DEPT_LABEL = {"market_intelligence": "Market", "strategy_intelligence": "Supervisor",
+    DEPT_LABEL = {"risk_governance": "Final pre-trade check", "execution": "Execution", "market_intelligence": "Market", "strategy_intelligence": "Supervisor",
                   "quant_research": "Validation", "capital_intelligence": "Risk sizing",
                   "execution_intelligence": "Execution plan", "cro": "CRO (risk officer)"}
     OUTCOME_LABEL = {"executed": "Trade opened", "awaiting_owner_approval": "Waiting for your approval",
@@ -578,7 +586,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             stopped = res in ("rejected", "vetoed", "not_validated", "blocked", "error") or st.get("ok") is False
             if not stopped:
                 continue
-            reasons = st.get("reasons") or (st.get("decision") or {}).get("reasons") or \
+            reasons = st.get("violations") or st.get("reasons") or (st.get("decision") or {}).get("reasons") or \
                 [st.get("reason") or st.get("error") or res]
             text = "; ".join(PLAIN.get(str(x), str(x)) for x in reasons if x) or str(res)
             if res == "not_validated":

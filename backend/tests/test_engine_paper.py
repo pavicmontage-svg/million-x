@@ -128,3 +128,27 @@ def test_universe_ranked_by_real_market_volume(engine):
     eng.volume_source = Down()
     eng.refresh_universe()
     assert eng.universe[0] == "AAAUSDT" and eng.volume_source_used == "venue"  # falls back, never blocks
+
+
+def test_long_history_paged_for_hourly_bots(engine):
+    """Binance returns max 1,500 klines per call; hourly bots need more, so history is paged."""
+    eng, clock, market, store = engine
+    from millionx.backtest.data import synthetic_bars
+    full = synthetic_bars(8000, seed=9)
+    calls = []
+
+    class Paged:
+        def klines(self, symbol, limit=500, end_time=None):
+            calls.append((limit, end_time))
+            end = len(full) if end_time is None else int((full.open_time <= end_time).sum())
+            return full.slice(max(0, end - min(limit, 1500)), end)
+
+    eng.ex = Paged()
+    b = eng._history("AAAUSDT", 5400)
+    assert len(b) == 5400 and len(calls) == 4
+    assert (b.open_time[1:] > b.open_time[:-1]).all() and b.open_time[-1] == full.open_time[-1]
+    import json
+    eng.store.x("INSERT OR REPLACE INTO bot_state(bot_id,status,reason,params) VALUES(?,?,?,?)",
+                ("bot2_ema", "RESEARCH", "", json.dumps({"timeframe": 60})))
+    eng.bots.clear()
+    assert eng.window() == 5400  # 60 min x (60 warm-up + 30), below the 6,000 cap

@@ -48,7 +48,8 @@ class Runtime:
         if lim:
             from .governance import apply_limit_changes
             try:
-                apply_limit_changes(self.s.risk, {k: v for k, v in lim.items() if hasattr(self.s.risk, k)})
+                apply_limit_changes(self.s.risk, {k: v for k, v in lim.items() if hasattr(self.s.risk, k)},
+                                    self.s.mode)
             except ValueError as e:
                 store.notify("critical", "risk", "Stored risk limits rejected", f"{e}; defaults kept")
         from .live_gate import LiveGate

@@ -224,8 +224,10 @@ private fun FunnelCard(d: JsonElement, nav: NavController) {
         }
         val waiting = f.num("awaiting_approval").toInt()
         if (waiting > 0 && d.str("execution") == "manual") {
-            Banner("$waiting trade(s) waited for YOUR approval (execution = MANUAL). Approve them when the phone " +
-                    "notifies you, or switch execution to AUTO in Owner Administration.", MX.Warn)
+            Banner("$waiting trade(s) waited for YOUR approval (execution = MANUAL). On approval the trade is re-checked " +
+                    "at the current price; if the price moved more than the allowed drift it is blocked. For PAPER/DEMO, " +
+                    "AUTO execution avoids this delay.", MX.Warn)
+            androidx.compose.material3.OutlinedButton(onClick = { nav.navigate("admin") }) { Text("Switch execution to AUTO (Admin)") }
         }
         val top = d.list("top_block_reasons")
         if (f.num("executed").toInt() == 0 && top.isNotEmpty()) {

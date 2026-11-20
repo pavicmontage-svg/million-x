@@ -73,7 +73,7 @@ def test_auth_and_rbac(server):
     # viewer cannot loosen limits or edit prompts, owner can tighten limits
     assert call(base, "/api/risk/limits", viewer["token"], "PUT", {"max_daily_loss": 0.5})[0] == 403
     assert call(base, "/api/org/agents/brain_risk/prompt", viewer["token"], "PUT", {"prompt": "x"})[0] == 403
-    assert call(base, "/api/risk/limits", owner["token"], "PUT", {"max_leverage": 50})[0] == 400
+    assert call(base, "/api/risk/limits", owner["token"], "PUT", {"max_leverage": 51})[0] == 400
     assert call(base, "/api/risk/limits", owner["token"], "PUT", {"max_daily_loss": 0.02})[0] == 200
     code, v = call(base, "/api/org/agents/brain_risk/prompt", owner["token"], "PUT", {"prompt": "v2", "note": "t"})
     assert code == 200 and v["version"] == 2

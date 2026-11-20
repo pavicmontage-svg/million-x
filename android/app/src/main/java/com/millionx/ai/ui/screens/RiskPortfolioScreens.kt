@@ -2,6 +2,7 @@
 
 package com.millionx.ai.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -53,8 +54,12 @@ import kotlinx.serialization.json.JsonPrimitive
 private val PROFILE_TEXT = mapOf(
     "safe" to ("Safe" to "0.25% risk per trade, pause after 3 losses for 2 h, max 2 positions, leverage ≤ 5x."),
     "standard" to ("Standard" to "0.5% risk per trade, pause after 4 losses for 1 h, max 3 positions, leverage ≤ 10x."),
-    "aggressive" to ("Aggressive" to "2% risk per trade (the hard maximum), pause only after 10 losses for 15 min, " +
-            "up to 6 positions, leverage ≤ 15x, daily loss limit 10%, drawdown stop 35%. Losses grow 4x faster than Standard."),
+    "aggressive" to ("Aggressive" to "2% risk per trade (the hard maximum for real money), pause only after 10 losses " +
+            "for 15 min, up to 6 positions, leverage ≤ 15x, daily loss limit 10%, drawdown stop 35%. " +
+            "Losses grow 4x faster than Standard."),
+    "max" to ("MAX (demo)" to "PAPER/DEMO only, virtual money: 5% risk per trade, leverage up to 50x with no volatility " +
+            "cap, up to 10 positions, no real loss limits (50% day / 90% drawdown). With the current negative backtests " +
+            "this empties an account fast — use it to see what happens, not to make money."),
 )
 
 /** Risk profile switch + loss-streak pause override (owner, biometric, audited). */
@@ -67,8 +72,9 @@ private fun RiskProfileCard(vm: com.millionx.ai.ui.vm.ResourceVM, d: kotlinx.ser
     var phrase by remember { androidx.compose.runtime.mutableStateOf("") }
     MxCard {
         SectionTitle("Risk profile")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PROFILE_TEXT.forEach { (id, t) ->
+        Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PROFILE_TEXT.filter { it.key != "max" || d.str("mode") != "live" }.forEach { (id, t) ->
                 androidx.compose.material3.FilterChip(selected = current == id, onClick = { if (id != current) confirm.value = id },
                     label = { Text(t.first) })
             }
@@ -95,7 +101,7 @@ private fun RiskProfileCard(vm: com.millionx.ai.ui.vm.ResourceVM, d: kotlinx.ser
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(PROFILE_TEXT[target]?.second ?: "")
-                    if (target == "aggressive") Text(if (live) "REAL MONEY: type I ACCEPT HIGH RISK to continue." else
+                    if (target == "aggressive" || target == "max") Text(if (live) "REAL MONEY: type I ACCEPT HIGH RISK to continue." else
                         "Mode is ${d.str("mode").uppercase()} (not real money).", color = if (live) MX.Down else MX.Warn)
                     if (target == "aggressive" && live) OutlinedTextField(phrase, { phrase = it }, singleLine = true,
                         modifier = Modifier.fillMaxWidth())

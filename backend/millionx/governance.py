@@ -39,18 +39,36 @@ BOUNDS: dict[str, tuple[float, float]] = {
 }
 BOOL_FIELDS = {"disconnect_flatten"}
 
+# PAPER/DEMO only (virtual money): wider bounds so the owner can experiment with
+# very high risk. LIVE always uses BOUNDS; switching to live with wider limits is refused.
+SIM_BOUNDS: dict[str, tuple[float, float]] = {
+    **BOUNDS,
+    "risk_per_trade": (0.0005, 0.05),
+    "max_daily_loss": (0.005, 0.50),
+    "max_total_drawdown": (0.02, 0.90),
+    "max_consecutive_losses": (1, 50),
+    "max_total_exposure": (0.1, 50.0),
+    "max_leverage": (1, 50),
+    "leverage_vol_target": (0.002, 1.0),
+}
 
-def validate_limits(d: dict[str, Any]) -> list[str]:
+
+def bounds_for(mode: str) -> dict[str, tuple[float, float]]:
+    return BOUNDS if mode == "live" else SIM_BOUNDS
+
+
+def validate_limits(d: dict[str, Any], mode: str = "live") -> list[str]:
     errs = []
+    bounds = bounds_for(mode)
     for k, v in d.items():
         if k in BOOL_FIELDS:
             if not isinstance(v, bool):
                 errs.append(f"{k} must be true/false")
             continue
-        if k not in BOUNDS:
+        if k not in bounds:
             errs.append(f"{k} is not a known risk parameter")
             continue
-        lo, hi = BOUNDS[k]
+        lo, hi = bounds[k]
         try:
             x = float(v)
         except (TypeError, ValueError):
@@ -71,17 +89,26 @@ def validate_limits(d: dict[str, Any]) -> list[str]:
 RISK_PROFILES: dict[str, dict[str, Any]] = {
     "safe": {"risk_per_trade": 0.0025, "max_daily_loss": 0.02, "max_total_drawdown": 0.10,
              "max_consecutive_losses": 3, "cooldown_minutes": 120, "loss_streak_risk_scale": 0.5,
-             "max_open_positions": 2, "max_leverage": 5, "max_total_exposure": 1.5},
+             "max_open_positions": 2, "max_leverage": 5, "max_total_exposure": 1.5,
+             "leverage_vol_target": 0.02},
     "standard": {"risk_per_trade": 0.005, "max_daily_loss": 0.03, "max_total_drawdown": 0.20,
                  "max_consecutive_losses": 4, "cooldown_minutes": 60, "loss_streak_risk_scale": 0.5,
-                 "max_open_positions": 3, "max_leverage": 10, "max_total_exposure": 3.0},
+                 "max_open_positions": 3, "max_leverage": 10, "max_total_exposure": 3.0,
+                 "leverage_vol_target": 0.02},
     "aggressive": {"risk_per_trade": 0.02, "max_daily_loss": 0.10, "max_total_drawdown": 0.35,
                    "max_consecutive_losses": 10, "cooldown_minutes": 15, "loss_streak_risk_scale": 1.0,
-                   "max_open_positions": 6, "max_leverage": 15, "max_total_exposure": 5.0},
+                   "max_open_positions": 6, "max_leverage": 15, "max_total_exposure": 5.0,
+                   "leverage_vol_target": 0.02},
+    # PAPER/DEMO only: 5 % risk per trade, up to 50x, no volatility leverage cap.
+    "max": {"risk_per_trade": 0.05, "max_daily_loss": 0.50, "max_total_drawdown": 0.90,
+            "max_consecutive_losses": 50, "cooldown_minutes": 5, "loss_streak_risk_scale": 1.0,
+            "max_open_positions": 10, "max_leverage": 50, "max_total_exposure": 50.0,
+            "leverage_vol_target": 1.0},
 }
+SIM_ONLY_PROFILES = {"max"}
 
 
-def apply_limit_changes(limits, changes: dict[str, Any]) -> dict[str, Any]:
+def apply_limit_changes(limits, changes: dict[str, Any], mode: str = "live") -> dict[str, Any]:
     """Validate the merged result before touching the live object (all-or-nothing)."""
     merged = dict(limits.__dict__)
     for k, v in changes.items():
@@ -89,7 +116,7 @@ def apply_limit_changes(limits, changes: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"unknown limit {k}")
         cur = merged[k]
         merged[k] = (v if isinstance(v, bool) else bool(v)) if isinstance(cur, bool) else type(cur)(v)
-    errs = validate_limits(merged)
+    errs = validate_limits(merged, mode)
     if errs:
         raise ValueError("; ".join(errs))
     old = dict(limits.__dict__)

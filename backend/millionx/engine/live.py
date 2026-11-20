@@ -231,7 +231,7 @@ class TradingEngine:
     def _update_bars(self, sym: str) -> bool:
         now = now_ms()
         if sym not in self.bars or len(self.bars[sym]) == 0:
-            b = self.ex.klines(sym, WINDOW)
+            b = self._history(sym, self.window())
         else:
             b = self.ex.klines(sym, 5)
         if len(b) == 0:
@@ -250,11 +250,31 @@ class TradingEngine:
             return False
         k = int(np.argmax(new_mask))
         add = b.slice(k, len(b))
-        merged = Bars(*(np.concatenate([getattr(old, f), getattr(add, f)])[-WINDOW:] for f in
+        merged = Bars(*(np.concatenate([getattr(old, f), getattr(add, f)])[-self.window():] for f in
                         ("open_time", "open", "high", "low", "close", "volume", "taker_buy_volume", "quote_volume")))
         self.bars[sym] = merged
         self.last_bar_ms[sym] = int(merged.open_time[-1])
         return True
+
+    def window(self) -> int:
+        """1m bars kept per symbol: enough for every bot's timeframe and warm-up
+        (e.g. 60-minute bots need ~90 hourly bars = 5,400 one-minute bars)."""
+        need = WINDOW
+        for bots in list(self.bots.values())[:1] or [build_bots(None, self._bot_params())]:
+            for x in bots:
+                need = max(need, x.timeframe * (getattr(x, "warmup_bars", 60) + 30))
+        return int(min(need, 6000))
+
+    def _history(self, sym: str, n: int) -> Bars:
+        """Initial history; Binance returns at most 1,500 klines per request, so page backwards."""
+        b = self.ex.klines(sym, min(n, WINDOW))
+        while len(b) and len(b) < n:
+            older = self.ex.klines(sym, min(WINDOW, n - len(b)), end_time=int(b.open_time[0]) - 1)
+            if len(older) == 0 or older.open_time[-1] >= b.open_time[0]:
+                break
+            b = Bars(*(np.concatenate([getattr(older, f), getattr(b, f)]) for f in
+                       ("open_time", "open", "high", "low", "close", "volume", "taker_buy_volume", "quote_volume")))
+        return b
 
     def data_fresh(self) -> bool:
         if not self.universe:

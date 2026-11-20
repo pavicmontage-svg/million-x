@@ -198,3 +198,38 @@ def test_risk_profile_and_pause_reset(client):
     rt.s.mode = "paper"
     c.post("/api/risk/profile", json={"profile": "standard"})
     assert rt.s.risk.risk_per_trade == 0.005
+
+
+def test_max_profile_only_with_virtual_money(client):
+    c, eng, rt = client
+    r = c.post("/api/risk/profile", json={"profile": "max"})
+    assert r.status_code == 200, r.text
+    assert rt.s.risk.risk_per_trade == 0.05 and rt.s.risk.max_leverage == 50
+    # wider values are refused for live, and the engine cannot be switched to live with them
+    rt.gate.is_valid = lambda: True
+    r = c.put("/api/settings", json={"mode": "live"})
+    assert r.status_code == 400 and "virtual money" in r.json()["error"] and rt.s.mode == "paper"
+    rt.s.mode = "live"
+    assert c.post("/api/risk/profile", json={"profile": "max"}).status_code == 400
+    assert c.put("/api/risk/limits", json={"risk_per_trade": 0.05}).status_code == 400
+    rt.s.mode = "paper"
+    c.post("/api/risk/profile", json={"profile": "standard"})
+    assert rt.s.risk.max_leverage == 10 and rt.s.risk.leverage_vol_target == 0.02
+
+
+def test_max_profile_sizes_with_high_leverage_on_4_eur():
+    """4 EUR experimental account: MAX makes the minimum order affordable through leverage."""
+    from millionx.config import FeeModel, RiskLimits
+    from millionx.governance import RISK_PROFILES, apply_limit_changes
+    from millionx.models import Side, Signal
+    from millionx.risk import RiskManager, SymbolRules
+    lim = RiskLimits()
+    apply_limit_changes(lim, RISK_PROFILES["max"], "demo")
+    rm = RiskManager(lim, FeeModel())
+    rm.state.equity = 4.3
+    e = 3000.0
+    sig = Signal("b", "ETHUSDT", Side.LONG, e, e * (1 - 0.0042), e * 1.0084, e * 1.0126, 0.6, 0, 1)
+    dec = rm.size(sig, SymbolRules("ETHUSDT", min_notional=20.0, step_size=0.001, min_qty=0.001,
+                                   max_leverage=100), [], 0.003, 0)
+    assert dec.approved, dec.reasons
+    assert dec.leverage >= 5 and dec.notional >= 20.0

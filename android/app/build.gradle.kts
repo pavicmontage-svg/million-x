@@ -19,8 +19,8 @@ android {
         applicationId = "com.millionx.ai"
         minSdk = 30
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.7.0"
+        versionCode = 11
+        versionName = "1.8.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // arm64-v8a = real phones (S25 Ultra); x86_64 = emulator for the UI tests.
         // CI builds the phone APK with -PmxAbis=arm64-v8a: the embedded Python makes a
