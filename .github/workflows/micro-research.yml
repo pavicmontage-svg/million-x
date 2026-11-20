@@ -25,6 +25,7 @@ jobs:
           done
           ls -la /tmp/md
       - run: mkdir -p /tmp/mr && cp /tmp/md/*.json /tmp/mr/ && python -m millionx.micro.research --data-dir /tmp/md --out /tmp/mr/micro_research.json
+      - run: mkdir -p /tmp/mr/docs && python -m millionx.micro.report --research /tmp/mr/micro_research.json --quality-dir /tmp/md --out-dir /tmp/mr/docs --run "micro-research run ${{ github.run_id }}"
       - run: cat /tmp/mr/micro_research.md >> $GITHUB_STEP_SUMMARY
       - name: Publish to branch micro-research
         run: |
