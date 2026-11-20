@@ -79,9 +79,11 @@ class WFResult:
 
 def walk_forward(data: dict[str, Bars], settings: Settings, bot_id: str, train_days: int = 60,
                  test_days: int = 20, warmup_days: int = 3, max_windows: Optional[int] = None,
-                 progress=None) -> WFResult:
+                 progress=None, base_params: Optional[dict[str, Any]] = None, max_combos: int = 27) -> WFResult:
     cls = next((c for c in BASE_CLASSES if c.bot_id == bot_id), None)
-    grid = _grid(cls) if cls else [{}]
+    grid = _grid(cls, max_combos) if cls else [{}]
+    if base_params:  # fixed settings (e.g. timeframe) applied to every grid point
+        grid = [{**p, **base_params} for p in grid]
     t0 = min(int(b.open_time[0]) for b in data.values())
     t1 = max(int(b.open_time[-1]) for b in data.values())
     windows, oos, chosen_hist = [], [], []

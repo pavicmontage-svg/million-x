@@ -1,0 +1,65 @@
+name: research-timeframes
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  wf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        tf: [5, 15, 30, 60]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-btc-eth-sol-xrp-2025-01-2026-10-v1
+      - name: Walk-forward tf=${{ matrix.tf }}
+        run: python -m millionx.research wf --tf ${{ matrix.tf }} --out /tmp/wf_${{ matrix.tf }}.json
+      - name: Publish result to branch research-tf${{ matrix.tf }}
+        run: |
+          mkdir -p /tmp/pub && cp /tmp/wf_${{ matrix.tf }}.json /tmp/pub/
+          cd /tmp/pub && git init -q -b research-tf${{ matrix.tf }} && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "wf tf=${{ matrix.tf }} ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" research-tf${{ matrix.tf }}
+  holdout:
+    needs: wf
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-holdout-2026-07-2026-10-v1
+      - name: Collect walk-forward results
+        run: |
+          mkdir -p /tmp/wf
+          for tf in 5 15 30 60; do
+            git fetch -q origin research-tf$tf && git show FETCH_HEAD:wf_$tf.json > /tmp/wf/wf_$tf.json || echo "no result for tf=$tf"
+          done
+      - name: Holdout (pre-registered candidates only)
+        run: python -m millionx.research holdout --inputs "/tmp/wf/wf_*.json" --out /tmp/wf/holdout.json && cat /tmp/wf/holdout.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch research
+        run: |
+          cd /tmp/wf && git init -q -b research && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "research ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" research
