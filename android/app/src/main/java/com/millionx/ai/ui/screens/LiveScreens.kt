@@ -192,6 +192,8 @@ private fun FunnelCard(d: JsonElement, nav: NavController) {
                 .ifEmpty { "none" })
             KV("Candles analysed / bot signals", "${eg.num("bars_processed").toInt()} / ${eg.num("signals_since_start").toInt()}")
             KV("Running for", "${eg.num("uptime_min").toInt()} min")
+            KV("TOP markets ranked by", if (eg.str("volume_source") == "binance_real_market") "real Binance volume"
+                else "venue volume (real market unreachable)")
             eg.numOrNull("last_bar_age_s")?.let { KV("Last candle", "${it.toInt()} s ago") }
         }
         eg.list("liquidity_failed").forEach { x ->

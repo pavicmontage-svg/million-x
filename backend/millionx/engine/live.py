@@ -68,6 +68,10 @@ class TradingEngine:
         self.rules: dict[str, SymbolRules] = {}
         self.universe: list[str] = []
         self.scanner: dict[str, dict[str, Any]] = {}
+        # Optional public real-market source used ONLY to rank symbols by real traded
+        # volume (demo/paper venues report their own, non-representative volume).
+        self.volume_source: Optional[Exchange] = None
+        self.volume_source_used = "venue"
         self.bars: dict[str, Bars] = {}
         self.books: dict[str, OrderBookSnapshot] = {}
         self.mds: dict[str, MarketData] = {}
@@ -163,7 +167,16 @@ class TradingEngine:
     # ------------------------------------------------------------- universe
     def refresh_universe(self) -> None:
         rules = self.ex.symbols()
-        tick = self.ex.tickers_24h()
+        tick = None
+        if self.volume_source is not None:
+            try:
+                tick = self.volume_source.tickers_24h()
+                self.volume_source_used = "binance_real_market"
+            except ExchangeError as e:
+                self.errors = (self.errors + [f"real-volume ranking unavailable, using venue volume: {e}"])[-50:]
+        if tick is None:
+            tick = self.ex.tickers_24h()
+            self.volume_source_used = "venue"
         cands = []
         for t in tick:
             sym = t["symbol"]
@@ -199,6 +212,7 @@ class TradingEngine:
                 self.scanner.setdefault(k, {}).update(v)
         self.last_universe_refresh = now_ms()
         self.store.audit("market_intelligence", "universe_refreshed", {"symbols": chosen,
+                         "volume_source": self.volume_source_used,
                          "candidates": [c[1] for c in cands[: self.s.universe_size * 3]]})
         self.bus.publish("universe", {"symbols": chosen})
 

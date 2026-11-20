@@ -105,3 +105,26 @@ def test_live_mode_requires_unlock(tmp_path, clock, monkeypatch):
     eng = live.TradingEngine(s, Store(str(tmp_path / "l.db")), FakeMarket(clock))
     assert eng.sup.tradable == {BotStatus.LIVE_ELIGIBLE}
     assert not eng._decide.__self__.gate  # no gate object -> live orders impossible
+
+
+def test_universe_ranked_by_real_market_volume(engine):
+    eng, clock, market, store = engine
+    from millionx.exchange.base import ExchangeError
+
+    class Real:
+        def tickers_24h(self):  # real market: BBB trades far more than AAA; ZZZ is not listed on the venue
+            return [{"symbol": "ZZZUSDT", "quoteVolume": "9e12"}, {"symbol": "AAAUSDT", "quoteVolume": "1"},
+                    {"symbol": "BBBUSDT", "quoteVolume": "5e9"}]
+
+    eng.volume_source = Real()
+    eng.refresh_universe()
+    assert eng.universe[:2] == ["BBBUSDT", "AAAUSDT"] and "ZZZUSDT" not in eng.universe
+    assert eng.volume_source_used == "binance_real_market"
+
+    class Down:
+        def tickers_24h(self):
+            raise ExchangeError("access denied from this location/IP (451)", code=451)
+
+    eng.volume_source = Down()
+    eng.refresh_universe()
+    assert eng.universe[0] == "AAAUSDT" and eng.volume_source_used == "venue"  # falls back, never blocks

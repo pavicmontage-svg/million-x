@@ -597,7 +597,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         ages = [(now - (e.last_bar_ms.get(s, 0) + MINUTE)) / 1000 for s in e.universe if e.last_bar_ms.get(s)]
         scanned = [v for v in e.scanner.values() if "ok" in v]
         failed = [v for v in scanned if not v.get("ok")]
-        d = {"running": alive, "mode": rt.s.mode, "uptime_min": round(up_min, 1), "universe": list(e.universe),
+        d = {"running": alive, "mode": rt.s.mode, "volume_source": getattr(e, "volume_source_used", "venue"), "uptime_min": round(up_min, 1), "universe": list(e.universe),
              "bars_processed": e.bars_processed, "signals_since_start": e.signals_seen,
              "data_fresh": e.risk.state.data_fresh, "connection_ok": e.risk.state.connection_ok,
              "last_bar_age_s": round(max(ages), 1) if ages else None, "errors": e.errors[-5:],

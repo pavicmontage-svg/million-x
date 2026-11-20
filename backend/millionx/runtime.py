@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import logging
 import threading
 import time
@@ -91,6 +92,10 @@ class Runtime:
         try:
             ex = self.build_exchange()
             self.engine = TradingEngine(self.s, self.store, ex, self.bus, self.notifier, self.org, gate=self.gate)
+            if self.s.mode != "live":
+                # rank the TOP symbols by REAL Binance volume (public endpoint, no key);
+                # orders still go to the selected venue (demo / paper)
+                self.engine.volume_source = BinanceFutures(os.environ.get("MX_VOLUME_URL", "https://fapi.binance.com"))
             self.engine.start()
             self.engine_error = None
         except Exception as e:
