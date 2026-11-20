@@ -30,10 +30,12 @@ jobs:
           path: backend/data/klines
           key: klines-10sym-2025-01-2026-06-v1
       - run: mkdir -p /tmp/r2 && python -m millionx.research2 run --bot ${{ matrix.bot }} --out /tmp/r2/r2_${{ matrix.bot }}.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: r2_${{ matrix.bot }}
-          path: /tmp/r2/r2_${{ matrix.bot }}.json
+      # artifact storage quota is full on this account: each result goes to its own branch r2-<bot>
+      - name: Publish to branch r2-${{ matrix.bot }}
+        run: |
+          cd /tmp/r2 && git init -q -b "r2-${{ matrix.bot }}" && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "r2 ${{ matrix.bot }} ${GITHUB_SHA::7}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "r2-${{ matrix.bot }}"
   aggregate:
     needs: run
     if: always()
@@ -47,11 +49,16 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - uses: actions/download-artifact@v4
-        with:
-          path: /tmp/r2
-          merge-multiple: true
-      - run: python -m millionx.research2 aggregate --inputs "/tmp/r2/r2_*.json" --out /tmp/r2/research2.json
+      - name: Collect per-strategy results (branches r2-*)
+        run: |
+          mkdir -p /tmp/r2 && cd /tmp/r2
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git"
+          for ref in $(git ls-remote "$URL" 'refs/heads/r2-*' | cut -f2); do
+            b=${ref#refs/heads/}; git clone -q --depth 1 -b "$b" "$URL" "/tmp/c_$b" && cp /tmp/c_$b/*.json /tmp/r2/ || true
+          done
+          ls -la /tmp/r2
+      - run: python -m millionx.research2 aggregate --inputs "/tmp/r2/r2_*.json" --out /tmp/r2/research2.json --run-id ${{ github.run_id }}
+      - run: mkdir -p /tmp/r2/docs && python -m millionx.report2 --input /tmp/r2/research2.json --out-dir /tmp/r2/docs --run "research2 run ${{ github.run_id }}"
       - run: cat /tmp/r2/research2.md >> $GITHUB_STEP_SUMMARY
       - name: Publish to branch research2
         run: |

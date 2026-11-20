@@ -260,6 +260,7 @@ def run_plan() -> list[tuple[str, int, list[dict[str, Any]]]]:
 
 def _cmd_run(a) -> None:
     import json
+    import os
     import time
     from datetime import date
     from . import research as R
@@ -275,7 +276,8 @@ def _cmd_run(a) -> None:
     t0 = min(int(b.open_time[0]) for b in data.values()) + 7 * DAY  # indicator warm-up
     t1 = max(int(b.open_time[-1]) for b in data.values())
     out = {"bot": a.bot, "selection": [str(x) for x in R.SELECT], "holdout_untouched": [str(x) for x in R.HOLDOUT],
-           "symbols": R.SYMBOLS, "n_trials_total": n_total, "results": []}
+           "symbols": R.SYMBOLS, "n_trials_total": n_total, "run_id": os.environ.get("GITHUB_RUN_ID", "local"),
+           "results": []}
     for bot, tf, grid in mine:
         t = time.time()
         rep = evaluate(data, bot, grid, (t0, t1), n_total, regimes=regimes)
@@ -297,7 +299,11 @@ def _cmd_aggregate(a) -> None:
     from . import selection
     reps = []
     for p in sorted(glob.glob(a.inputs)):
-        reps.extend(json.load(open(p))["results"])
+        d = json.load(open(p))
+        if a.run_id and str(d.get("run_id")) != str(a.run_id):
+            print(f"skip {p}: from run {d.get('run_id')}, not {a.run_id}")
+            continue
+        reps.extend(d["results"])
     lines = ["# Research Engine 2.0 — results (selection period only, holdout untouched)", "",
              "| strategy | TF | OOS n | PF | exp R | pos. windows | max DD | DSR | PBO | STRESSED R | EXTREME R | verdict |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -322,7 +328,8 @@ def _cmd_aggregate(a) -> None:
         bad = [k for k, v in r["checks"].items() if not v["pass"]]
         lines.append(f"- {r['bot']} {r.get('timeframe')}m: " + (", ".join(bad) if bad else "all checks passed"))
     with open(a.out, "w") as fh:
-        json.dump({"reports": [{k: v for k, v in r.items() if k != "oos_trades"} for r in reps],
+        json.dump({"run": f"run {a.run_id}" if a.run_id else "local",
+                   "reports": [{k: v for k, v in r.items() if k != "oos_trades"} for r in reps],
                    "selection": sel}, fh, default=str)
     open(a.out.replace(".json", ".md"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
@@ -341,6 +348,7 @@ def main() -> None:
     g = sub.add_parser("aggregate")
     g.add_argument("--inputs", required=True)
     g.add_argument("--out", required=True)
+    g.add_argument("--run-id", default="")
     sub.add_parser("plan")
     a = p.parse_args()
     if a.cmd == "plan":
