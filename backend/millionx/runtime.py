@@ -196,7 +196,20 @@ class Runtime:
         try:
             start = date.fromisoformat(req["start"])
             end = date.fromisoformat(req["end"])
+            if end < start:
+                raise ValueError("end date is before start date")
+
+            def note(text: str) -> None:
+                self.store.x("UPDATE jobs SET progress=? WHERE id=?", (json.dumps({"text": text}), jid))
+            from .backtest.data import ensure_data
+            for sym in req["symbols"]:
+                try:
+                    ensure_data(sym, self.s.data_dir, start, end, progress=note)
+                except Exception as e:  # offline: fall back to whatever is already on disk
+                    note(f"download failed for {sym}: {e}; using local files only")
+            note("loading data")
             data = {s: load_symbol(s, self.s.data_dir, start, end) for s in req["symbols"]}
+            note(f"running {kind} on " + ", ".join(f"{k}: {len(v):,} candles" for k, v in data.items()))
             t0 = int(datetime(start.year, start.month, start.day, tzinfo=timezone.utc).timestamp() * 1000)
             t1 = int(datetime(end.year, end.month, end.day, tzinfo=timezone.utc).timestamp() * 1000) + 86_400_000
             data = {k: v.slice(int((v.open_time < t0).sum()), int((v.open_time < t1).sum())) for k, v in data.items()}
@@ -209,7 +222,7 @@ class Runtime:
                 out["trades_sample"] = [t.to_dict() for t in res.trades[-200:]]
             elif kind == "walkforward":
                 def prog(bot, k, w):
-                    self.store.x("UPDATE jobs SET progress=? WHERE id=?", (json.dumps({"bot": bot, "window": k}), jid))
+                    self.store.x("UPDATE jobs SET progress=? WHERE id=?", (json.dumps({"bot": bot, "window": k, "text": f"walk-forward {bot}: window {k}"}), jid))
                 out = {}
                 for b in req.get("bots") or []:
                     wf = walk_forward(data, self.s, b, int(req.get("train_days", 60)), int(req.get("test_days", 20)),

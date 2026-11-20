@@ -60,15 +60,16 @@ fun QuantLabScreen(nav: NavController) {
     val st by vm.state.collectAsState()
     val auth = LocalAuth.current
     var symbols by remember { mutableStateOf("BTCUSDT,ETHUSDT") }
-    var start by remember { mutableStateOf("2023-01-01") }
-    var end by remember { mutableStateOf("2025-12-31") }
+    var start by remember { mutableStateOf(java.time.LocalDate.now().minusDays(90).toString()) }
+    var end by remember { mutableStateOf(java.time.LocalDate.now().minusDays(1).toString()) }
     var equity by remember { mutableStateOf("40") }
     var kind by remember { mutableStateOf("backtest") }
     val chosen = remember { mutableStateOf(setOf("bot2_ema")) }
     Screen("Quant Research Lab", nav, vm.messages, actions = { RefreshIcon { vm.refresh() } }) {
         item {
-            Banner("Results come only from the server's real historical data (data.binance.vision). Download data on the " +
-                    "server first: python -m millionx.cli download …", MX.Info)
+            Banner("Real historical 1-minute data is downloaded automatically from Binance's public archive " +
+                    "(data.binance.vision, about 2–3 MB per symbol per month) and kept on the phone. Start with ~3 months: " +
+                    "multi-year tests take long on a phone. Results are never invented.", MX.Info)
         }
         item {
             MxCard {
@@ -119,6 +120,7 @@ fun QuantLabScreen(nav: NavController) {
                                 Chip(j.str("status").uppercase(), statusColor(j.str("status")))
                             }
                             Text(j.str("request").take(120), color = MX.Muted, style = MaterialTheme.typography.bodySmall)
+                            jobProgress(j)?.let { Text(it, color = MX.Info, style = MaterialTheme.typography.bodySmall) }
                         }
                     }
                 }
@@ -138,6 +140,10 @@ fun JobDetailScreen(nav: NavController, id: String) {
                 val r = j["result"]
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Chip(j.str("status").uppercase(), statusColor(j.str("status")))
+                    if (j.str("status") in setOf("queued", "running")) {
+                        Text(jobProgress(j) ?: "starting…", color = MX.Info)
+                        androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth(), color = MX.Accent)
+                    }
                     if (r["error"] != null) Banner(r.str("error"), MX.Down)
                     if (j.str("kind") == "backtest" && r["metrics"] != null) {
                         val m = r["metrics"]
@@ -367,4 +373,13 @@ fun AuditScreen(nav: NavController) {
             }
         }
     }
+}
+
+
+/** Human-readable progress of a research job (download / run stage). */
+fun jobProgress(j: kotlinx.serialization.json.JsonElement): String? {
+    if (j.str("status") !in setOf("queued", "running")) return null
+    val raw = j.str("progress")
+    if (raw.isEmpty()) return null
+    return runCatching { com.millionx.ai.data.parseJson(raw).str("text") }.getOrNull()?.takeIf { it.isNotEmpty() }
 }
