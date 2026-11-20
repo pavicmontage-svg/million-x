@@ -185,7 +185,27 @@ def _trader_reply(eng, sym, conf=0.8):
     return make
 
 
-def test_trader_signal_goes_through_supervisor_and_risk_engine(engine):
+def test_v2_trader_is_advisory_only(engine):
+    """2.0 rule: the LLM's trade ideas are recorded, never submitted, and the switch is not settable."""
+    eng, clock, store = engine
+    sym = eng.universe[0]
+    ch = ScriptChain({"independent_trader": _trader_reply(eng, sym)})
+    desk = AIDesk(store, ch)
+    eng.ai = desk
+    out = desk.run_trader(eng)
+    assert out["ok"] and out["decisions"][0]["status"] == "advisory_recorded"
+    assert ch.calls == ["independent_trader"] and not eng.pending and sym not in eng.positions
+    assert desk.update_settings(advisory_only=False)["advisory_only"] is True
+
+
+@pytest.fixture
+def executing(monkeypatch):
+    """1.9.0 pipeline mechanics (kept for the supervisor gate), with advisory mode lifted in the test."""
+    import millionx.ai.desk as desk_mod
+    monkeypatch.setattr(desk_mod, "ADVISORY_ONLY", False)
+
+
+def test_trader_signal_goes_through_supervisor_and_risk_engine(engine, executing):
     eng, clock, store = engine
     sym = eng.universe[0]
     ch = ScriptChain({"independent_trader": _trader_reply(eng, sym),
@@ -209,7 +229,7 @@ def test_trader_signal_goes_through_supervisor_and_risk_engine(engine):
     assert sym in eng.positions and eng.positions[sym].leverage <= 5
 
 
-def test_supervisor_rejects_and_ai_down_means_no_trade(engine):
+def test_supervisor_rejects_and_ai_down_means_no_trade(engine, executing):
     eng, clock, store = engine
     sym = eng.universe[0]
     ch = ScriptChain({"independent_trader": _trader_reply(eng, sym),
@@ -230,7 +250,7 @@ def test_supervisor_rejects_and_ai_down_means_no_trade(engine):
     assert not eng.positions
 
 
-def test_supervisor_cannot_approve_without_reasons(engine):
+def test_supervisor_cannot_approve_without_reasons(engine, executing):
     eng, clock, store = engine
     from millionx.ai.desk import SUPERVISOR_PROMPT  # noqa: F401
     sym = eng.universe[0]

@@ -116,6 +116,9 @@ def check_trade_decision(x: dict[str, Any], price: Optional[float]) -> tuple[boo
     return True, "", norm
 
 
+ADVISORY_ONLY = True  # MillionX 2.0 rule; not an owner setting
+
+
 class AIDesk:
     def __init__(self, store: Store, chain: ProviderChain):
         self.store = store
@@ -130,11 +133,16 @@ class AIDesk:
         d = {"trader_enabled": True, "supervisor_enabled": True, "trader_interval_min": 5,
              "trader_min_confidence": 0.6, "trader_max_trades_per_run": 2}
         d.update(self.store.kv_get("ai_desk", {}) or {})
+        # 2.0: the LLM is advisory only. Its trade ideas are recorded and compared with the
+        # deterministic strategies but never submitted; it cannot change risk or activation.
+        d["advisory_only"] = ADVISORY_ONLY
         return d
 
     def update_settings(self, **kw: Any) -> dict[str, Any]:
         d = self.settings()
         for k, v in kw.items():
+            if k == "advisory_only":
+                continue
             if k in d and v is not None:
                 d[k] = type(d[k])(v)
         d["trader_interval_min"] = max(1, min(60, int(d["trader_interval_min"])))
@@ -206,7 +214,10 @@ class AIDesk:
             # the trader's decision is stored BEFORE anything else sees it (objective comparison)
             did = self.record("independent_trader", sym, norm["direction"], {**norm, "check": why}, status, pid,
                               res.provider or "", res.model or "")
-            if status == "valid" and norm["confidence"] >= st["trader_min_confidence"] \
+            if status == "valid" and st["advisory_only"]:
+                status = "advisory_recorded"
+                self.store.x("UPDATE ai_decisions SET status=? WHERE id=?", (status, did))
+            elif status == "valid" and norm["confidence"] >= st["trader_min_confidence"] \
                     and submitted < st["trader_max_trades_per_run"]:
                 sig = self._signal_from(norm)
                 r = engine.submit_external(sig, origin="ai_trader")
