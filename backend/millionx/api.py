@@ -59,6 +59,9 @@ class RateLimiter:
         await JSONResponse({"error": "rate limit exceeded"}, status_code=429)(scope, receive, send)
 
 
+MINUTE = 60_000
+
+
 def J(data: Any, status: int = 200) -> JSONResponse:
     return JSONResponse(metrics.json_safe(data), status_code=status)
 
@@ -540,6 +543,52 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             return DEPT_LABEL.get(st.get("dept", ""), st.get("dept", "") or "?"), text
         return "", ""
 
+    def _engine_diag(e, sig_24h: int) -> dict[str, Any]:
+        """Plain-language answer to 'why is nothing happening?' from the engine's real state."""
+        if e is None:
+            return {"running": False, "verdict": f"Trading engine is not running: {rt.engine_error or 'unknown reason'}",
+                    "level": "critical"}
+        alive = bool(e.thread and e.thread.is_alive())
+        now = now_ms()
+        up_min = (now - e.started_at) / 60_000
+        ages = [(now - (e.last_bar_ms.get(s, 0) + MINUTE)) / 1000 for s in e.universe if e.last_bar_ms.get(s)]
+        scanned = [v for v in e.scanner.values() if "ok" in v]
+        failed = [v for v in scanned if not v.get("ok")]
+        d = {"running": alive, "mode": rt.s.mode, "uptime_min": round(up_min, 1), "universe": list(e.universe),
+             "bars_processed": e.bars_processed, "signals_since_start": e.signals_seen,
+             "data_fresh": e.risk.state.data_fresh, "connection_ok": e.risk.state.connection_ok,
+             "last_bar_age_s": round(max(ages), 1) if ages else None, "errors": e.errors[-5:],
+             "liquidity_failed": [{"symbol": v["symbol"], "spread_bps": v.get("spread_bps"),
+                                   "depth": min(v.get("depth_bid_10bps") or 0, v.get("depth_ask_10bps") or 0),
+                                   "reason": v.get("reason")} for v in failed[:10]],
+             "limits": {"max_spread_bps": rt.s.max_spread_bps, "min_depth_usdt": rt.s.min_depth_usdt}}
+        if not alive:
+            d.update(level="critical", verdict="Engine thread stopped. Open Admin → Engine on this phone → Start.")
+        elif e.risk.state.emergency_stop:
+            d.update(level="critical", verdict="EMERGENCY STOP is active: no new trades until you reset it in Risk.")
+        elif not e.universe:
+            d.update(level="warning", verdict=(
+                f"No market passed the liquidity filter (spread ≤ {rt.s.max_spread_bps} bps and ≥ "
+                f"{rt.s.min_depth_usdt:,.0f} USDT depth within 10 bps on each side). {len(failed)} of {len(scanned)} "
+                "scanned markets failed — see the list below." if scanned else
+                "Market list not loaded yet (or Binance did not answer). " + ("; ".join(e.errors[-2:]) or "")))
+        elif not e.risk.state.connection_ok:
+            d.update(level="critical", verdict="Connection to Binance is failing: " + "; ".join(e.errors[-2:]))
+        elif e.bars_processed == 0:
+            d.update(level="info", verdict=f"Watching {len(e.universe)} markets; waiting for the first closed 1-minute candle.")
+        elif not e.risk.state.data_fresh:
+            d.update(level="warning", verdict="Market data is late, so new entries are paused: " + "; ".join(e.errors[-2:]))
+        elif e.signals_seen == 0 and sig_24h == 0:
+            d.update(level="info", verdict=(
+                f"Working normally: watching {len(e.universe)} markets for {up_min:.0f} min and analysed "
+                f"{e.bars_processed} candles. No bot has found its setup yet. Each bot only fires on its specific "
+                "pattern (e.g. a breakout with volume, a VWAP stretch, a squeeze release), so quiet markets can "
+                "stay silent for a while."))
+        else:
+            d.update(level="ok", verdict=(f"Working: {len(e.universe)} markets, {e.bars_processed} candles analysed, "
+                                          f"{e.signals_seen} bot signals since start."))
+        return d
+
     @guard("read")
     async def activity(request):
         """What the engine is doing right now: signal funnel, decisions and shadow positions."""
@@ -593,7 +642,7 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         vt = store.one("SELECT COUNT(*) n, SUM(CASE WHEN net_pnl>0 THEN 1 ELSE 0 END) w, SUM(r_multiple) r "
                        "FROM trades WHERE virtual=1 AND mode=? AND closed_at>?", (rt.s.mode, since))
         top = sorted(block_reasons.items(), key=lambda kv: -kv[1])[:6]
-        return J({"window_h": 24,
+        return J({"window_h": 24, "engine": _engine_diag(e, sig_total),
                   "funnel": {"signals": sig_total, "supervisor_accepted": accepted,
                              "supervisor_rejected": sig_total - accepted,
                              "executed": outcomes.get("executed", 0),

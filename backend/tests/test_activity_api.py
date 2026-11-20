@@ -31,6 +31,8 @@ def client(tmp_path, clock, monkeypatch):
     for _ in range(900):
         clock.t += MINUTE_MS
         eng.tick()
+    import threading
+    eng.thread = threading.current_thread()  # ticks are driven by the test; the engine counts as running
     rt = Runtime(s, store, Vault(Vault.generate()))
     rt.engine = eng
     tok = redeem_pairing_code(store, create_pairing_code(store, "owner"), "t", "1.1.1.1")["token"]
@@ -52,6 +54,8 @@ def test_activity_explains_every_decision(client):
         if x["outcome"] not in ("executed", "awaiting_owner_approval"):
             assert x["reason"], f"blocked decision without a reason: {x}"
     assert isinstance(d["shadow_open"], list)
+    eg = d["engine"]
+    assert eg["universe"] and eg["bars_processed"] > 0 and eg["verdict"] and eg["level"] in ("ok", "info", "warning")
 
 
 def test_candles_and_competition(client):
@@ -161,3 +165,16 @@ def test_binance_account_view_read_only(client, monkeypatch):
     assert d["positions"][0]["symbol"] == "ETHUSDT" and d["balance"]["wallet"] == 5000.0
     c.get("/api/exchange/account")
     assert len(calls) == 1, "cached for 15 s to respect Binance rate limits"
+
+
+def test_engine_diagnosis_names_liquidity_filter(client):
+    c, eng, rt = client
+    eng.universe = []
+    for v in eng.scanner.values():
+        v.update(ok=False, reason="spread/depth below threshold")
+    d = c.get("/api/activity").json()["engine"]
+    assert d["level"] == "warning" and "liquidity filter" in d["verdict"] and d["liquidity_failed"]
+    rt.engine = None
+    rt.engine_error = "no API keys stored for mode 'demo'"
+    d = c.get("/api/activity").json()["engine"]
+    assert d["level"] == "critical" and "no API keys" in d["verdict"]

@@ -33,6 +33,7 @@ import com.millionx.ai.data.get
 import com.millionx.ai.data.list
 import com.millionx.ai.data.long
 import com.millionx.ai.data.num
+import com.millionx.ai.data.numOrNull
 import com.millionx.ai.data.str
 import com.millionx.ai.ui.components.Banner
 import com.millionx.ai.ui.components.BarList
@@ -124,7 +125,9 @@ fun LiveScreen(nav: NavController) {
             }
         }
         item {
-            LoadBox(a, { act.refresh() }) { d -> FunnelCard(d) }
+            LoadBox(a, { act.refresh() }) { d ->
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { FunnelCard(d) }
+            }
         }
         item {
             LoadBox(a, { act.refresh() }) { d -> ShadowCard(d) }
@@ -175,6 +178,27 @@ fun LiveScreen(nav: NavController) {
 @Composable
 private fun FunnelCard(d: JsonElement) {
     val f = d["funnel"]
+    val eg = d["engine"]
+    MxCard {
+        SectionTitle("Engine status")
+        val lvl = eg.str("level")
+        val col = when (lvl) { "ok" -> MX.Up; "info" -> MX.Info; "warning" -> MX.Warn; else -> MX.Down }
+        Text(eg.str("verdict"), color = col, style = MaterialTheme.typography.bodyMedium)
+        if (eg.bool("running")) {
+            KV("Markets watched", eg.list("universe").joinToString { it.toString().trim('"').removeSuffix("USDT") }
+                .ifEmpty { "none" })
+            KV("Candles analysed / bot signals", "${eg.num("bars_processed").toInt()} / ${eg.num("signals_since_start").toInt()}")
+            KV("Running for", "${eg.num("uptime_min").toInt()} min")
+            eg.numOrNull("last_bar_age_s")?.let { KV("Last candle", "${it.toInt()} s ago") }
+        }
+        eg.list("liquidity_failed").forEach { x ->
+            Text("• ${x.str("symbol")}: spread ${x.num("spread_bps").fmt(2)} bps, depth ${x.num("depth").fmt(0)} USDT",
+                color = MX.Warn, style = MaterialTheme.typography.bodySmall)
+        }
+        eg.list("errors").takeLast(3).forEach { e ->
+            Text("! ${e.toString().trim('"').take(160)}", color = MX.Down, style = MaterialTheme.typography.bodySmall)
+        }
+    }
     MxCard {
         SectionTitle("Signal funnel — last 24 h")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

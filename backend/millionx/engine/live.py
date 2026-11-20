@@ -87,6 +87,8 @@ class TradingEngine:
         self._lock = threading.RLock()
         self.thread: Optional[threading.Thread] = None
         self.errors: list[str] = []
+        self.bars_processed = 0       # closed candles analysed since start
+        self.signals_seen = 0         # raw bot signals since start
         self.last_tick_ms = 0
         self.started_reconcile = False
         self._err_alerted: dict[str, int] = {}
@@ -332,6 +334,7 @@ class TradingEngine:
 
     # ------------------------------------------------------------- per bar
     def on_bar(self, sym: str) -> None:
+        self.bars_processed += 1
         b = self.bars[sym]
         o, h, l, c = (float(x[-1]) for x in (b.open, b.high, b.low, b.close))
         ts = int(b.open_time[-1]) + MINUTE_MS
@@ -369,6 +372,7 @@ class TradingEngine:
                 sigs.append(s)
         if not sigs:
             return
+        self.signals_seen += len(sigs)
         for s in sigs:
             self._open_virtual(s, c, ts, md)
         regime_of = lambda sy: self.mds[sy].regime_at_1m(len(self.bars[sy]) - 1)

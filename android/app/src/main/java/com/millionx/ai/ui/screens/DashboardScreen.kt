@@ -137,6 +137,9 @@ fun DashboardScreen(nav: NavController) {
                                 Stat("Traded", f.num("executed").toInt().toString(), Modifier.weight(1f), MX.Up)
                                 Stat("Paper pos.", ae.list("shadow_open").size.toString(), Modifier.weight(1f), MX.Purple)
                             }
+                            val eg = ae["engine"]
+                            if (eg.str("verdict").isNotEmpty()) Text(eg.str("verdict"), style = MaterialTheme.typography.bodySmall,
+                                color = when (eg.str("level")) { "ok" -> MX.Up; "info" -> MX.Info; "warning" -> MX.Warn; else -> MX.Down })
                             ae.list("top_block_reasons").firstOrNull()?.let { r ->
                                 Text("Main blocker: ${r.str("reason")} (×${r.num("count").toInt()})", color = MX.Warn,
                                     style = MaterialTheme.typography.bodySmall)
