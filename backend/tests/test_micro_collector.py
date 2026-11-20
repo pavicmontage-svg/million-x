@@ -123,3 +123,26 @@ def test_ws_frames_ping_fragments_close():
 def test_streams_for():
     s = C.streams_for(["BTCUSDT"])
     assert s == "btcusdt@depth20@500ms/btcusdt@aggTrade/btcusdt@forceOrder/btcusdt@markPrice@1s"
+
+
+def test_snapshot_fields_quality_and_lower_bound(tmp_path):
+    from millionx.micro import snapshot as S
+    from millionx.backtest.data import synthetic_bars
+    clk = Clock(1_000_000)
+    db = C.open_db(str(tmp_path / "m.db"))
+    ag = C.Aggregator(db, now=clk)
+    ag.on_message(_depth("BTCUSDT", 999_900))
+    ag.on_message(_trade("BTCUSDT", 999_950, 10, 100.0, 2.0, False))
+    ag.flush(999)
+    bars = synthetic_bars(200, seed=1)
+    snap = S.build("BTCUSDT", db, bars=None, now_ms=1_000_500)
+    f = snap["fields"]
+    assert f["order_book"]["quality"] == "OK" and f["cvd"]["value"]["buy_60s"] == 2.0
+    assert f["funding"]["missing"] and f["ohlcv"]["missing"]
+    assert snap["status"] == "INCOMPLETE" and "ohlcv" in snap["missing_critical"]
+    assert "lower bound" in f["liquidations"]["note"]
+    later = S.build("BTCUSDT", db, bars=None, now_ms=1_020_000)
+    assert later["fields"]["order_book"]["quality"] == "STALE" and later["fields"]["order_book"]["value"] is None
+    st = S.collector_status(db, now_ms=1_000_500)
+    assert st["tables"]["book_1s"]["rows"] == 1
+    assert S.collector_status(None)["running"] is False

@@ -85,3 +85,4 @@ def test_rate_limit_returns_429(server):
     base, st = server
     codes = [call(base, "/api/pair", method="POST", body={"code": "X", "device_name": "y"})[0] for _ in range(14)]
     assert 429 in codes
+

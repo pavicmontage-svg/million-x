@@ -1194,7 +1194,88 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
             return J({"error": f"not a research2.json: {ex}"}, 400)
         return J(out)
 
+    # ---- 2.1 microstructure data (collector, snapshot, research results) ---------------
+    @guard("read")
+    async def micro_status(request):
+        from .micro import snapshot as S
+        db = rt.micro_db()
+        try:
+            st = S.collector_status(db)
+        finally:
+            if db:
+                db.close()
+        st.update({"thread_alive": rt.collector_running(), "symbols": rt.micro_symbols,
+                   "enabled": (store.kv_get("micro_collector") or {}).get("enabled", False)})
+        return J(st)
+
+    @guard("manage_bots")
+    async def micro_collector(request):
+        body = await request.json()
+        if body.get("enabled"):
+            syms = [str(x).upper() for x in body.get("symbols") or []][:20] or None
+            rt.start_collector(syms)
+        else:
+            rt.stop_collector()
+        store.audit(request.state.actor, "micro_collector", {"enabled": bool(body.get("enabled"))}, "owner")
+        return J({"ok": True, "running": rt.collector_running()})
+
+    @guard("read")
+    async def micro_snapshot(request):
+        from .micro import snapshot as S
+        sym = request.path_params["symbol"].upper()
+        e = eng()
+        bars = e.bars.get(sym) if e else None
+        reg, reg_ts = None, None
+        if e and bars is not None and len(bars):
+            try:
+                from .regime2 import classify
+                r2 = classify(bars)
+                reg, reg_ts = r2.at_1m(len(bars) - 1)[0], int(bars.open_time[-1]) + 60_000
+            except Exception:
+                pass
+        db = rt.micro_db()
+        try:
+            return J(S.build(sym, db, bars=bars, regime=reg, regime_ts=reg_ts))
+        finally:
+            if db:
+                db.close()
+
+    @guard("read")
+    async def micro_series(request):
+        sym = request.path_params["symbol"].upper()
+        minutes = max(5, min(1440, int(request.query_params.get("minutes", 180))))
+        db = rt.micro_db()
+        if db is None:
+            return J({"symbol": sym, "rows": [], "note": "no recorded data yet (collector never ran)"})
+        try:
+            since = now_ms() - minutes * 60_000
+            q = ("SELECT b.m AS t, b.imb10, b.spread_bps, b.depth10, t.delta, f.funding_rate, o.oi FROM "
+                 "(SELECT ts/60000*60000 m, AVG(imb10) imb10, AVG(spread_bps) spread_bps, AVG(bid10+ask10) depth10 "
+                 " FROM book_1s WHERE sym=? AND ts>=? GROUP BY m) b "
+                 "LEFT JOIN (SELECT ts/60000*60000 m, SUM(buy_qty-sell_qty) delta FROM trades_1s WHERE sym=? AND ts>=? GROUP BY m) t ON t.m=b.m "
+                 "LEFT JOIN (SELECT ts/60000*60000 m, AVG(funding_rate) funding_rate FROM funding_1s WHERE sym=? AND ts>=? GROUP BY m) f ON f.m=b.m "
+                 "LEFT JOIN oi_1m o ON o.sym=? AND o.ts=b.m ORDER BY b.m")
+            rows = db.execute(q, (sym, since, sym, since, sym, since, sym)).fetchall()
+            cols = ["t", "imb10", "spread_bps", "depth10", "delta", "funding_rate", "oi"]
+            liq = db.execute("SELECT ev_ts, side, notional FROM liquidations WHERE sym=? AND ev_ts>=? ORDER BY ev_ts",
+                             (sym, since)).fetchall()
+            return J({"symbol": sym, "rows": [dict(zip(cols, r)) for r in rows],
+                      "liquidations": [{"ts": a, "side": b, "notional": c} for a, b, c in liq],
+                      "liquidation_note": "lower bound: at most 1 liquidation per symbol per second is published"})
+        finally:
+            db.close()
+
+    @guard("read")
+    async def micro_research(request):
+        from .micro import results_store
+        return J(results_store.overview())
+
     routes = [
+        Route("/api/micro/status", micro_status),
+        Route("/api/micro/collector", micro_collector, methods=["POST"]),
+        Route("/api/micro/snapshot/{symbol}", micro_snapshot),
+        Route("/api/micro/series/{symbol}", micro_series),
+        Route("/api/micro/research", micro_research),
         Route("/api/research2", research2_overview),
         Route("/api/research2/import", research2_import, methods=["POST"]),
         Route("/api/exchange/account", exchange_account),

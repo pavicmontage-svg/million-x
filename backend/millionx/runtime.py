@@ -94,6 +94,52 @@ class Runtime:
                          f"live authorisation invalid ({self.gate.status()['reason']}); switched to PAPER")
             store.audit("system", "live_not_resumed", self.gate.status())
 
+        # 2.1: live microstructure collector (separate micro.db; research data only, never trades)
+        self.micro_db_path = os.environ.get("MX_MICRO_DB") or os.path.join(os.path.dirname(self.s.db_path) or ".", "micro.db")
+        self.micro_thread = None
+        self.micro_stop = None
+        self.micro_symbols: list[str] = []
+        if os.environ.get("MX_MICRO_COLLECTOR") == "1" or (store.kv_get("micro_collector") or {}).get("enabled"):
+            self.start_collector()
+
+    # ---------------------------------------------------------- microstructure collector
+    MICRO_DEFAULT = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "DOGEUSDT", "ADAUSDT", "LINKUSDT",
+                     "AVAXUSDT", "LTCUSDT"]
+
+    def collector_running(self) -> bool:
+        return bool(self.micro_thread and self.micro_thread.is_alive())
+
+    def start_collector(self, symbols: Optional[list[str]] = None) -> None:
+        import threading
+        from .micro import collector
+        if self.collector_running():
+            return
+        self.micro_symbols = symbols or (self.store.kv_get("micro_collector") or {}).get("symbols") or self.MICRO_DEFAULT
+        self.micro_stop = threading.Event()
+
+        def loop():
+            try:
+                collector.run(self.micro_db_path, self.micro_symbols, 0, self.micro_stop, log=log.info)
+            except Exception as ex:  # recorded, never crashes the app
+                self.store.audit("system", "micro_collector_error", {"error": str(ex)[:300]})
+        self.micro_thread = threading.Thread(target=loop, name="micro-collector", daemon=True)
+        self.micro_thread.start()
+        self.store.kv_set("micro_collector", {"enabled": True, "symbols": self.micro_symbols})
+
+    def stop_collector(self) -> None:
+        if self.micro_stop:
+            self.micro_stop.set()
+        if self.micro_thread:
+            self.micro_thread.join(timeout=15)
+        self.micro_thread = None
+        self.store.kv_set("micro_collector", {"enabled": False, "symbols": self.micro_symbols})
+
+    def micro_db(self):
+        import sqlite3
+        if not os.path.exists(self.micro_db_path):
+            return None
+        return sqlite3.connect(f"file:{self.micro_db_path}?mode=ro", uri=True, check_same_thread=False)
+
     # ---------------------------------------------------------- exchange
     def build_exchange(self):
         live = self.s.mode == "live"
