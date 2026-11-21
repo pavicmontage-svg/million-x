@@ -1,0 +1,80 @@
+name: forward
+# Weekly forward test of the 400 FROZEN candidates (millionx/data/frozen_candidates.json) on data they never saw:
+# 2026-07-01 (start of the untouched holdout) .. two days ago. Opens an issue ONLY when a candidate passes.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, BNBUSDT, DOGEUSDT, ADAUSDT, LINKUSDT, AVAXUSDT, LTCUSDT]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v2.3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pandas
+      - uses: actions/cache@v4
+        with:
+          path: backend/data/klines
+          key: klines-fw-${{ matrix.symbol }}-${{ github.run_id }}
+          restore-keys: klines-fw-${{ matrix.symbol }}-
+      - run: mkdir -p /tmp/fw && python -m millionx.mine.forward evaluate --candidates millionx/data/frozen_candidates.json --symbol ${{ matrix.symbol }} --out /tmp/fw/fw_${{ matrix.symbol }}.json
+      - name: Publish to branch fw-${{ matrix.symbol }}
+        run: |
+          cd /tmp/fw && git init -q -b "fw-${{ matrix.symbol }}" && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "forward ${{ matrix.symbol }} run ${{ github.run_id }}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "fw-${{ matrix.symbol }}"
+  judge:
+    needs: evaluate
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v2.3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Collect per-symbol results (branches fw-*)
+        run: |
+          mkdir -p /tmp/fw
+          URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          for ref in $(git ls-remote "$URL" 'refs/heads/fw-*' | cut -f2); do
+            b=${ref#refs/heads/}; git clone -q --depth 1 -b "$b" "$URL" "/tmp/c_$b" && cp /tmp/c_$b/*.json /tmp/fw/
+          done
+          ls -la /tmp/fw
+      - run: mkdir -p /tmp/fo && python -m millionx.mine.forward judge --candidates millionx/data/frozen_candidates.json --inputs "/tmp/fw/fw_*.json" --out /tmp/fo/forward.json
+      - run: cat /tmp/fo/forward.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch forward-results
+        run: |
+          cd /tmp/fo && git init -q -b forward-results && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "forward run ${{ github.run_id }}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" forward-results
+      - name: Notify the owner ONLY if a candidate passed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          N=$(python -c "import json;print(len(json.load(open('/tmp/fo/forward.json'))['passed']))")
+          echo "passed=$N"
+          if [ "$N" -gt 0 ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" --title "MillionX: $N kandidat(a) prošlo forward test" --body-file /tmp/fo/forward.md
+          fi
