@@ -28,6 +28,19 @@ services:
     logging:
       driver: json-file
       options: {max-size: "5m", max-file: "3"}
+  collector:                            # 2.1: 24/7 microstructure recording into data/micro.db (research only, no orders)
+    build: .
+    restart: unless-stopped             # automatic reconnect is inside; restart covers crashes
+    env_file: .env
+    environment:
+      - MX_MICRO_DB=/app/data/micro.db
+    volumes:
+      - ./data:/app/data
+    entrypoint: ["python", "-m", "millionx.micro.collector", "--db", "/app/data/micro.db"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    mem_limit: 512m
   caddy:
     image: caddy:2
     restart: unless-stopped
