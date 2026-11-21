@@ -1,4 +1,45 @@
-# TEST REPORT (1.9.0)
+# TEST REPORT — MillionX 2.1.0 (grana `v2.1`)
+
+Svi rezultati ispod su iz stvarno pokrenutih testova. Ništa nije pretpostavljeno.
+
+## Backend (pytest)
+- **Lokalno** (Python 3.12, numpy 2, pandas): 159/159 prošlo.
+- **CI `build` run 44843853448** (commit `00c7006`):
+  - `backend-tests`: **159 passed**;
+  - `backend-tests-android-versions` (paketi kao u APK-u, bez pandas): **157 passed, 2 skipped**. Preskočena su dva
+    istraživačka testa kojima treba pandas, koji se ne pakira u aplikaciju;
+  - `docker-smoke`, `android-apk` i `android-ui-tests` (emulator): uspjeh.
+- **Novi testovi 2.1:**
+  - `test_micro_quality.py` (5): svježe/zastarjelo/nedostaje/budući timestamp, INCOMPLETE bez kritičnih izvora,
+    praznine/duplikati/redoslijed/nevaljalo, abnormalni skokovi, mapiranje simbola;
+  - `test_micro_collector.py` (7): značajke knjige (zidovi, impact, uklanjanje likvidnosti), agregacija po sekundi,
+    duplikati/praznine u aggTrade ID-jevima, out-of-order depth, krivi simbol na streamu, prekrižena knjiga,
+    zastarjela knjiga se ne zapisuje, WebSocket okviri (ping/pong, fragmenti, close, maskiranje), rute /public i /market,
+    snapshot s kvalitetom po polju i oznakom donje granice za likvidacije;
+  - `test_micro_archive.py` (3): kašnjenje dostupnosti i istek vrijednosti, parsiranje vremena, **odbijanje holdouta**;
+  - `test_micro_research.py` (3): BH-FDR, trgovine bez preklapanja, kauzalni percentil, end-to-end na nasumičnim
+    podacima **bez lažne prednosti**;
+  - `test_micro_api.py` (1): `/api/micro/*`, RBAC (viewer ne može uključiti snimanje).
+
+## Na stvarnim podacima (GitHub Actions)
+| run | što | rezultat |
+|---|---|---|
+| 44838758141 | audit dostupnosti (10 instr. × 9 dana × 11 skupova + REST) | `DATA_AVAILABILITY_REPORT.md` |
+| 44839902719 | ingestija 10 instrumenata 2024-12 – 2026-06 (matrica) | 10/10 uspjeh, `DATA_QUALITY_REPORT.md` |
+| 44841732631 | istraživanje A–F, 96 testova | 0 kandidata, `MICROSTRUCTURE_RESEARCH_REPORT.md` |
+| 44843853802 | collector uživo, 3 min (stari, nerutirani URL) | stigao samo depth: **otkrivena greška**, Binance od 2026-03 rutira streamove po putanji |
+| 44844375356 | collector uživo, 3 min, nakon ispravka (/public + /market) | depth 711, aggTrade 4453, markPrice 358, forceOrder 4 poruke; 358 redova knjige, 355 trades, 352 funding, 4 likvidacije |
+
+## Nije pokrenuto ili nije moguće (i zašto)
+- **OI poll uživo s CI-ja:** HTTP 451, jer Binance REST blokira SAD regiju CI runnera.
+  Iz Hrvatske REST radi (aplikacija ga koristi od 1.4.0). Na mobitelu/VPS-u treba potvrditi u ekranu Research Data.
+- **Istraživanje likvidacija (C):** nema povijesnih podataka, INCOMPLETE.
+- **Dugotrajno snimanje (dani/mjeseci):** pokreće se na VPS-u (`docker compose up -d collector`) ili u aplikaciji (gumb Record).
+- **Stvarni nalozi:** nisu slani. Live je zaključan, a risk i aktivacijski kriteriji nisu mijenjani.
+
+---
+
+# TEST REPORT (1.9.0) — sačuvano
 
 Ovdje su samo testovi koji su **stvarno pokrenuti**, s mjestom izvođenja.
 

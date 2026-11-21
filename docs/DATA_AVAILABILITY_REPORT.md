@@ -34,6 +34,7 @@
 | `/fapi/v1/depth` | samo trenutno stanje | — |
 | WebSocket `@forceOrder` / `!forceOrder@arr` | samo uživo | **najviše 1 likvidacija po simbolu u sekundi** (zadnja), ostale se ne šalju |
 | WebSocket `@depth20@500ms` | samo uživo | top 20 razina, 500 ms |
+| WebSocket rute (od 2026-03) | — | depth je na `/public`, a aggTrade/markPrice/forceOrder na `/market`. Nerutirana veza tiho prima samo `/public`; to je potvrđeno na CI-ju i collector je ispravljen (run 44844375356) |
 
 ## 3. Posljedice za istraživanje (pravila koja se poštuju)
 
