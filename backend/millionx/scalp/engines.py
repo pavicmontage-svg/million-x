@@ -21,10 +21,10 @@ import numpy as np
 GRID = {
     "A": [{"z": 2.5, "relvol": 2.0, "taker": 0.60, "ext_max": 3.0, "sl_sigma": 1.5, "rr": 3.0},
           {"z": 3.0, "relvol": 3.0, "taker": 0.65, "ext_max": 3.0, "sl_sigma": 1.5, "rr": 5.0},
-          {"z": 3.5, "relvol": 3.0, "taker": 0.70, "ext_max": 2.5, "sl_sigma": 2.0, "rr": 2.0}],
+          {"z": 3.0, "relvol": 3.0, "taker": 0.65, "ext_max": 3.0, "sl_sigma": 4.0, "rr": 5.0}],   # wide stop: fees << risk
     "B": [{"depth_atr": 0.5, "contract": 0.8, "sl_atr": 0.8, "rr": 3.0},
           {"depth_atr": 1.0, "contract": 0.7, "sl_atr": 1.0, "rr": 5.0},
-          {"depth_atr": 1.0, "contract": 0.8, "sl_atr": 1.2, "rr": 2.0}],
+          {"depth_atr": 1.0, "contract": 0.8, "sl_atr": 2.0, "rr": 5.0}],
 }
 COOLDOWN_S = 60  # per engine/config/symbol: at most one candidate per minute
 
