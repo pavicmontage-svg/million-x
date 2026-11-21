@@ -1,4 +1,43 @@
-# TEST REPORT — MillionX 2.1.0 (grana `v2.1`)
+# TEST REPORT — MillionX 2.2.0 (grana `v2.2`)
+
+Svi rezultati su iz stvarno pokrenutih testova.
+
+## Backend (pytest)
+- **Lokalno:** 174/174 prošlo.
+- **CI `build` run 44887254220** (commit `0cc500d`):
+  - `backend-tests`: **174 passed**;
+  - `backend-tests-android-versions`: **172 passed, 2 skipped** (pandas se ne pakira u APK);
+  - `docker-smoke`, `android-apk` i `android-ui-tests` (emulator): uspjeh.
+- **Novi testovi 2.2:**
+  - `test_scalp_core.py` (8): 1 s barovi iz trgovina; **kauzalnost svih značajki** (rezanje budućnosti ne mijenja prošlost);
+    engine A hvata impuls; engine C INCOMPLETE bez svježe knjige i bez ulaza kod apsorpcije; izlazi (stop, take profit 3R,
+    trailing, break-even, max hold, ispad burze); maker fill samo uz trade-through; **ranking preferira novac, ne win rate**;
+    odbijanje nevalidiranih i nekalibriranih prilika;
+  - `test_scalp_research.py` (3): holdout odbijen; run → aggregate na sintetičkim podacima **bez lažne prednosti**; limiti portfelja;
+  - `test_scalp_live.py` (3): skener bilježi odluke i snimku "što je vidio"; ništa se ne izvršava bez validacije;
+    paper izvršava validirano uz limite rizika; shadow ishodi; listener collectora;
+  - `test_micro_api.py` (+1): `/api/scalp/*`.
+
+## Na stvarnim podacima (GitHub Actions)
+| run | što | rezultat |
+|---|---|---|
+| 44881080032 | smoke test, 3 dana × 10 instrumenata | pipeline radi na stvarnim aggTrades |
+| 44881204071 | puni event-driven backtest, 2024-12-31 – 2026-06-30 | 9/10 instrumenata gotovo (BTC: runner je prekinuo posao bez loga, ponovno pokrenut), 1 019 371 kandidata, **NO_TRADE** |
+| 44844375356 (2.1) | live collector, /public + /market | latencija depth medijan 79 ms |
+
+## Mjerenja performansi
+- Skener: 10 instrumenata, 4 h međuspremnika: medijan **0,1 ms** po sekundi (predfiltar), max ≈ 184 ms.
+  Na mobitelu treba očitati vrijednost u aplikaciji.
+- APK: 100,4 MB (95,8 MiB). Blizu je limita od 100 MiB za git granu, pa će sljedeće verzije možda trebati smanjenje.
+
+## Nije pokrenuto (i zašto)
+- Engine C povijesno: nema 1 s order booka (vidi `ORDER_FLOW_SCALPER_REPORT.md`).
+- Latencija slanja naloga na Binance: live je zaključan i nalozi se ne šalju.
+- Paper izvršenja: nijedna strategija nije validirana (vidi `PAPER_TRADING_REPORT.md`).
+
+---
+
+## (sačuvano) TEST REPORT — MillionX 2.1.0 (grana `v2.1`)
 
 Svi rezultati ispod su iz stvarno pokrenutih testova. Ništa nije pretpostavljeno.
 
