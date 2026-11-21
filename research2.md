@@ -1,0 +1,94 @@
+# Research Engine 2.0 — results (selection period only, holdout untouched)
+
+| strategy | TF | OOS n | PF | exp R | pos. windows | max DD | DSR | PBO | STRESSED R | EXTREME R | verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| bot10_adaptive | 1m | 0 | — | — | 0.00 | 0.000 | — | 1.00 | — | — | RESEARCH |
+| bot10_adaptive | 15m | 0 | — | — | 0.00 | 0.000 | — | 1.00 | — | — | RESEARCH |
+| bot1_vwap | 3m | 4091 | 0.56 | -0.232 | 0.00 | 0.992 | 0.000 | 0.00 | -0.246 | -0.264 | RESEARCH |
+| bot1_vwap | 15m | 1219 | 0.50 | -0.266 | 0.00 | 0.805 | 0.000 | 0.00 | -0.292 | -0.295 | RESEARCH |
+| bot1_vwap_v2 | 15m | 288 | 0.60 | -0.187 | 0.07 | 0.266 | 0.000 | 0.01 | -0.230 | -0.270 | RESEARCH |
+| bot1_vwap_v2 | 60m | 14 | 0.86 | -0.049 | 0.43 | 0.013 | 0.001 | 0.73 | -0.130 | -0.197 | RESEARCH |
+| bot2_ema | 5m | 24007 | 0.52 | -0.225 | 0.00 | 1.000 | 0.000 | 0.00 | -0.250 | -0.260 | RESEARCH |
+| bot2_ema | 15m | 12815 | 0.62 | -0.182 | 0.00 | 1.000 | 0.000 | 0.00 | -0.218 | -0.246 | RESEARCH |
+| bot2_ema_v2 | 15m | 6259 | 0.69 | -0.149 | 0.07 | 0.992 | 0.000 | 0.00 | -0.203 | -0.249 | RESEARCH |
+| bot2_ema_v2 | 60m | 2147 | 0.75 | -0.127 | 0.07 | 0.760 | 0.000 | 0.00 | -0.160 | -0.216 | RESEARCH |
+| bot3_orderflow | 1m | 75565 | 0.47 | -0.252 | 0.00 | 1.000 | 0.000 | 0.00 | -0.263 | -0.267 | RESEARCH |
+| bot3_orderflow | 15m | 537 | 0.51 | -0.248 | 0.00 | 0.495 | 0.000 | 0.00 | -0.251 | -0.254 | RESEARCH |
+| bot3_orderflow_v2 | 15m | 305 | 0.61 | -0.196 | 0.07 | 0.260 | 0.000 | 0.11 | -0.262 | -0.283 | RESEARCH |
+| bot3_orderflow_v2 | 60m | 6 | 0.19 | -0.523 | 0.00 | 0.016 | — | 1.00 | -0.562 | -0.698 | RESEARCH |
+| bot4_breakout | 5m | 9937 | 0.49 | -0.241 | 0.00 | 1.000 | 0.000 | 0.00 | -0.256 | -0.265 | RESEARCH |
+| bot4_breakout | 15m | 4089 | 0.57 | -0.206 | 0.00 | 0.986 | 0.000 | 0.00 | -0.222 | -0.252 | RESEARCH |
+| bot4_breakout_v2 | 15m | 1473 | 0.69 | -0.151 | 0.07 | 0.684 | 0.000 | 0.00 | -0.203 | -0.256 | RESEARCH |
+| bot4_breakout_v2 | 60m | 1304 | 0.79 | -0.102 | 0.21 | 0.513 | 0.000 | 0.00 | -0.150 | -0.208 | RESEARCH |
+| bot5_squeeze | 5m | 1029 | 0.48 | -0.249 | 0.00 | 0.728 | 0.000 | 0.00 | -0.282 | -0.292 | RESEARCH |
+| bot5_squeeze | 15m | 737 | 0.68 | -0.143 | 0.14 | 0.423 | 0.000 | 0.00 | -0.204 | -0.263 | RESEARCH |
+| bot5_squeeze_v2 | 15m | 736 | 0.70 | -0.146 | 0.14 | 0.423 | 0.000 | 0.00 | -0.225 | -0.269 | RESEARCH |
+| bot5_squeeze_v2 | 60m | 449 | 0.83 | -0.081 | 0.21 | 0.249 | 0.000 | 0.91 | -0.150 | -0.202 | RESEARCH |
+| bot6_rsidiv | 3m | 9835 | 0.57 | -0.213 | 0.00 | 1.000 | 0.000 | 0.00 | -0.248 | -0.261 | RESEARCH |
+| bot6_rsidiv | 15m | 1972 | 0.67 | -0.164 | 0.07 | 0.817 | 0.000 | 0.00 | -0.199 | -0.230 | RESEARCH |
+| bot6_rsidiv_v2 | 15m | 127 | 0.67 | -0.174 | 0.29 | 0.125 | 0.000 | 0.49 | -0.227 | -0.255 | RESEARCH |
+| bot6_rsidiv_v2 | 60m | 8 | 1.45 | 0.169 | 0.60 | 0.005 | — | 0.16 | 0.177 | 0.206 | RESEARCH |
+| bot7_liquidity | 3m | 15484 | 0.51 | -0.231 | 0.00 | 1.000 | 0.000 | 0.00 | -0.255 | -0.261 | RESEARCH |
+| bot7_liquidity | 15m | 4058 | 0.63 | -0.174 | 0.00 | 0.973 | 0.000 | 0.00 | -0.211 | -0.242 | RESEARCH |
+| bot7_liquidity_v2 | 15m | 240 | 0.67 | -0.163 | 0.21 | 0.191 | 0.000 | 0.04 | -0.207 | -0.275 | RESEARCH |
+| bot7_liquidity_v2 | 60m | 90 | 1.07 | 0.027 | 0.57 | 0.046 | 0.004 | 0.90 | -0.032 | -0.118 | RESEARCH |
+| bot8_supertrend | 5m | 867 | 0.56 | -0.194 | 0.07 | 0.572 | 0.000 | 0.00 | -0.236 | -0.256 | RESEARCH |
+| bot8_supertrend | 15m | 562 | 0.74 | -0.118 | 0.36 | 0.298 | 0.000 | 0.00 | -0.162 | -0.228 | RESEARCH |
+| bot8_supertrend_v2 | 15m | 146 | 0.75 | -0.109 | 0.21 | 0.081 | 0.000 | 0.11 | -0.160 | -0.258 | RESEARCH |
+| bot8_supertrend_v2 | 60m | 86 | 0.62 | -0.198 | 0.43 | 0.093 | 0.000 | 0.71 | -0.219 | -0.273 | RESEARCH |
+| bot9_rangeexp | 5m | 1791 | 0.43 | -0.270 | 0.07 | 0.913 | 0.000 | 0.00 | -0.263 | -0.259 | RESEARCH |
+| bot9_rangeexp | 15m | 812 | 0.52 | -0.232 | 0.14 | 0.613 | 0.000 | 0.00 | -0.243 | -0.244 | RESEARCH |
+| bot9_rangeexp_v2 | 15m | 618 | 0.78 | -0.099 | 0.29 | 0.290 | 0.000 | 0.60 | -0.151 | -0.170 | RESEARCH |
+| bot9_rangeexp_v2 | 60m | 429 | 0.91 | -0.040 | 0.36 | 0.150 | 0.000 | 0.66 | -0.098 | -0.152 | RESEARCH |
+| protoA_trend_pullback | 5m | 1151 | 0.62 | -0.193 | 0.00 | 0.692 | 0.000 | 0.00 | -0.240 | -0.262 | RESEARCH |
+| protoB_sweep_reversal | 5m | 2758 | 0.55 | -0.205 | 0.00 | 0.944 | 0.000 | 0.00 | -0.241 | -0.256 | RESEARCH |
+| protoC_breakout_retest | 5m | 2516 | 0.60 | -0.224 | 0.00 | 0.942 | 0.000 | 0.00 | -0.239 | -0.248 | RESEARCH |
+| protoD_cost_momentum | 15m | 1955 | 0.78 | -0.129 | 0.14 | 0.724 | 0.000 | 0.00 | -0.169 | -0.238 | RESEARCH |
+
+Candidates for paper trading: 0 of 42.
+Selection Engine: 100 instrument/regime cells, 100 NO_TRADE, chosen: none.
+
+## Failed checks per strategy
+
+- bot10_adaptive 1m: oos_trades, profit_factor, expectancy_r, positive_windows, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot10_adaptive 15m: oos_trades, profit_factor, expectancy_r, positive_windows, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot1_vwap 3m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot1_vwap 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot1_vwap_v2 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot1_vwap_v2 60m: oos_trades, profit_factor, expectancy_r, positive_windows, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, pbo, cross_asset, multi_regime, stressed_costs
+- bot2_ema 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot2_ema 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot2_ema_v2 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot2_ema_v2 60m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot3_orderflow 1m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot3_orderflow 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot3_orderflow_v2 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, cross_asset, multi_regime, stressed_costs
+- bot3_orderflow_v2 60m: oos_trades, profit_factor, expectancy_r, positive_windows, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot4_breakout 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot4_breakout 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot4_breakout_v2 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot4_breakout_v2 60m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot5_squeeze 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot5_squeeze 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot5_squeeze_v2 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot5_squeeze_v2 60m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, stressed_costs
+- bot6_rsidiv 3m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot6_rsidiv 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot6_rsidiv_v2 15m: profit_factor, expectancy_r, positive_windows, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot6_rsidiv_v2 60m: oos_trades, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, cross_asset, multi_regime
+- bot7_liquidity 3m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot7_liquidity 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot7_liquidity_v2 15m: profit_factor, expectancy_r, positive_windows, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot7_liquidity_v2 60m: oos_trades, profit_factor, expectancy_r, positive_windows, net_ev_after_costs_ci, deflated_sharpe, pbo, multi_regime, stressed_costs
+- bot8_supertrend 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot8_supertrend 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot8_supertrend_v2 15m: profit_factor, expectancy_r, positive_windows, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot8_supertrend_v2 60m: oos_trades, profit_factor, expectancy_r, positive_windows, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot9_rangeexp 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot9_rangeexp 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- bot9_rangeexp_v2 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, stressed_costs
+- bot9_rangeexp_v2 60m: profit_factor, expectancy_r, positive_windows, net_ev_after_costs_ci, deflated_sharpe, pbo, parameter_stability, cross_asset, multi_regime, stressed_costs
+- protoA_trend_pullback 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- protoB_sweep_reversal 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- protoC_breakout_retest 5m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, multi_regime, stressed_costs
+- protoD_cost_momentum 15m: profit_factor, expectancy_r, positive_windows, max_drawdown, mc_dd_p95, net_ev_after_costs_ci, deflated_sharpe, parameter_stability, cross_asset, stressed_costs
