@@ -114,6 +114,8 @@ class _SymState:
     last_trade_id: Optional[int] = None
     notionals: list = field(default_factory=list)
     mark: Optional[dict] = None
+    lat: list = field(default_factory=list)     # exchange trade time -> local receive, ms
+    last_close: Optional[float] = None
 
 
 class Aggregator:
@@ -125,6 +127,7 @@ class Aggregator:
         self.st: dict[str, _SymState] = defaultdict(_SymState)
         self.lock = threading.RLock()
         self.counts: dict[str, int] = defaultdict(int)
+        self.listeners: list[Callable[[int, dict[str, dict]], None]] = []   # called once per second (2.2 scanner)
 
     def quality(self, sym: str, kind: str, detail: str) -> None:
         with self.lock:
@@ -192,6 +195,14 @@ class Aggregator:
                     s.tr[f"large_{side}_qty"] += q
                 s.tr_first = s.tr_first if s.tr_first is not None else aid
                 s.tr_last = aid
+                if "o" not in s.tr:  # 1 s OHLC for the live scanner
+                    s.tr["o"] = s.tr["h"] = s.tr["l"] = p
+                s.tr["h"] = max(s.tr["h"], p)
+                s.tr["l"] = min(s.tr["l"], p)
+                s.tr["c"] = p
+                s.lat.append(rx - int(d.get("T") or ev or rx))
+                if len(s.lat) > 600:
+                    del s.lat[:300]
             elif et == "forceOrder":
                 o = d["o"]
                 qty, px = float(o.get("z") or o.get("q")), float(o.get("ap") or o.get("p"))
@@ -209,8 +220,17 @@ class Aggregator:
         """Write one row per symbol for the second that just ended. Returns rows written."""
         ts = (ts_s if ts_s is not None else self.now() // 1000) * 1000
         n = 0
+        second: dict[str, dict] = {}
         with self.lock:
             for sym, s in self.st.items():
+                t_ = s.tr
+                c = t_.get("c", s.last_close)
+                if c is not None:
+                    second[sym] = {"o": t_.get("o", c), "h": t_.get("h", c), "l": t_.get("l", c), "c": c,
+                                   "buy": t_.get("buy_qty", 0.0), "sell": t_.get("sell_qty", 0.0),
+                                   "n": t_.get("buy_n", 0) + t_.get("sell_n", 0),
+                                   "book": None, "lat_ms": (sorted(s.lat)[len(s.lat) // 2] if s.lat else None)}
+                    s.last_close = c
                 if s.book and self.now() - s.book["rx"] <= 3_000:
                     f = book_features(s.book["b"], s.book["a"], s.prev_feat)
                     s.prev_feat = f
@@ -222,6 +242,8 @@ class Aggregator:
                                      f["impact_sell_bps"], s.book_updates))
                     s.book_updates = 0
                     n += 1
+                    if sym in second:
+                        second[sym]["book"] = {**f, "age_ms": self.now() - s.book["rx"]}
                 elif s.book:
                     s.prev_feat = None  # stale book: no row, and no "removed liquidity" across the gap
                 if s.tr:
@@ -239,6 +261,11 @@ class Aggregator:
                                     (sym, ts, mk["mark"], mk["index"], mk["r"], mk["T"]))
                     s.mark = None
                     n += 1
+        for fn in list(self.listeners):
+            try:
+                fn(ts, second)
+            except Exception as e:  # a listener can never stop recording
+                self.quality("*", "listener_error", f"{type(e).__name__}: {e}")
         return n
 
 
