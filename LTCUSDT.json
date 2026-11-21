@@ -1,0 +1,177 @@
+{
+ "symbol": "LTCUSDT",
+ "start": "2024-12-01",
+ "end": "2026-06-30",
+ "minutes": 830880,
+ "sources": {
+  "klines": {
+   "name": "ohlcv",
+   "instrument": "LTCUSDT",
+   "rows": 830880,
+   "expected_step_ms": 60000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 777,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 1.0,
+   "largest_gap_ms": 60000,
+   "issues": [
+    "777 abnormal jumps (robust z > 12.0)"
+   ],
+   "status": "OK"
+  },
+  "open_interest": {
+   "name": "open_interest",
+   "instrument": "LTCUSDT",
+   "rows": 166173,
+   "expected_step_ms": 300000,
+   "gaps": 1,
+   "missing_points": 3,
+   "duplicates": 0,
+   "out_of_order": 2049,
+   "invalid_values": 25,
+   "abnormal_values": 3887,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863700000,
+   "coverage": 0.9999819468515309,
+   "largest_gap_ms": 1200000,
+   "issues": [
+    "1 gaps, 3 missing points, largest 20.0 min",
+    "2049 out-of-order events",
+    "25 invalid values",
+    "3887 abnormal jumps (robust z > 12.0)"
+   ],
+   "status": "DEGRADED",
+   "missing_days": []
+  },
+  "order_book_depth": {
+   "name": "order_book",
+   "instrument": "LTCUSDT",
+   "rows": 1610636,
+   "expected_step_ms": 30000,
+   "gaps": 28882,
+   "missing_points": 57742,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011205000,
+   "last_ts": 1782863971000,
+   "coverage": 0.969235027922203,
+   "largest_gap_ms": 5371000,
+   "issues": [
+    "28882 gaps, 57742 missing points, largest 89.5 min"
+   ],
+   "status": "OK",
+   "missing_days": [],
+   "bands_seen": [
+    -5.0,
+    -4.0,
+    -3.0,
+    -2.0,
+    -1.0,
+    -0.2,
+    0.2,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0
+   ]
+  },
+  "premium": {
+   "name": "premium",
+   "instrument": "LTCUSDT",
+   "rows": 830880,
+   "expected_step_ms": 60000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 1.0,
+   "largest_gap_ms": 60000,
+   "issues": [],
+   "status": "OK",
+   "missing_days": []
+  },
+  "mark": {
+   "name": "mark",
+   "instrument": "LTCUSDT",
+   "rows": 830880,
+   "expected_step_ms": 60000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 763,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 1.0,
+   "largest_gap_ms": 60000,
+   "issues": [
+    "763 abnormal jumps (robust z > 12.0)"
+   ],
+   "status": "OK",
+   "missing_days": []
+  },
+  "funding": {
+   "name": "funding",
+   "instrument": "LTCUSDT",
+   "rows": 1731,
+   "expected_step_ms": 28800000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011200000,
+   "last_ts": 1782835200005,
+   "coverage": 1.0,
+   "largest_gap_ms": 28800016,
+   "issues": [],
+   "status": "OK",
+   "intervals_h": [
+    8.0
+   ],
+   "settlements": 1731
+  },
+  "agg_trades": {
+   "name": "cvd",
+   "instrument": "LTCUSDT",
+   "rows": 830860,
+   "expected_step_ms": 60000,
+   "gaps": 2,
+   "missing_points": 20,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 0.9999759291353746,
+   "largest_gap_ms": 1200000,
+   "issues": [
+    "2 gaps, 20 missing points, largest 20.0 min"
+   ],
+   "status": "OK",
+   "missing_days": [],
+   "consistency_vs_kline_taker_buy": {
+    "minutes_compared": 830860,
+    "median_rel_diff": 1.349801605127894e-16,
+    "share_within_1pct": 0.9977433021206942
+   }
+  }
+ },
+ "causality": "(decision taken at the CLOSE of 1m bar i, i.e. at open_time[i] + 60 s):\n  * klines / taker volume / premium index / mark price of bar i: known at its close.\n  * metrics (open interest, top-trader and taker ratios): a 5-minute row stamped t is used only from\n    t + 5 min (one full period of publication lag; conservative, no back-filling).\n  * bookDepth: a 30-second snapshot stamped t is used only at decisions >= t + 1 s.\n  * funding: the settled rate of calc_time t is used only at decisions >= t; the premium index is\n    the live estimate of the next rate.\n  * aggTrades: aggregated into the bar in which the trade happened (known at that bar's close). The\n    \"large trade\" threshold is the 99th percentile of the PREVIOUS day's trade notionals.",
+ "built_at": "2026-11-21T00:00:07Z"
+}
