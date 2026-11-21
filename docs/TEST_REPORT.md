@@ -22,7 +22,7 @@ Svi rezultati su iz stvarno pokrenutih testova.
 | run | što | rezultat |
 |---|---|---|
 | 44881080032 | smoke test, 3 dana × 10 instrumenata | pipeline radi na stvarnim aggTrades |
-| 44881204071 | puni event-driven backtest, 2024-12-31 – 2026-06-30 | 9/10 instrumenata gotovo (BTC: runner je prekinuo posao bez loga, ponovno pokrenut), 1 019 371 kandidata, **NO_TRADE** |
+| 44881204071 | puni event-driven backtest, 2024-12-31 – 2026-06-30 | 10/10 instrumenata (BTC je u prvom pokušaju prekinut bez loga, a ponovno pokretanje je uspjelo), 1 148 645 kandidata, **NO_TRADE** |
 | 44844375356 (2.1) | live collector, /public + /market | latencija depth medijan 79 ms |
 
 ## Mjerenja performansi

@@ -1,12 +1,13 @@
 # 2.2 — Scalping walk-forward
 
-*Automatski generirano iz `scalp-research run 44881204071 (9/10 instrumenata; BTC se ponovno računa)` (event-driven 1 s simulacija na aggTrades, 9 instrumenata). Discovery 2025-01 – 2025-09 (kalibracija i izbor konfiguracije), validacija 2025-10 – 2026-06. Holdout 2026-07 – 2026-10 nije korišten. Brojevi nisu ručno upisani.*
+*Automatski generirano iz `scalp-research run 44881204071 (10/10 instrumenata)` (event-driven 1 s simulacija na aggTrades, 10 instrumenata). Discovery 2025-01 – 2025-09 (kalibracija i izbor konfiguracije), validacija 2025-10 – 2026-06. Holdout 2026-07 – 2026-10 nije korišten. Brojevi nisu ručno upisani.*
 
 - **A**: 2025-10-01: n=0, neto R=—, EUR=0.0; 2026-01-01: n=0, neto R=—, EUR=0.0; 2026-04-01: n=0, neto R=—, EUR=0.0
 - **B**: 2025-10-01: n=0, neto R=—, EUR=0.0; 2026-01-01: n=0, neto R=—, EUR=0.0; 2026-04-01: n=0, neto R=—, EUR=0.0
 - **A+B**: 2025-10-01: n=0, neto R=—, EUR=0.0; 2026-01-01: n=0, neto R=—, EUR=0.0; 2026-04-01: n=0, neto R=—, EUR=0.0
 
 ---
+
 
 
 # WALK-FORWARD REPORT — ugniježđeni WF (90 d trening / 30 d test, purged 3-fold CV + embargo)

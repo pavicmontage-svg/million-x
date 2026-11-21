@@ -1,6 +1,6 @@
 # 2.2 — Scalping backtest (event-driven 1 s)
 
-*Automatski generirano iz `scalp-research run 44881204071 (9/10 instrumenata; BTC se ponovno računa)` (event-driven 1 s simulacija na aggTrades, 9 instrumenata). Discovery 2025-01 – 2025-09 (kalibracija i izbor konfiguracije), validacija 2025-10 – 2026-06. Holdout 2026-07 – 2026-10 nije korišten. Brojevi nisu ručno upisani.*
+*Automatski generirano iz `scalp-research run 44881204071 (10/10 instrumenata)` (event-driven 1 s simulacija na aggTrades, 10 instrumenata). Discovery 2025-01 – 2025-09 (kalibracija i izbor konfiguracije), validacija 2025-10 – 2026-06. Holdout 2026-07 – 2026-10 nije korišten. Brojevi nisu ručno upisani.*
 
 **Presuda: {'A': 'NO_TRADE', 'B': 'NO_TRADE', 'A+B': 'NO_TRADE'}**
 
@@ -42,6 +42,7 @@
 Detalji po engineu: `MOMENTUM_SCALPER_REPORT.md`, `PULLBACK_SCALPER_REPORT.md`.
 
 ---
+
 
 
 # BACKTEST REPORT — MillionX 2.0 (OOS, BASE troškovi)

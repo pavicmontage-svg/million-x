@@ -31,9 +31,9 @@ Sve ostalo je **REJECT**, uz razloge koji se prikazuju u aplikaciji.
 
 ## Rezultat na povijesnim podacima (validacija 2025-10 – 2026-06)
 
-- Generirano je **1 019 371 kandidata** (9 instrumenata, engines A/B, 3 konfiguracije, odluke na 1 s / 1m / 3m / 5m).
+- Generirano je **1 148 645 kandidata** (10 instrumenata, engines A/B, 3 konfiguracije, odluke na 1 s / 1m / 3m / 5m).
 - **Prihvaćeno: 0** za A, B i A+B. Kalibrirana očekivana neto dobit je negativna u svim ćelijama,
-  jer je bruto ≈ 0, a troškovi su 0,4–3,4 R.
+  jer je bruto ≈ 0, a troškovi su 0,4–3,3 R.
 - Mjerenja po specifikaciji: detected = kandidati, rejected = svi, executed = 0.
   Missed (odbijeni, a kasnije dobitni) se uživo mjeri kroz shadow ishode.
   U povijesti je udio dobitnih neto trgovina bio 2–14 %, a njihov zbroj je manji od gubitaka.

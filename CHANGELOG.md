@@ -23,10 +23,10 @@
   - Risk Engine limiti nepromijenjeni (0,5 %, 2 pozicije, 10 EUR/dan, ISOLATED, ≤ 20×, likvidacija ≥ 3× stop);
   - shadow ishodi za missed opportunities;
   - **nikakvi Binance nalozi**.
-### Istraživanje (CI run 44881204071, 9/10 instrumenata, BTC se ponovno računa)
-- Event-driven 1 s simulacija na aggTrades, 2025-01 – 2026-06; 1 019 371 kandidata.
+### Istraživanje (CI run 44881204071, 10/10 instrumenata)
+- Event-driven 1 s simulacija na aggTrades, 2025-01 – 2026-06; 1 148 645 kandidata.
 - **Presuda NO_TRADE** (A, B, A+B):
-  - bruto ≈ 0 R, troškovi 0,4–3,4 R po trgovini;
+  - bruto ≈ 0 R, troškovi 0,4–3,3 R po trgovini;
   - 0 prihvaćenih na validaciji;
   - aktivacijski kriteriji nepromijenjeni.
 ### API / Android

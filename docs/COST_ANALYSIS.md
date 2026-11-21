@@ -11,10 +11,10 @@
 
 | engine (konfiguracija) | medijan stopa | trošak u R (BASE) | bruto R | neto R | naknade / bruto dobit |
 |---|---|---|---|---|---|
-| A0 (uski) | 11–12 bps | ≈ 1,1 R | ≈ 0,04 | −1,34 | 2,6–3,5 |
-| A2 (široki, 4σ) | 27–36 bps | ≈ 0,4 R | ≈ 0,01 | −0,48 | 2,0–3,6 |
-| B0 (uski) | ≈ 4 bps | ≈ 3,1 R | ≈ 0,12 | −3,37 | 5,4–7,3 |
-| B2 (široki) | ≈ 10–11 bps | ≈ 1,2 R | ≈ 0,03 | −1,36 | 5,1–5,3 |
+| A0 (uski) | ≈ 11 bps | ≈ 1,2 R | ≈ 0,05 | −1,53 | 2,8–3,7 |
+| A2 (široki, 4σ) | 24–35 bps | ≈ 0,4–0,5 R | ≈ 0,01 | −0,55 | 2,2–3,3 |
+| B0 (uski) | ≈ 4 bps | ≈ 3,2 R | ≈ 0,13 | −3,51 | 5,6–7,5 |
+| B2 (široki) | ≈ 10 bps | ≈ 1,3 R | ≈ 0,04 | −1,42 | 5,2–5,6 |
 
 **Pravilo za veliki R/R:** da bi troškovi bili ≤ 0,1 R, stop mora biti ≥ ~130 bps (1,3 %). Cilj od 3–5R je tada 4–6,5 %,
 što više nije scalping. Uz taker troškove i stopove od nekoliko bps scalping na 1 s – 5 min u ovim podacima
