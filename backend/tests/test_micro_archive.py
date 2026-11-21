@@ -17,6 +17,7 @@ def test_ffill_at_uses_only_available_values_and_expires():
     assert age[2] == 50
 
 
+@pytest.mark.skipif(__import__('importlib').util.find_spec('pandas') is None, reason='research-only dependency (pandas) not installed, e.g. Android package set')
 def test_ms_parsing_strings_and_microseconds():
     s = A._ms(["2026-11-15 00:00:01", "2026-11-15 00:05:00"])
     assert s[1] - s[0] == 299_000 and s[0] == 1_794_700_801_000

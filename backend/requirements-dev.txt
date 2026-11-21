@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8
 httpx
+pandas>=2.0  # research only (CI/VPS); not packaged in the Android app

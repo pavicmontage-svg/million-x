@@ -1,5 +1,6 @@
 """2.1 microstructure research: causal percentiles, non-overlapping trades, discovery/validation split,
 FDR, and no edge found on data without one."""
+import pytest
 import numpy as np
 
 from millionx.backtest.data import synthetic_bars
@@ -25,6 +26,7 @@ def test_pct_is_causal():
     assert np.allclose(np.nan_to_num(full[:4000], nan=-1), np.nan_to_num(part, nan=-1))
 
 
+@pytest.mark.skipif(__import__('importlib').util.find_spec('pandas') is None, reason='research-only dependency (pandas) not installed, e.g. Android package set')
 def test_end_to_end_on_synthetic_no_edge(tmp_path, monkeypatch):
     monkeypatch.setattr(R, "DISC", ("2023-11-14", "2024-01-20"))
     monkeypatch.setattr(R, "VALID", ("2024-01-20", "2024-04-01"))
