@@ -300,6 +300,8 @@ def aggregate(pattern: str, log=print) -> dict[str, Any]:
                                                         vhours if name == "validation" else (d1 - d0) / 3.6e6)
                                              for sc in SCN}
                     out["raw"][key][name]["gross_r"] = float(np.nanmean(D["BASE_gross"][ix] / D["stop_bps"][ix])) if len(ix) else None
+                    out["raw"][key][name]["stop_bps_median"] = float(np.median(D["stop_bps"][ix])) if len(ix) else None
+                    out["raw"][key][name]["gross_bps_mean"] = float(np.nanmean(D["BASE_gross"][ix])) if len(ix) else None
     # 2) per engine: choose cfg x tf on DISCOVERY by expected net R (BASE); never look at validation
     for eng in ("A", "B"):
         best = max(((k, v["discovery"]["BASE"].get("net_r", -9)) for k, v in out["raw"].items()
