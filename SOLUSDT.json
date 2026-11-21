@@ -1,0 +1,179 @@
+{
+ "symbol": "SOLUSDT",
+ "start": "2024-12-01",
+ "end": "2026-06-30",
+ "minutes": 830880,
+ "sources": {
+  "klines": {
+   "name": "ohlcv",
+   "instrument": "SOLUSDT",
+   "rows": 830880,
+   "expected_step_ms": 60000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 685,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 1.0,
+   "largest_gap_ms": 60000,
+   "issues": [
+    "685 abnormal jumps (robust z > 12.0)"
+   ],
+   "status": "OK"
+  },
+  "open_interest": {
+   "name": "open_interest",
+   "instrument": "SOLUSDT",
+   "rows": 166173,
+   "expected_step_ms": 300000,
+   "gaps": 1,
+   "missing_points": 3,
+   "duplicates": 0,
+   "out_of_order": 2054,
+   "invalid_values": 24,
+   "abnormal_values": 3415,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863700000,
+   "coverage": 0.9999819468515309,
+   "largest_gap_ms": 1200000,
+   "issues": [
+    "1 gaps, 3 missing points, largest 20.0 min",
+    "2054 out-of-order events",
+    "24 invalid values",
+    "3415 abnormal jumps (robust z > 12.0)"
+   ],
+   "status": "DEGRADED",
+   "missing_days": []
+  },
+  "order_book_depth": {
+   "name": "order_book",
+   "instrument": "SOLUSDT",
+   "rows": 1607815,
+   "expected_step_ms": 30000,
+   "gaps": 28849,
+   "missing_points": 60564,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011205000,
+   "last_ts": 1782863971000,
+   "coverage": 0.9675374301944926,
+   "largest_gap_ms": 86438000,
+   "issues": [
+    "28849 gaps, 60564 missing points, largest 1440.6 min"
+   ],
+   "status": "OK",
+   "missing_days": [
+    "2026-01-14"
+   ],
+   "bands_seen": [
+    -5.0,
+    -4.0,
+    -3.0,
+    -2.0,
+    -1.0,
+    -0.2,
+    0.2,
+    1.0,
+    2.0,
+    3.0,
+    4.0,
+    5.0
+   ]
+  },
+  "premium": {
+   "name": "premium",
+   "instrument": "SOLUSDT",
+   "rows": 830880,
+   "expected_step_ms": 60000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 1.0,
+   "largest_gap_ms": 60000,
+   "issues": [],
+   "status": "OK",
+   "missing_days": []
+  },
+  "mark": {
+   "name": "mark",
+   "instrument": "SOLUSDT",
+   "rows": 830880,
+   "expected_step_ms": 60000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 644,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 1.0,
+   "largest_gap_ms": 60000,
+   "issues": [
+    "644 abnormal jumps (robust z > 12.0)"
+   ],
+   "status": "OK",
+   "missing_days": []
+  },
+  "funding": {
+   "name": "funding",
+   "instrument": "SOLUSDT",
+   "rows": 1731,
+   "expected_step_ms": 28800000,
+   "gaps": 0,
+   "missing_points": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011200000,
+   "last_ts": 1782835200005,
+   "coverage": 1.0,
+   "largest_gap_ms": 28800016,
+   "issues": [],
+   "status": "OK",
+   "intervals_h": [
+    8.0
+   ],
+   "settlements": 1731
+  },
+  "agg_trades": {
+   "name": "cvd",
+   "instrument": "SOLUSDT",
+   "rows": 830861,
+   "expected_step_ms": 60000,
+   "gaps": 1,
+   "missing_points": 19,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "invalid_values": 0,
+   "abnormal_values": 0,
+   "first_ts": 1733011200000,
+   "last_ts": 1782863940000,
+   "coverage": 0.9999771326786058,
+   "largest_gap_ms": 1200000,
+   "issues": [
+    "1 gaps, 19 missing points, largest 20.0 min"
+   ],
+   "status": "OK",
+   "missing_days": [],
+   "consistency_vs_kline_taker_buy": {
+    "minutes_compared": 830861,
+    "median_rel_diff": 1.7820231160269924e-16,
+    "share_within_1pct": 0.9923188114498093
+   }
+  }
+ },
+ "causality": "(decision taken at the CLOSE of 1m bar i, i.e. at open_time[i] + 60 s):\n  * klines / taker volume / premium index / mark price of bar i: known at its close.\n  * metrics (open interest, top-trader and taker ratios): a 5-minute row stamped t is used only from\n    t + 5 min (one full period of publication lag; conservative, no back-filling).\n  * bookDepth: a 30-second snapshot stamped t is used only at decisions >= t + 1 s.\n  * funding: the settled rate of calc_time t is used only at decisions >= t; the premium index is\n    the live estimate of the next rate.\n  * aggTrades: aggregated into the bar in which the trade happened (known at that bar's close). The\n    \"large trade\" threshold is the 99th percentile of the PREVIOUS day's trade notionals.",
+ "built_at": "2026-11-21T00:00:40Z"
+}
