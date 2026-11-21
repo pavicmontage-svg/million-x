@@ -1,4 +1,25 @@
-# COST ANALYSIS — BASE / STRESSED / EXTREME
+# COST ANALYSIS — MillionX 2.1 (microstructure) + 2.0
+
+## 2.1 — troškovi u odnosu na mikrostrukturne signale
+
+| scenarij | sastav po round-tripu | trošak |
+|---|---|---|
+| BASE (taker) | 2 × 5 bps taker + 2 × 2 bps slippage | **14 bps** |
+| STRESSED (taker) | 2 × 5 bps + 2 × 5 bps slippage + spread 3 bps + 1 min latencije | **23 bps** |
+| maker/maker (nije testirano) | 2 × 2 bps maker prema konfiguraciji, bez slippagea, uz rizik da nalog ne bude ispunjen | ≈ 4 bps |
+
+- Najveći bruto pomak na validaciji, među 96 testova A–F, je **+5,1 bps** (D2, 60 min). To je 37 % BASE troška.
+  Uz taker izvršenje nijedan mikrostrukturni signal ne može pokriti troškove.
+- Prag za isplativost: uvjet bi trebao imati bruto ≥ 14 bps (taker) ili ≥ 4 bps + adverse selection (maker), uz statističku potvrdu.
+  Nijedan uvjet to nije pokazao.
+- **Stvarni spread** za 2025–2026 nije dostupan iz arhive (bookTicker završava 2024-03). STRESSED scenarij koristi
+  pretpostavljenih 3 bps. Collector od 2.1 mjeri stvarni spread i price impact za 50 000 USDT (book_1s.impact_*_bps).
+- **Funding** ulazi u neto rezultat strategija od 1.9.0 (procjena iz konfigurirane stope). Kod horizonata od 1–60 min
+  u ovom istraživanju funding je zanemariv i nije uključen.
+
+---
+
+## 2.0 — COST ANALYSIS — BASE / STRESSED / EXTREME (sačuvano iz 2.0)
 
 *Automatski generirano iz Research Engine 2.0 (`research2 run 44829762193 (22/23 strategija; bot10_adaptive još radi)`) — selekcijsko razdoblje 2025-01-01 – 2026-06-30, 10 instrumenata, završni holdout nije korišten. Brojevi nisu ručno upisani.*
 

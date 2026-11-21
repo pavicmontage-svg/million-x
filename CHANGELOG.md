@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2.1.0 — Market Microstructure Data Intelligence (grana `v2.1`; `v2.0` netaknut)
+### Podaci
+- Audit dostupnosti stvarnim zahtjevima prema Binanceu (`DATA_AVAILABILITY_REPORT.md`):
+  - postoje funding, OI (5 min), bookDepth (±%, 30 s), aggTrades i premium/mark 1m;
+  - **nema likvidacija za 2025–2026**; bookTicker završava 2024-03;
+  - REST OI samo 30 dana, aggTrades samo 48 h.
+- Ingestija arhive (`micro/archive.py`): 10 instrumenata, 2024-12 – 2026-06, kauzalno poravnano na 1 min, s izvještajem kvalitete. Holdout se odbija.
+- Live collector (`micro/collector.py`, stdlib WebSocket):
+  - depth20@500ms, aggTrade, forceOrder (donja granica), markPrice@1s i OI poll;
+  - 1-sekundni redovi u zasebnoj `micro.db`;
+  - quality eventi, reconnect, retencija, backup;
+  - Docker servis `collector`.
+- Unified snapshot (`micro/snapshot.py`): timestamp, izvor, kvaliteta, svježina i oznaka nedostajućeg za svako polje. Zastarjeli podaci se nikad ne koriste kao aktualni.
+- Data Quality Engine (`micro/quality.py`): praznine, duplikati, redoslijed, drift, nevaljale/abnormalne vrijednosti, mapiranje simbola, INCOMPLETE.
+### Istraživanje
+- A–F (`micro/research.py`):
+  - discovery 2025-01 – 2025-09 samo za smjer, validacija 2025-10 – 2026-06;
+  - 96 testova, BH-FDR, BASE/STRESSED troškovi.
+- **0 kandidata, NO TRADE.** Najveći bruto učinak je +5,1 bps (CVD apsorpcija, fade), a trošak 14 bps.
+- C (likvidacije) je INCOMPLETE.
+### Strategije
+- Nijedna nova strategija nije razvijena ni aktivirana (`NEW_STRATEGY_REPORT.md`).
+- Activation kriteriji, Risk Engine i holdout nepromijenjeni; live ostaje zaključan.
+### API / Android
+- `/api/micro/status|collector|snapshot/{sym}|series/{sym}|research`.
+- Ekran **Research Data**:
+  - live snapshot s kvalitetom po polju, grafovi knjige/spreada/CVD-a/fundinga/OI-ja, likvidacije;
+  - prekidač snimanja;
+  - kvaliteta podataka, povijesna pokrivenost, rezultati A–F.
+### CI
+- Workflowi `micro` (availability), `micro-data` (ingestija, matrica 10 instrumenata), `micro-research`.
+- APK-ovi grana v2.x objavljuju se na `apk-<grana>`.
+
 ## 2.0.0 — Quantitative Strategy Research, Optimization & Edge Engine (grana `v2.0`; 1.9.0 ostaje netaknut na `release-1.9.0`)
 ### Istraživanje
 - Faza 1: forenzički izvještaj svih 9 strategija × 3 TF-a na 10 instrumenata. Rezultat: 0/27 pozitivno nakon troškova, 25/27 negativno i prije troškova (`docs/STRATEGY_FORENSIC_REPORT.md`).

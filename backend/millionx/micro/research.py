@@ -191,17 +191,17 @@ def trades(state: np.ndarray, close: np.ndarray, t: np.ndarray, h: int, directio
     """Non-overlapping trades for bars with lo <= t < hi. Returns (gross bps, entry time)."""
     idx = np.flatnonzero(state & (t >= lo) & (t < hi))
     out_r, out_t = [], []
-    nxt = -1
     n = len(close)
-    for i in idx:
-        if i < nxt:
-            continue
+    k = 0
+    while k < len(idx):  # jump straight to the first state at/after the previous exit (loop count = trades)
+        i = int(idx[k])
         e, x = i + delay, i + delay + h
-        if x >= n or not (np.isfinite(close[e]) and np.isfinite(close[x])):
-            continue
-        out_r.append(direction * (close[x] / close[e] - 1) * 1e4)
-        out_t.append(t[i])
-        nxt = x
+        if x < n and np.isfinite(close[e]) and np.isfinite(close[x]):
+            out_r.append(direction * (close[x] / close[e] - 1) * 1e4)
+            out_t.append(t[i])
+            k = int(np.searchsorted(idx, x, side="left"))
+        else:
+            k += 1
     return np.array(out_r), np.array(out_t, dtype=np.int64)
 
 
