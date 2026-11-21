@@ -97,8 +97,9 @@ def _ffill_at(grid_decision: np.ndarray, t_avail: np.ndarray, values: np.ndarray
 
 
 def build_symbol(sym: str, start: date, end: date, kline_dir: str, workers: int = 8, aggtrades: bool = True,
+                 forward_test_of_frozen: bool = False,
                  log=print) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-    if end >= HOLDOUT_START:
+    if end >= HOLDOUT_START and not forward_test_of_frozen:
         raise ValueError("2.1 rule: the final holdout (from 2026-07-01) is not ingested for research")
     import requests
     from ..backtest.data import ensure_data, load_symbol

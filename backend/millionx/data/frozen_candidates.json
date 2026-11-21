@@ -1,0 +1,4406 @@
+{
+ "frozen_at": "2026-11-21T19:11:19Z",
+ "source": "massive search run 44934979477",
+ "n": 400,
+ "sha256": "e6d01b772cf77f6ef0d9ab63fb7366d63ecbe31ba3e70dd6d76cc478d47b6a84",
+ "candidates": [
+  {
+   "rule": [
+    "ret240>=p75",
+    "vwapdev<=p10",
+    "oi240<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret5>=p90",
+    "basis<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "premium>=p90",
+    "top_ls_pos<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi15>=p90",
+    "ls_accounts<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret60<=p10",
+    "basis>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "depth1<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "ls_accounts>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "ret60>=p90",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p25",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "ls_accounts>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "premium>=p90",
+    "top_ls_pos<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi60<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "oi60<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "depth1<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret60<=p10",
+    "basis>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "basis<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p25",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi240<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "cvd60>=p90",
+    "vwapdev>=p90",
+    "imb1>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "cvd60>=p90",
+    "vwapdev>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret60<=p10",
+    "basis>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "top_ls_pos<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "relvol15>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "premium<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "oi60<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "depth1<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60>=p75",
+    "vwapdev<=p10",
+    "utc20-24"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240<=p10",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev>=p90",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p10",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "ret240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "oi240<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60>=p75",
+    "ret240<=p10",
+    "utc20-24"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "range15>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "premium>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "vwapdev>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "range15>=p90",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "cvd60>=p90",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "depth1<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "ret240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "premium<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "premium>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "depth1<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "vwapdev>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "top_ls_pos<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "oi15<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "oi60<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240<=p10",
+    "basis<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "ret240>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p75",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "basis>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "oi60<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "premium<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "vwapdev>=p90",
+    "premium<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "oi60<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "oi15<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p75",
+    "utc12-16",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240>=p90",
+    "imb1>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "premium<=p10",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "ret60<=p10",
+    "ret240>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "premium>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "premium<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi60<=p10",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "cvd60>=p75",
+    "vwapdev>=p90",
+    "imb1>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi240<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "cvd60>=p90",
+    "vwapdev>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "oi15<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "range15>=p90",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "premium<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "ret240>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi60<=p25",
+    "depth1<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi60>=p90",
+    "imb1>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p25",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret60<=p25",
+    "ret240>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "relvol15>=p90",
+    "cvd60>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p75",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240<=p25",
+    "depth1<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "premium<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret15>=p90",
+    "relvol15<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "utc12-16",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "oi240<=p10",
+    "taker_ls_vol>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "ret60>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "ret60<=p10",
+    "ret240>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "relvol15>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "cvd60>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "relvol15>=p90",
+    "imb1>=p90",
+    "depth1<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "ret15>=p90",
+    "basis>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "ret15>=p75",
+    "oi15<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi60>=p90",
+    "utc12-16",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240<=p25",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "range15>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi240<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "top_ls_pos<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi60>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi240>=p90",
+    "depth1<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "depth1<=p25",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "premium>=p75",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "basis<=p10",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret5>=p90",
+    "ret60<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "basis<=p25",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p25",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "range15>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "oi240<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "premium<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "premium>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "taker_ls_vol>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5<=p25",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240>=p75",
+    "imb1>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "top_ls_pos>=p90",
+    "ls_accounts<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "large15>=p90",
+    "vwapdev>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240<=p10",
+    "top_ls_pos<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi15>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240>=p90",
+    "premium>=p75",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "relvol15<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "cvd15>=p90",
+    "vwapdev>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi240>=p90",
+    "premium>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "premium>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "cvd60>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "oi15>=p90",
+    "top_ls_pos>=p90",
+    "ls_accounts<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p25",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "ret60>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "range15>=p90",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "imb1>=p90",
+    "depth1<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "ret240>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "imb1>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "premium>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "relvol15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "large15>=p75",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret5<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "relvol15>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi60>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi60>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "imb1>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "depth1<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p75",
+    "ret60<=p10",
+    "relvol15<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "TAKER",
+   "cost_bps": 14.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret60<=p10",
+    "basis>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "depth1<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "ls_accounts>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p25",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "ls_accounts>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "vwapdev<=p10",
+    "premium>=p90"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "vwapdev<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "top_ls_pos<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "depth1<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret60<=p10",
+    "basis>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "vwapdev<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "premium<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "basis<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p25",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi240<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p25",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret60<=p10",
+    "basis>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi15>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "top_ls_pos<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "relvol15>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "basis>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p75",
+    "ret60<=p10",
+    "basis>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p25",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p75",
+    "vwapdev<=p10",
+    "utc20-24"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret15<=p10",
+    "basis>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi240<=p10",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "range15>=p75",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "vwapdev>=p90",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p75",
+    "ret240<=p10",
+    "utc20-24"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "range15>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "premium>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi15<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "basis<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "basis<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "basis<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret60<=p10",
+    "basis>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "ret240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "premium>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "cvd60>=p90",
+    "vwapdev>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "depth1<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "top_ls_pos<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p75",
+    "relvol15<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1>=p90",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "oi60<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "ret240>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p75",
+    "ret60<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "basis>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "oi60<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "basis>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi60<=p10",
+    "imb1>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "vwapdev>=p75",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "premium<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "oi60<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "oi240<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p75",
+    "utc12-16",
+    "weekend"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "cvd60<=p25",
+    "basis>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "premium>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi60<=p10",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "ret15<=p10",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "oi240<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "range15>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "oi15<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "range15>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "cvd15<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "vwapdev<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "ret240>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi60<=p25",
+    "depth1<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret60<=p10",
+    "vwapdev<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p25",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "basis>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "oi60<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "cvd60<=p25",
+    "basis>=p75"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi15<=p10",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p75",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi240<=p25",
+    "depth1<=p10",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p75",
+    "vwapdev<=p25",
+    "utc20-24"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "premium<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p25",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "taker_ls_vol<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "ret60>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "ret60<=p10",
+    "ret240>=p90"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "relvol15>=p75",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "cvd15<=p25",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "relvol15>=p90",
+    "imb1>=p90",
+    "depth1<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret240<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi60<=p25",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5<=p10",
+    "ret15>=p75",
+    "oi15<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "oi240<=p25",
+    "depth1<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "premium<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "range15>=p90",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi240<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "top_ls_pos<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "premium<=p25",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi60>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi240>=p90",
+    "depth1<=p25"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "large15<=p25",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "premium>=p75",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p10",
+    "vwapdev<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "basis<=p10",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p90",
+    "ret60<=p25",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "basis<=p25",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 15,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "depth1<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p25",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "oi240<=p10",
+    "utc16-20"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev>=p90",
+    "premium<=p10",
+    "utc00-04"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "taker_ls_vol>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5<=p25",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "range15>=p75",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "depth1>=p75",
+    "utc20-24"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "relvol15>=p90",
+    "imb1>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi15>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p75",
+    "relvol15<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "SHORT",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi15>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240>=p90",
+    "premium>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p90",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p75",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15<=p25",
+    "oi240>=p90",
+    "depth1<=p10"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "range15>=p90",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p25",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "ret240>=p75",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "imb1>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60<=p10",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "range15>=p75",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p75",
+    "ret60>=p90",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1<=p10",
+    "ret240<=p10",
+    "utc08-12"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "premium>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "oi240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "depth1<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "relvol15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "imb1>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret5>=p90",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "vwapdev<=p10",
+    "basis<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "large15>=p75",
+    "vwapdev<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret60>=p90",
+    "oi240<=p25",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "relvol15>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi60>=p75",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret15>=p75",
+    "ret240<=p10",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret1>=p90",
+    "ret60>=p90",
+    "utc04-08"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "oi60>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "range15>=p90",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  },
+  {
+   "rule": [
+    "ret240<=p10",
+    "basis<=p25",
+    "utc12-16"
+   ],
+   "horizon_min": 60,
+   "direction": "LONG",
+   "cost_scenario": "MAKER",
+   "cost_bps": 6.0
+  }
+ ]
+}
