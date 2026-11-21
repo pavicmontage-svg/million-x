@@ -42,11 +42,34 @@ CREATE TABLE IF NOT EXISTS scalp_paper (id INTEGER PRIMARY KEY AUTOINCREMENT, op
 class _Buf:
     def __init__(self):
         self.t, self.o, self.h, self.l, self.c, self.buy, self.sell, self.n = (deque(maxlen=BUFFER_S) for _ in range(8))
+        self.h61, self.l61, self.c300 = deque(maxlen=61), deque(maxlen=61), deque(maxlen=301)
+        self.buy10, self.sell10 = deque(maxlen=10), deque(maxlen=10)
 
     def add(self, ts: int, b: dict[str, Any]) -> None:
         for k, v in (("t", ts), ("o", b["o"]), ("h", b["h"]), ("l", b["l"]), ("c", b["c"]), ("buy", b["buy"]),
                      ("sell", b["sell"]), ("n", b["n"])):
             getattr(self, k).append(v)
+        self.h61.append(b["h"])
+        self.l61.append(b["l"])
+        self.c300.append(b["c"])
+        self.buy10.append(b["buy"])
+        self.sell10.append(b["sell"])
+
+    def breaks_60s_range(self) -> bool:
+        """Necessary condition of engines A and B (A: close beyond the 3m range, B: beyond the 60 s range):
+        when it is false neither engine can fire, so the full feature computation is skipped (identical decisions)."""
+        if len(self.h61) < 61:
+            return False
+        c = self.c300[-1]
+        hs, ls = list(self.h61)[:-1], list(self.l61)[:-1]
+        return c > max(hs) or c < min(ls)
+
+    def sigma300(self) -> float:
+        c = np.asarray(self.c300, dtype=float)
+        if len(c) < 30:
+            return 1.0
+        r = np.diff(np.log(c)) * 1e4
+        return float(np.sqrt(np.mean(r ** 2)))
 
     def sec(self) -> F.Sec:
         return F.Sec(*(np.asarray(getattr(self, k), dtype=float if k != "t" else np.int64)
@@ -85,7 +108,11 @@ class Scanner:
                 self.stats["data_latency_ms"][sym] = b["lat_ms"]
             self._manage(sym, ts, b)
             if len(buf.t) >= 900:
-                self._scan(sym, ts, buf, b.get("book"))
+                stagger = sum(map(ord, sym)) % 15      # spread the 15 s dashboard refresh across instruments
+                full = buf.breaks_60s_range() or (ts // 1000 + stagger) % 15 == 0 or sym not in self.last
+                if full:      # full features: when A/B can fire, and every 15 s for the dashboard snapshot
+                    self._scan(sym, ts, buf, b.get("book"))
+                self._engine_c(sym, ts, buf, b.get("book"))
         self._shadow(ts)
         dt = (time.perf_counter() - t0) * 1000
         self.stats["decide_ms_avg"] = 0.95 * self.stats["decide_ms_avg"] + 0.05 * dt
@@ -112,15 +139,21 @@ class Scanner:
             for j, side, stop, score in fn(f, s.c, E.GRID[eng][cfg]):
                 if j == i:
                     self._decide(sym, ts, eng, cfg, side, stop, E.GRID[eng][cfg]["rr"], score, snap, book_ok=True)
-        # Engine C: real order book only
-        n10 = min(10, len(buf.c))
-        flow = {"buy": float(sum(list(buf.buy)[-n10:])), "sell": float(sum(list(buf.sell)[-n10:])),
-                "move_bps": float((s.c[i] / s.c[i - n10 + 1] - 1) * 1e4) if n10 > 1 else 0.0}
+
+    def _engine_c(self, sym: str, ts: int, buf: _Buf, book: Optional[dict]) -> None:
+        """Engine C every second: real order book + last 10 s of aggressive flow only."""
+        cs = list(buf.c300)
+        flow = {"buy": float(sum(buf.buy10)), "sell": float(sum(buf.sell10)),
+                "move_bps": float((cs[-1] / cs[-10] - 1) * 1e4) if len(cs) >= 10 else 0.0}
         c_res = E.engine_c(book, flow)
         if c_res["status"] == "INCOMPLETE":
             self.stats["incomplete"] += 1
         elif c_res["side"]:
-            stop = max(5.0, 1.5 * float(snap["sigma300"] or 1.0) * np.sqrt(60))
+            sig = buf.sigma300()
+            snap = dict((self.last.get(sym) or {}).get("snapshot") or {})
+            snap.update({"price": cs[-1], "sigma300": sig, "regime": snap.get("regime", "RANGING"),
+                         "book": {k: book.get(k) for k in ("spread_bps", "imb10", "removed_bid10", "removed_ask10", "age_ms")}})
+            stop = max(5.0, 1.5 * sig * np.sqrt(60))
             self._decide(sym, ts, "C", 0, c_res["side"], stop, 3.0, abs(book.get("imb10") or 0), snap, True,
                          extra=c_res["reasons"])
 
