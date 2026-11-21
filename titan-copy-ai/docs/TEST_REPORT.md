@@ -1,5 +1,25 @@
 # Test report (21 Nov 2026)
 
+## On-phone mode (engine embedded in the Android app)
+
+| Check | Result |
+|---|---|
+| Full backend suite in an Android-equivalent environment (Python 3.12, only `requirements-android.txt`: numpy 1.26.2, cryptography 42.0.8, SQLAlchemy, Starlette, uvicorn, httpx, websockets, tzdata; no pydantic/FastAPI/Celery/Redis/PostgreSQL/anthropic) | **74 passed** |
+| Same suite on the server stack (SQLite and PostgreSQL) | **74 passed** each |
+| `android_entry` start in a fresh process (SQLite in app dir, in-process bus, API on 127.0.0.1, engine + scheduler threads, in-process token), with no system time-zone database | passed |
+| APK contents | embedded `titan` package + exactly the Android package set (verified by unpacking the APK) |
+| **CI: engine started inside the app on an Android 14 emulator** (`EngineOnDeviceTest`): health OK, dashboard with both paper portfolios, copy engine running, watchlist loaded | **passed** |
+
+Bugs found by running on the device / Android-equivalent environment and fixed:
+1. Android has no system zoneinfo database → dashboard HTTP 500 (forex NY rollover). Fixed by bundling `tzdata`; the
+   regression test runs with `PYTHONTZPATH` pointing nowhere and failed before the fix.
+2. SQLite self-deadlock when a request held a transaction and a nested helper opened a second one (worked on
+   PostgreSQL). Fixed: nested scopes join the thread's transaction, `BEGIN IMMEDIATE`, whole request in one thread,
+   bus messages published only after commit.
+
+Not verifiable in CI: battery-optimisation behaviour of specific phone vendors (Samsung/Xiaomi), multi-day uptime on a
+real phone, and venue connections from a phone in Croatia (Binance demo hosts returned 451 to the US-based CI runners).
+
 ## Automated suites
 
 | Suite | Result |
