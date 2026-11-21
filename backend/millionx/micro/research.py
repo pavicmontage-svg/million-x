@@ -291,8 +291,9 @@ def run(data_dir: str, log: Callable[[str], None] = print) -> dict[str, Any]:
             base = np.concatenate(pooled["BASE"])[order] if pooled["BASE"] else np.array([])
             stress = np.concatenate(pooled["STRESSED"]) if pooled["STRESSED"] else np.array([])
             gross = base + COST["BASE"]
-            boot = stats2.block_bootstrap(base / 1e4, risk_fraction=1.0) if len(base) >= 20 else {}
-            ci = [x * 1e4 for x in boot.get("exp_r_ci95", [math.nan, math.nan])]
+            # bootstrap directly in bps (stats2 rounds to 4 decimals: bps keep full precision)
+            boot = stats2.block_bootstrap(base, risk_fraction=1e-4) if len(base) >= 20 else {}
+            ci = list(boot.get("exp_r_ci95", [math.nan, math.nan]))
             results.append({"condition": name, "combo": combo_of.get(name, name[0]),
                             "horizon_min": h, "direction_from_discovery": "follow(+1)" if direction > 0 else "fade(-1)",
                             "discovery_n": sn, "discovery_gross_mean_bps": ssum / sn if sn else None,
