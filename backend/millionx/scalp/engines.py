@@ -26,6 +26,10 @@ GRID = {
           {"depth_atr": 1.0, "contract": 0.7, "sl_atr": 1.0, "rr": 5.0},
           {"depth_atr": 1.0, "contract": 0.8, "sl_atr": 2.0, "rr": 5.0}],
 }
+# 2.3 round: Engine M (mean reversion of over-extended moves), built for MAKER execution (limit in, limit out)
+GRID["M"] = [{"z": 3.0, "relvol": 2.0, "ext_min": 2.5, "sl_sigma": 1.5, "rr": 1.0},
+             {"z": 4.0, "relvol": 3.0, "ext_min": 3.0, "sl_sigma": 2.0, "rr": 1.0},
+             {"z": 3.0, "relvol": 2.0, "ext_min": 2.5, "sl_sigma": 2.0, "rr": 2.0}]
 COOLDOWN_S = 60  # per engine/config/symbol: at most one candidate per minute
 
 
@@ -77,6 +81,20 @@ def engine_b(f: dict[str, np.ndarray], c: np.ndarray, p: dict[str, Any]) -> list
             stop = p["sl_atr"] * atr[i] / c[i] * 1e4
             depth = ((c[i] - f["lo60"][i]) if side > 0 else (f["hi60"][i] - c[i])) / atr[i]
             out.append((int(i), side, float(stop), float(depth)))
+    return out
+
+
+def engine_m(f: dict[str, np.ndarray], c: np.ndarray, p: dict[str, Any]) -> list[tuple[int, int, float, float]]:
+    """M — fade an over-extended 30 s move (>= z sigma, far from the 5m extreme) once aggression starts to fade
+    (CVD acceleration turns against the move). Long after a drop, short after a spike."""
+    sig = np.maximum(_nz(f["sigma300"], 0.0), 0.05)
+    common = _nz(f["relvol30"]) >= p["relvol"]
+    long_ = common & (_nz(f["v30z"]) <= -p["z"]) & (_nz(f["ext_dn"]) >= p["ext_min"]) & (_nz(f["cvd_acc"]) > 0)
+    short = common & (_nz(f["v30z"]) >= p["z"]) & (_nz(f["ext_up"]) >= p["ext_min"]) & (_nz(f["cvd_acc"]) < 0)
+    out = []
+    for side, m in ((1, long_), (-1, short)):
+        for i in _cool(m, COOLDOWN_S):
+            out.append((int(i), side, float(p["sl_sigma"] * sig[i] * np.sqrt(60)), float(abs(f["v30z"][i]))))
     return out
 
 

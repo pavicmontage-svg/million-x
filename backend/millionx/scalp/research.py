@@ -41,9 +41,10 @@ VALID = ("2025-10-01", "2026-07-01")
 QUARTERS = [("2025-10-01", "2026-01-01"), ("2026-01-01", "2026-04-01"), ("2026-04-01", "2026-07-01")]
 CTX = 14_400          # seconds of previous-day context for features
 TFS = (1, 60, 180, 300)
+ENGINES = (("A", E.engine_a), ("B", E.engine_b), ("M", E.engine_m))
 SNAP = ("v30z", "relvol30", "taker30", "cvd_acc", "break_up", "break_dn", "ext_up", "ext_dn", "trend5", "mom3m",
         "ret15m", "sigma300")
-SCN = ("BASE", "STRESSED", "EXTREME", "MAKER")
+SCN = ("BASE", "STRESSED", "EXTREME", "MAKER", "MM")   # MM: limit entry (confirmed fill) + limit take-profit
 RISK_EUR, CAPITAL_EUR, DAILY_LOSS_EUR, MAX_POS = 2.5, 500.0, 10.0, 2
 MMR = 0.004
 
@@ -65,7 +66,7 @@ def outages_for(day: date, seconds: int, seed: int) -> np.ndarray:
 def candidates_for_day(sec: F.Sec, f: dict[str, np.ndarray], lo_idx: int, hi_idx: int) -> list[dict[str, Any]]:
     out = []
     sbar = (sec.t // 1000) + 1
-    for eng, fn in (("A", E.engine_a), ("B", E.engine_b)):
+    for eng, fn in ENGINES:
         for ci, p in enumerate(E.GRID[eng]):
             cands = fn(f, sec.c, p)
             for tf in TFS:
@@ -126,6 +127,8 @@ def run_symbol(sym: str, out: str, start: date = START, end: date = END, log=pri
             mf = X.maker_fill(i, cd["side"], s.c, s.h, s.l, s.buy, s.sell, qty)
             res["MAKER"] = X.simulate(i, cd["side"], cd["stop_bps"], cd["rr"], s.c, s.h, s.l, f["v30z"], f["cvd10"],
                                       X.SCENARIOS["BASE"], None, maker_fill_s=mf[0]) if mf else None
+            res["MM"] = X.simulate(i, cd["side"], cd["stop_bps"], cd["rr"], s.c, s.h, s.l, f["v30z"], f["cvd10"],
+                                   X.SCENARIOS["BASE"], None, maker_fill_s=mf[0], tp_maker=True) if mf else None
             if res["BASE"] is None:
                 continue
             cols["t"].append(int(s.t[i]))
@@ -285,7 +288,8 @@ def aggregate(pattern: str, log=print) -> dict[str, Any]:
     out: dict[str, Any] = {"protocol": __doc__, "n_candidates": int(len(t)), "symbols": sorted(set(D["symbol"])),
                            "raw": {}, "chosen": {}, "validation": {}, "walk_forward": {}, "portfolio": {}}
     # 1) raw (unfiltered) candidates: every engine x cfg x tf, discovery and validation, BASE costs
-    for eng in ("A", "B"):
+    engs = sorted(set(D["engine"]))
+    for eng in engs:
         for cfg in range(len(E.GRID[eng])):
             for tf in TFS:
                 m = (D["engine"] == eng) & (D["cfg"] == cfg) & (D["tf"] == tf)
@@ -303,7 +307,7 @@ def aggregate(pattern: str, log=print) -> dict[str, Any]:
                     out["raw"][key][name]["stop_bps_median"] = float(np.median(D["stop_bps"][ix])) if len(ix) else None
                     out["raw"][key][name]["gross_bps_mean"] = float(np.nanmean(D["BASE_gross"][ix])) if len(ix) else None
     # 2) per engine: choose cfg x tf on DISCOVERY by expected net R (BASE); never look at validation
-    for eng in ("A", "B"):
+    for eng in engs:
         best = max(((k, v["discovery"]["BASE"].get("net_r", -9)) for k, v in out["raw"].items()
                     if k.startswith(eng) and v["discovery"]["BASE"].get("n", 0) >= 100), key=lambda x: x[1], default=None)
         out["chosen"][eng] = best[0] if best else None
@@ -324,7 +328,7 @@ def aggregate(pattern: str, log=print) -> dict[str, Any]:
                     acc.append(i)
         return np.array(sorted(acc), dtype=np.int64)
 
-    for combo in (("A",), ("B",), ("A", "B")):
+    for combo in tuple((e,) for e in engs) + (tuple(engs),):
         name = "+".join(combo)
         keys = {e: out["chosen"][e] for e in combo}
         ix = accepted(val, disc, keys)
@@ -357,6 +361,25 @@ def aggregate(pattern: str, log=print) -> dict[str, Any]:
               and sum(1 for q in out["walk_forward"][name] if (q["net_r"] or -1) > 0) >= 2)
         verdict[name] = "CANDIDATE_FOR_PAPER" if ok else "NO_TRADE"
     out["verdict"] = verdict
+    # maker-maker track (2.3): config chosen on DISCOVERY by MM net R; judged on validation with the same minimums
+    out["maker_track"] = {}
+    for eng in engs:
+        cands = [(k, v["discovery"]["MM"].get("net_r", -9)) for k, v in out["raw"].items()
+                 if k.startswith(eng) and v["discovery"]["MM"].get("n", 0) >= 100]
+        if not cands:
+            continue
+        key = max(cands, key=lambda x: x[1])[0]
+        cfg, tf = int(key[1]), int(key.split("@")[1][:-1])
+        sel = (D["engine"] == eng) & (D["cfg"] == cfg) & (D["tf"] == tf) & np.isfinite(D["MM_r"])
+        qs = []
+        for qa, qb in QUARTERS:
+            m = sel & (t >= _ms(qa)) & (t < _ms(qb))
+            qs.append(float(np.mean(D["MM_r"][m])) if m.any() else None)
+        vs = out["raw"][key]["validation"]["MM"]
+        ok = (vs.get("n", 0) >= 100 and (vs.get("pf") or 0) >= 1.15 and (vs.get("net_r") or -9) >= 0.05
+              and (vs.get("ci95_net_r") or [-1])[0] > 0 and sum(1 for q in qs if (q or -1) > 0) >= 2)
+        out["maker_track"][eng] = {"chosen": key, "validation": vs, "quarters_net_r": qs,
+                                   "verdict": "CANDIDATE_FOR_PAPER" if ok else "NO_TRADE"}
     # packaged for the live scanner: chosen configs, verdicts and the DISCOVERY calibration of the chosen configs
     calib = {"edges": {}, "cells": {}}
     for eng, key in out["chosen"].items():
@@ -389,6 +412,11 @@ def to_markdown(o: dict[str, Any]) -> str:
         d, va = v["discovery"]["BASE"], v["validation"]["BASE"]
         L.append(f"| {k} | {d.get('n', 0)} | {f(d.get('net_r'))} | {va.get('n', 0)} | {f(va.get('net_r'))} | {f(v['validation'].get('gross_r'))} | "
                  f"{f(va.get('net_eur_per_day'), 2)} | {f(v['validation']['MAKER'].get('net_r'))} |")
+    L += ["", "## Maker-maker track (limit entry + limit take-profit, chosen on discovery)", ""]
+    for eng, v in (o.get("maker_track") or {}).items():
+        s_ = v["validation"]
+        L.append(f"- **{eng}** `{v['chosen']}`: n={s_.get('n', 0)}, net R={f(s_.get('net_r'))}, PF={f(s_.get('pf'), 2)}, WR={f(s_.get('win_rate'), 2)}, "
+                 f"net EUR/day={f(s_.get('net_eur_per_day'), 2)}, CI={s_.get('ci95_net_r')}, quarters={v['quarters_net_r']} → **{v['verdict']}**")
     L += ["", "## Portfolio (500 EUR, 2.50 EUR risk, 2 positions, 10 EUR/day)", ""]
     for name, p in o["portfolio"].items():
         for lev, s in p.items():

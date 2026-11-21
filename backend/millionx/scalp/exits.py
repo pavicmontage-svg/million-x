@@ -47,8 +47,10 @@ SCENARIOS = {"BASE": Costs("BASE"),
 
 def simulate(i: int, side: int, stop_bps: float, rr: float, c: np.ndarray, h: np.ndarray, lo: np.ndarray,
              v30z: np.ndarray, cvd10: np.ndarray, cost: Costs, outage: Optional[np.ndarray] = None,
-             maker_fill_s: Optional[int] = None) -> Optional[dict[str, Any]]:
-    """Event-driven exit simulation from decision second i. Returns gross/net bps, R, hold, reason, MFE/MAE."""
+             maker_fill_s: Optional[int] = None, tp_maker: bool = False) -> Optional[dict[str, Any]]:
+    """Event-driven exit simulation from decision second i. Returns gross/net bps, R, hold, reason, MFE/MAE.
+    tp_maker: the take profit is a resting LIMIT order — filled only when price trades strictly THROUGH it,
+    charged the maker fee without slippage/spread; every other exit (stop, time, exhaustion) is a taker order."""
     e = i + (maker_fill_s if maker_fill_s is not None else cost.latency_s)
     n = len(c)
     if e >= n - 2 or (outage is not None and outage[e]):
@@ -68,7 +70,9 @@ def simulate(i: int, side: int, stop_bps: float, rr: float, c: np.ndarray, h: np
     trailing = best_prev >= TRAIL_R * sd
     stop_off = np.where(trailing, np.maximum(stop_off, best_prev - TRAIL_DIST_R * sd), stop_off)
     hit_stop = -adv <= stop_off                                 # adverse move reaches the (moving) stop
-    hit_tp = fav >= rr * sd
+    # a resting limit needs trades at least ~0.1 bps (one tick on these instruments) beyond it; a taker target
+    # triggers on the touch (tiny tolerance for floating point)
+    hit_tp = (fav > rr * sd + 1e-5 * entry) if tp_maker else (fav >= rr * sd - 1e-9 * entry)
     rel = (cc - entry) * side
     k = np.arange(len(cc))
     exhaust = (k >= 5) & ((v30z[e + 1:end + 1] * side) <= -1.5) & (rel < 0.5 * sd) & ~trailing
@@ -94,7 +98,10 @@ def simulate(i: int, side: int, stop_bps: float, rr: float, c: np.ndarray, h: np
         px_off, reason = rel[x], reason + "_after_outage"
     hold = x + 1
     gross = px_off / entry * 1e4
-    net = gross - cost.round_trip(maker_fill_s is not None, hold)
+    rt_bps = cost.round_trip(maker_fill_s is not None, hold)
+    if tp_maker and reason == "take_profit":
+        rt_bps -= (cost.taker_bps + cost.slippage_bps + cost.spread_bps / 2) - cost.maker_bps
+    net = gross - rt_bps
     return {"entry_s": e, "gross_bps": float(gross), "net_bps": float(net), "r": float(net / stop_bps),
             "hold_s": int(hold), "reason": reason, "mfe_bps": float(fav[:x + 1].max() / entry * 1e4),
             "mae_bps": float(adv[:x + 1].max() / entry * 1e4), "cost_bps": float(gross - net)}

@@ -131,3 +131,20 @@ def test_ranking_prefers_money_not_win_rate():
     assert z["decision"] == "REJECT" and any("not validated" in r for r in z["reasons"])
     u = O.rank({"engine": "Q", "cfg": 0, "side": 1, "score": 1.0, "regime": "TRENDING", "stop_bps": 20.0, "rr": 5}, cal, cost, True)
     assert u["decision"] == "REJECT" and any("not calibrated" in r for r in u["reasons"])
+
+
+def test_maker_take_profit_needs_trade_through_and_costs_less():
+    c = np.full(60, 100.0)
+    lo = c - 0.001
+    h = c.copy()
+    h[10] = 100.0 + 3.0 * 10.0 / 1e4 * 100.0     # touches exactly the 3R target, never beyond
+    taker = _sim(c, h, lo, rr=3.0)
+    z = np.zeros(len(c))
+    mk = X.simulate(0, 1, 10.0, 3.0, c, h, lo, z, z, X.Costs("T", latency_s=0), tp_maker=True)
+    assert taker["reason"] == "take_profit"
+    assert mk["reason"] != "take_profit", "a resting limit is not filled by a touch"
+    c2, h2, lo2 = _path(np.r_[np.full(32, 0.01), np.zeros(20)])  # trades through +30 bps
+    t2 = _sim(c2, h2, lo2, rr=3.0)
+    m2 = X.simulate(0, 1, 10.0, 3.0, c2, h2, lo2, np.zeros(len(c2)), np.zeros(len(c2)), X.Costs("T", latency_s=0), tp_maker=True)
+    assert m2["reason"] == "take_profit" and m2["net_bps"] > t2["net_bps"]
+    assert abs((m2["net_bps"] - t2["net_bps"]) - (5 + 1 + 0.5 - 2)) < 1e-6, "maker fee instead of taker+slippage+half spread"

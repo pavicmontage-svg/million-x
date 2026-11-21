@@ -44,6 +44,7 @@ def test_run_and_aggregate_no_fake_edge(tmp_path, monkeypatch):
     assert np.all(np.isin(z["BASE_reason"], ["stop", "take_profit", "break_even", "trailing", "momentum_exhaustion",
                                                 "order_flow_reversal", "max_hold"]))
     o = R.aggregate(str(tmp_path / "sc_*.npz"), log=lambda *_: None)
+    assert all(v["verdict"] == "NO_TRADE" for v in o.get("maker_track", {}).values())
     assert set(o["verdict"].values()) == {"NO_TRADE"}, "random data must not pass activation"
     for name, p in o["portfolio"].items():
         for lev, s in p.items():
