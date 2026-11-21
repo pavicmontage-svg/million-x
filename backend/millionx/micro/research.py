@@ -111,12 +111,15 @@ def features(c: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     # open interest (already lagged one 5-min period in the archive table)
     if "oi" in c:
         oi = c["oi"].astype(float)
+        oi[~(oi > 0)] = np.nan  # the archive has a few zero/invalid OI rows (flagged in the quality report)
         f["oi_chg60"] = _chg(oi, 60)
         f["oi_chg15"] = _chg(oi, 15)
         f["oi_vol"] = c["oi_value"].astype(float) / np.maximum(1e-9, _roll_sum(c["quote_volume"].astype(float), 60))
     # order book (bookDepth cumulative notional within +-x %)
     if "depth_m1" in c and "depth_p1" in c:
         b1, a1 = c["depth_m1"].astype(float), c["depth_p1"].astype(float)
+        b1[~(b1 > 0)] = np.nan
+        a1[~(a1 > 0)] = np.nan
         f["imb1"] = (b1 - a1) / (b1 + a1)
         f["imb1_pct"] = _pct(f["imb1"])
         tot = b1 + a1
