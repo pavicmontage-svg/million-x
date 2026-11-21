@@ -1,0 +1,64 @@
+name: mine
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "extra arguments for the per-symbol run (e.g. --max-rules 5000)"
+        required: false
+        default: ""
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, BNBUSDT, DOGEUSDT, ADAUSDT, LINKUSDT, AVAXUSDT, LTCUSDT]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pandas
+      - name: Fetch the 2.1 microstructure table (branch md-SYMBOL)
+        run: git clone -q --depth 1 -b "md-${{ matrix.symbol }}" "https://github.com/${GITHUB_REPOSITORY}.git" /tmp/md
+      - run: mkdir -p /tmp/mn && python -m millionx.mine.search run --stem /tmp/md/${{ matrix.symbol }} --out /tmp/mn/mine_${{ matrix.symbol }}.npz ${{ inputs.args }}
+      - name: Publish to branch mn-${{ matrix.symbol }}
+        run: |
+          cd /tmp/mn && git init -q -b "mn-${{ matrix.symbol }}" && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "mine ${{ matrix.symbol }} ${GITHUB_SHA::7} run ${{ github.run_id }}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "mn-${{ matrix.symbol }}"
+  aggregate:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pandas
+      - name: Collect per-symbol results (branches mn-*)
+        run: |
+          mkdir -p /tmp/mn
+          URL="https://github.com/${GITHUB_REPOSITORY}.git"
+          for ref in $(git ls-remote "$URL" 'refs/heads/mn-*' | cut -f2); do
+            b=${ref#refs/heads/}; git clone -q --depth 1 -b "$b" "$URL" "/tmp/c_$b" && cp /tmp/c_$b/*.npz /tmp/mn/
+          done
+          ls -la /tmp/mn
+      - run: mkdir -p /tmp/mo && python -m millionx.mine.search aggregate --inputs "/tmp/mn/mine_*.npz" --out /tmp/mo/mine.json
+      - run: cat /tmp/mo/mine.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish to branch mine-results
+        run: |
+          cd /tmp/mo && git init -q -b mine-results && git add . \
+            && git -c user.name=ci -c user.email=ci@local commit -qm "mine ${GITHUB_SHA::7} run ${{ github.run_id }}" \
+            && git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" mine-results
