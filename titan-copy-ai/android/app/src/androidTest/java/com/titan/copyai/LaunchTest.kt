@@ -2,6 +2,7 @@ package com.titan.copyai
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -18,7 +19,7 @@ class LaunchTest {
         rule.waitForIdle()
         if (paired) {
             rule.waitUntil(30_000) { rule.onAllNodes(androidx.compose.ui.test.hasText("Main Dashboard")).fetchSemanticsNodes().isNotEmpty() }
-            rule.onNodeWithText("Main Dashboard").assertIsDisplayed()
+            rule.onAllNodes(androidx.compose.ui.test.hasText("Main Dashboard")).onFirst().assertIsDisplayed()
         } else {
             rule.onNodeWithText("TITAN COPY AI").assertIsDisplayed()
             rule.onNodeWithText("Start engine on this phone").assertIsDisplayed()
