@@ -1,3 +1,49 @@
+# 2.2 — Scalping backtest (event-driven 1 s)
+
+*Automatski generirano iz `scalp-research run 44881204071 (9/10 instrumenata; BTC se ponovno računa)` (event-driven 1 s simulacija na aggTrades, 9 instrumenata). Discovery 2025-01 – 2025-09 (kalibracija i izbor konfiguracije), validacija 2025-10 – 2026-06. Holdout 2026-07 – 2026-10 nije korišten. Brojevi nisu ručno upisani.*
+
+**Presuda: {'A': 'NO_TRADE', 'B': 'NO_TRADE', 'A+B': 'NO_TRADE'}**
+
+## Validacija nakon Opportunity Engine filtra
+
+| engines | scenarij | n | neto R | neto EUR | PF | WR | avg win R | avg loss R | max DD EUR | max niz gubitaka | hold s | naknade/bruto |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | BASE | 0 | — | — | — | — | — | — | — | — | — | — |
+| A | STRESSED | 0 | — | — | — | — | — | — | — | — | — | — |
+| A | EXTREME | 0 | — | — | — | — | — | — | — | — | — | — |
+| A | MAKER | 0 | — | — | — | — | — | — | — | — | — | — |
+| B | BASE | 0 | — | — | — | — | — | — | — | — | — | — |
+| B | STRESSED | 0 | — | — | — | — | — | — | — | — | — | — |
+| B | EXTREME | 0 | — | — | — | — | — | — | — | — | — | — |
+| B | MAKER | 0 | — | — | — | — | — | — | — | — | — | — |
+| A+B | BASE | 0 | — | — | — | — | — | — | — | — | — | — |
+| A+B | STRESSED | 0 | — | — | — | — | — | — | — | — | — | — |
+| A+B | EXTREME | 0 | — | — | — | — | — | — | — | — | — | — |
+| A+B | MAKER | 0 | — | — | — | — | — | — | — | — | — | — |
+
+## Portfelj (500 EUR, 2,50 EUR rizika, 2 pozicije, 10 EUR/dan, ISOLATED)
+
+- A 5x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A 10x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A 15x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A 20x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A STRESSED@20x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- B 5x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- B 10x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- B 15x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- B 20x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- B STRESSED@20x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A+B 5x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A+B 10x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A+B 15x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A+B 20x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+- A+B STRESSED@20x: n=0, neto EUR=—, transakcija/dan=—, preskočeno={'max_positions': 0, 'margin': 0, 'daily_loss': 0, 'liquidation_buffer': 0}
+
+Detalji po engineu: `MOMENTUM_SCALPER_REPORT.md`, `PULLBACK_SCALPER_REPORT.md`.
+
+---
+
+
 # BACKTEST REPORT — MillionX 2.0 (OOS, BASE troškovi)
 
 *Automatski generirano iz Research Engine 2.0 (`research2 run 44829762193 (22/23 strategija; bot10_adaptive još radi)`) — selekcijsko razdoblje 2025-01-01 – 2026-06-30, 10 instrumenata, završni holdout nije korišten. Brojevi nisu ručno upisani.*

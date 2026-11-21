@@ -19,8 +19,11 @@ def f(x: Any, nd: int = 3) -> str:
     return f"{x:.{nd}f}" if isinstance(x, (int, float)) and not isinstance(x, bool) else str(x)
 
 
+NSYM = {"n": 10}
+
+
 def head(run: str) -> str:
-    return (f"*Automatski generirano iz `{run}` (event-driven 1 s simulacija na aggTrades, 10 instrumenata). "
+    return (f"*Automatski generirano iz `{run}` (event-driven 1 s simulacija na aggTrades, {NSYM['n']} instrumenata). "
             "Discovery 2025-01 – 2025-09 (kalibracija i izbor konfiguracije), validacija 2025-10 – 2026-06. "
             "Holdout 2026-07 – 2026-10 nije korišten. Brojevi nisu ručno upisani.*")
 
@@ -59,6 +62,7 @@ def main() -> None:
     p.add_argument("--run", required=True)
     a = p.parse_args()
     o = json.load(open(a.input))
+    NSYM["n"] = len(o.get("symbols") or [])
     docs = a.docs
     A = ("Engine A (Momentum): 30 s brzina ≥ z·σ, relativni volumen ≥ prag, udio agresivnih kupnji/prodaja ≥ prag, proboj 3-min "
          "raspona, rast CVD akceleracije, potvrda 3-min momenta, nije iscrpljen (pomak od 5-min ekstrema ≤ ext_max σ). "

@@ -1,4 +1,28 @@
-# COST ANALYSIS — MillionX 2.1 (microstructure) + 2.0
+# COST ANALYSIS — MillionX 2.2 (scalping) + 2.1 + 2.0
+
+## 2.2 — troškovi u odnosu na scalping stopove (event-driven 1 s, validacija)
+
+| scenarij | ulaz | izlaz | spread | slippage | latencija | funding | round-trip |
+|---|---|---|---|---|---|---|---|
+| BASE | taker 5 bps | taker 5 bps | 1 bps (½ po fillu) | 1 bps po fillu | 1 s | 1 bps/8 h | ≈ 13 bps |
+| STRESSED | taker 5 | taker 5 | 3 bps | 3 bps | 3 s + ispadi | 3 bps/8 h | ≈ 19 bps |
+| EXTREME | taker 6 | taker 6 | 6 bps | 6 bps | 5 s + ispadi | 5 bps/8 h | ≈ 30 bps |
+| MAKER | maker 2 bps (samo potvrđen fill) | taker 5 | ½ na izlazu | 1 bps na izlazu | čeka fill ≤ 10 s | 1 bps/8 h | ≈ 8,5 bps |
+
+| engine (konfiguracija) | medijan stopa | trošak u R (BASE) | bruto R | neto R | naknade / bruto dobit |
+|---|---|---|---|---|---|
+| A0 (uski) | 11–12 bps | ≈ 1,1 R | ≈ 0,04 | −1,34 | 2,6–3,5 |
+| A2 (široki, 4σ) | 27–36 bps | ≈ 0,4 R | ≈ 0,01 | −0,48 | 2,0–3,6 |
+| B0 (uski) | ≈ 4 bps | ≈ 3,1 R | ≈ 0,12 | −3,37 | 5,4–7,3 |
+| B2 (široki) | ≈ 10–11 bps | ≈ 1,2 R | ≈ 0,03 | −1,36 | 5,1–5,3 |
+
+**Pravilo za veliki R/R:** da bi troškovi bili ≤ 0,1 R, stop mora biti ≥ ~130 bps (1,3 %). Cilj od 3–5R je tada 4–6,5 %,
+što više nije scalping. Uz taker troškove i stopove od nekoliko bps scalping na 1 s – 5 min u ovim podacima
+**ne može biti isplativ bez bruto prednosti, a izmjerena bruto prednost je ≈ 0**.
+
+---
+
+## (sačuvano) COST ANALYSIS — MillionX 2.1 (microstructure) + 2.0
 
 ## 2.1 — troškovi u odnosu na mikrostrukturne signale
 
