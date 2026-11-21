@@ -5,6 +5,7 @@ archive stopped in 2024, so MillionX records its own. One WebSocket connection c
 instrument: partial book depth (top 20 levels, 500 ms), aggregated trades, liquidation orders
 and mark price / funding (1 s). Open interest is polled over REST every 60 s.
 
+Since 2026-03 Binance routes futures streams by path (/public, /market); one connection per route.
 Everything is aggregated into 1-second rows and stored in a SEPARATE SQLite file (micro.db) so
 recording never contends with the trading database. Every row keeps its exchange event time,
 the local receive time and the source stream. Disconnects, gaps, drift and invalid messages are
@@ -28,7 +29,11 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-WS_BASE = os.environ.get("MX_FUTURES_WS", "wss://fstream.binance.com/stream?streams=")
+# Since 2026-03 Binance routes USDⓈ-M streams by path: depth is on /public, aggTrade / markPrice /
+# forceOrder on /market. An unrouted connection silently receives only /public data (seen on CI:
+# depth arrived, trades and mark price did not), so the collector opens one connection per route.
+WS_ROOT = os.environ.get("MX_FUTURES_WS", "wss://fstream.binance.com")
+ROUTES = {"public": ("depth20@500ms",), "market": ("aggTrade", "forceOrder", "markPrice@1s")}
 REST_BASE = os.environ.get("MX_FUTURES_REST", "https://fapi.binance.com")
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS book_1s (sym TEXT, ts INTEGER, ev_ts INTEGER, rx_ts INTEGER, mid REAL, spread_bps REAL,
@@ -118,11 +123,12 @@ class Aggregator:
         self.db = db
         self.now = now
         self.st: dict[str, _SymState] = defaultdict(_SymState)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.counts: dict[str, int] = defaultdict(int)
 
     def quality(self, sym: str, kind: str, detail: str) -> None:
-        self.db.execute("INSERT INTO quality_events VALUES(?,?,?,?)", (self.now(), sym, kind, detail[:500]))
+        with self.lock:
+            self.db.execute("INSERT INTO quality_events VALUES(?,?,?,?)", (self.now(), sym, kind, detail[:500]))
 
     def on_message(self, raw: str) -> None:
         rx = self.now()
@@ -236,12 +242,14 @@ class Aggregator:
         return n
 
 
-def streams_for(symbols: list[str]) -> str:
-    parts = []
-    for s in symbols:
-        x = s.lower()
-        parts += [f"{x}@depth20@500ms", f"{x}@aggTrade", f"{x}@forceOrder", f"{x}@markPrice@1s"]
-    return "/".join(parts)
+def streams_for(symbols: list[str], route: Optional[str] = None) -> str:
+    kinds = ROUTES[route] if route else tuple(k for r in ROUTES.values() for k in r)
+    order = ("depth20@500ms", "aggTrade", "forceOrder", "markPrice@1s")
+    return "/".join(f"{s.lower()}@{k}" for s in symbols for k in order if k in kinds)
+
+
+def url_for(symbols: list[str], route: str) -> str:
+    return f"{WS_ROOT}/{route}/stream?streams={streams_for(symbols, route)}"
 
 
 def poll_open_interest(db: sqlite3.Connection, symbols: list[str], stop: threading.Event, agg: Aggregator) -> None:
@@ -256,8 +264,9 @@ def poll_open_interest(db: sqlite3.Connection, symbols: list[str], stop: threadi
                     agg.quality(s, "oi_poll_failed", f"HTTP {r.status_code}")
                     continue
                 d = r.json()
-                db.execute("INSERT OR REPLACE INTO oi_1m VALUES(?,?,?,?)",
-                           (s, int(d["time"]) // 60_000 * 60_000, float(d["openInterest"]), int(time.time() * 1000)))
+                with agg.lock:
+                    db.execute("INSERT OR REPLACE INTO oi_1m VALUES(?,?,?,?)",
+                               (s, int(d["time"]) // 60_000 * 60_000, float(d["openInterest"]), int(time.time() * 1000)))
             except Exception as e:
                 agg.quality(s, "oi_poll_failed", str(e)[:200])
         stop.wait(max(1.0, 60 - (time.time() - t0)))
@@ -278,47 +287,61 @@ def backup(db: sqlite3.Connection, path: str) -> str:
     return dst
 
 
-def run(db_path: str, symbols: list[str], minutes: float = 0, stop: Optional[threading.Event] = None,
-        log: Callable[[str], None] = print) -> dict[str, Any]:
-    """Collect until `minutes` elapse (0 = forever) or `stop` is set. Reconnects with backoff."""
+def _ws_loop(url: str, route: str, agg: Aggregator, stop: threading.Event, end: Optional[float],
+             stats: dict[str, int], log: Callable[[str], None]) -> None:
     from .wsclient import WebSocket, WSClosed
-    db = open_db(db_path)
-    agg = Aggregator(db)
-    stop = stop or threading.Event()
-    end = time.time() + minutes * 60 if minutes else None
-    oi = threading.Thread(target=poll_open_interest, args=(db, symbols, stop, agg), daemon=True)
-    oi.start()
-    backoff, connects = 1.0, 0
-    last_maint = time.time()
+    backoff = 1.0
     while not stop.is_set() and (end is None or time.time() < end):
         ws = None
         try:
-            ws = WebSocket.connect(WS_BASE + streams_for(symbols))
-            connects += 1
-            agg.quality("*", "ws_connected", f"connection #{connects}")
+            ws = WebSocket.connect(url)
+            stats[route] = stats.get(route, 0) + 1
+            agg.quality("*", "ws_connected", f"{route} connection #{stats[route]}")
             backoff = 1.0
             ws.sock.settimeout(10)
-            last_flush = int(time.time())
             while not stop.is_set() and (end is None or time.time() < end):
                 agg.on_message(ws.recv())
-                sec = int(time.time())
-                if sec != last_flush:
-                    agg.flush(sec - 1)
-                    last_flush = sec
-                if time.time() - last_maint > 6 * 3600:
-                    retention(db)
-                    backup(db, db_path)
-                    last_maint = time.time()
         except (WSClosed, OSError, ConnectionError) as e:
-            agg.quality("*", "ws_disconnect", f"{type(e).__name__}: {e}"[:300])
-            log(f"collector: disconnected ({e}); reconnect in {backoff:.0f}s")
+            agg.quality("*", "ws_disconnect", f"{route}: {type(e).__name__}: {e}"[:300])
+            log(f"collector[{route}]: disconnected ({e}); reconnect in {backoff:.0f}s")
             stop.wait(backoff)
             backoff = min(60.0, backoff * 2)
         finally:
             if ws:
                 ws.close()
+
+
+def run(db_path: str, symbols: list[str], minutes: float = 0, stop: Optional[threading.Event] = None,
+        log: Callable[[str], None] = print) -> dict[str, Any]:
+    """Collect until `minutes` elapse (0 = forever) or `stop` is set. One reconnecting WebSocket per route."""
+    db = open_db(db_path)
+    agg = Aggregator(db)
+    stop = stop or threading.Event()
+    end = time.time() + minutes * 60 if minutes else None
+    stats: dict[str, int] = {}
+    threads = [threading.Thread(target=poll_open_interest, args=(db, symbols, stop, agg), daemon=True)]
+    for route in ROUTES:
+        threads.append(threading.Thread(target=_ws_loop, args=(url_for(symbols, route), route, agg, stop, end, stats, log),
+                                        daemon=True, name=f"ws-{route}"))
+    for t in threads:
+        t.start()
+    last_flush = int(time.time())
+    last_maint = time.time()
+    while not stop.is_set() and (end is None or time.time() < end):
+        stop.wait(0.2)
+        sec = int(time.time())
+        if sec != last_flush:
+            agg.flush(sec - 1)
+            last_flush = sec
+        if time.time() - last_maint > 6 * 3600:
+            with agg.lock:
+                retention(db)
+                backup(db, db_path)
+            last_maint = time.time()
     stop.set()
-    return {"connects": connects, "messages": dict(agg.counts)}
+    for t in threads[1:]:
+        t.join(timeout=15)
+    return {"connects": stats, "messages": dict(agg.counts)}
 
 
 def main() -> None:

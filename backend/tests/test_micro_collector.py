@@ -120,9 +120,12 @@ def test_ws_frames_ping_fragments_close():
     assert f[1] & 0x80 and bytes(b ^ k for b, k in zip(f[6:], b"\x01\x02\x03\x04")) == b"abc"
 
 
-def test_streams_for():
-    s = C.streams_for(["BTCUSDT"])
-    assert s == "btcusdt@depth20@500ms/btcusdt@aggTrade/btcusdt@forceOrder/btcusdt@markPrice@1s"
+def test_streams_routed_by_path():
+    assert C.streams_for(["BTCUSDT"]) == "btcusdt@depth20@500ms/btcusdt@aggTrade/btcusdt@forceOrder/btcusdt@markPrice@1s"
+    assert C.url_for(["BTCUSDT"], "public").endswith("/public/stream?streams=btcusdt@depth20@500ms")
+    assert C.url_for(["BTCUSDT", "ETHUSDT"], "market").endswith(
+        "/market/stream?streams=btcusdt@aggTrade/btcusdt@forceOrder/btcusdt@markPrice@1s/"
+        "ethusdt@aggTrade/ethusdt@forceOrder/ethusdt@markPrice@1s")
 
 
 def test_snapshot_fields_quality_and_lower_bound(tmp_path):
