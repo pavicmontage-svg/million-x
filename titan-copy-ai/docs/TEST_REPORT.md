@@ -9,7 +9,7 @@
 | Android unit tests (`testDebugUnitTest`) | **5 passed** |
 | Android debug APK build | success (62.9 MB) |
 | Android release build with R8 (test-signed) | success (3.75 MB) |
-| Android instrumented launch test | written; runs in CI on an Android 14 emulator (no KVM in the build container) |
+| Android instrumented launch test (CI, Android 14 emulator) | **passed** |
 
 Backend coverage by area: market maths (pip values, conversion, ESMA leverage caps, Binance filters incl. COIN-M inverse),
 risk engine (budget, stop validation, daily/weekly/max-DD, headroom, correlated currency exposure, overlays, tighten-only
@@ -22,6 +22,16 @@ emergency close, no blind POST retry, hedge-mode check, partial close re-protect
 auth, dashboard, watchlist UNKNOWN, import → score → approve → authorised webhook → dedup, backtest, analytics, limits,
 emergency controls, credential encryption, live-credential refusal, agents, news blackout, LLM tighten validation,
 readiness gate, audit tamper detection).
+
+## GitHub Actions (`titan-copy-ai` workflow, run #1, commit 2109484) – all jobs green
+
+| Job | Result |
+|---|---|
+| backend-tests | 69 passed on SQLite, **69 passed on PostgreSQL 17** |
+| docker-smoke | production `Dockerfile` built unmodified; stack healthy; pairing; dashboard; backup → restore |
+| android | debug APK, unit tests, R8 release build, androidTest APK; artifact `titan-apk` |
+| android-emulator | instrumented launch test passed on emulator-5554 (Android 14) |
+| Binance demo probe | spot / USDⓈ-M / COIN-M demo hosts → **HTTP 451** from GitHub's runners too |
 
 ## Real-connectivity checks
 
