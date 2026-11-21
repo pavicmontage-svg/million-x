@@ -17,3 +17,15 @@ def test_micro_endpoints(server):
     code, r = call(base, "/api/micro/research", owner["token"])
     assert code == 200 and "INCOMPLETE" in r["note"]
     assert call(base, "/api/micro/collector", viewer["token"], "POST", {"enabled": True})[0] == 403
+
+
+def test_scalp_endpoints(server):
+    base, st = server
+    owner = call(base, "/api/pair", method="POST", body={"code": create_pairing_code(st, "owner"), "device_name": "s"})[1]
+    assert "token" in owner, owner
+    code, s = call(base, "/api/scalp/status", owner["token"])
+    assert code == 200 and s["running"] is False
+    assert call(base, "/api/scalp/opportunities", owner["token"])[1]["rows"] == []
+    code, p = call(base, "/api/scalp/paper", owner["token"])
+    assert code == 200 and p["trades"] == []
+    assert call(base, "/api/scalp/research", owner["token"])[0] == 200

@@ -1270,7 +1270,102 @@ def create_app(rt: Runtime, lifespan=None) -> Starlette:
         from .micro import results_store
         return J(results_store.overview())
 
+    # ---- 2.2 continuous scalping scanner (virtual PaperBook; never sends exchange orders) -------
+    def _scalp_db():
+        return rt.micro_db()
+
+    @guard("read")
+    async def scalp_status(request):
+        sc = getattr(rt, "scanner", None)
+        st = sc.status() if sc else {"stats": None, "note": "scanner runs with the collector (Research Data -> Record)"}
+        st["running"] = bool(sc) and rt.collector_running()
+        db = _scalp_db()
+        try:
+            if db is not None:
+                try:
+                    since = now_ms() - 86_400_000
+                    agg = db.execute("SELECT decision, COUNT(*) FROM scalp_opps WHERE ts>=? GROUP BY decision", (since,)).fetchall()
+                    missed = db.execute("SELECT COUNT(*) FROM scalp_opps WHERE ts>=? AND decision='REJECT' AND outcome_r>0",
+                                        (since,)).fetchone()[0]
+                    st["last_24h"] = {"by_decision": {a: b for a, b in agg}, "missed_profitable": missed}
+                except Exception:
+                    st["last_24h"] = None
+        finally:
+            if db:
+                db.close()
+        return J(st)
+
+    @guard("read")
+    async def scalp_opps(request):
+        lim = max(1, min(500, int(request.query_params.get("limit", 100))))
+        dec = request.query_params.get("decision")
+        db = _scalp_db()
+        if db is None:
+            return J({"rows": []})
+        try:
+            q = "SELECT id, ts, sym, engine, cfg, side, price, decision, reasons, eval, snapshot, outcome_r, outcome_reason, outcome_hold FROM scalp_opps"
+            args: tuple = ()
+            if dec in ("ACCEPT", "REJECT"):
+                q += " WHERE decision=?"
+                args = (dec,)
+            try:
+                rows = db.execute(q + " ORDER BY id DESC LIMIT ?", args + (lim,)).fetchall()
+            except Exception:
+                rows = []
+            cols = ["id", "ts", "sym", "engine", "cfg", "side", "price", "decision", "reasons", "eval", "snapshot",
+                    "outcome_r", "outcome_reason", "outcome_hold"]
+            out = []
+            for r in rows:
+                d = dict(zip(cols, r))
+                for k in ("reasons", "eval", "snapshot"):
+                    try:
+                        d[k] = json.loads(d[k]) if d[k] else None
+                    except ValueError:
+                        pass
+                out.append(d)
+            return J({"rows": out})
+        finally:
+            db.close()
+
+    @guard("read")
+    async def scalp_paper(request):
+        db = _scalp_db()
+        if db is None:
+            return J({"trades": [], "summary": {}})
+        try:
+            try:
+                rows = db.execute("SELECT sym, engine, side, opened_ts, closed_ts, entry, exit, gross_bps, net_bps, r, pnl_eur, fees_eur, "
+                                  "lev, reason FROM scalp_paper ORDER BY id DESC LIMIT 300").fetchall()
+            except Exception:
+                rows = []
+            cols = ["sym", "engine", "side", "opened_ts", "closed_ts", "entry", "exit", "gross_bps", "net_bps", "r", "pnl_eur",
+                    "fees_eur", "lev", "reason"]
+            tr = [dict(zip(cols, r)) for r in rows]
+            summ: dict = {}
+            if tr:
+                rs = [t["r"] for t in tr]
+                hold = [(t["closed_ts"] - t["opened_ts"]) / 1000 for t in tr]
+                summ = {"n": len(tr), "net_eur": sum(t["pnl_eur"] for t in tr), "fees_eur": sum(t["fees_eur"] for t in tr),
+                        "gross_eur": sum(t["pnl_eur"] + t["fees_eur"] for t in tr), "avg_hold_s": sum(hold) / len(hold),
+                        "win_rate": sum(1 for x in rs if x > 0) / len(rs), "avg_r": sum(rs) / len(rs)}
+            return J({"trades": tr, "summary": summ, "note": "virtual paper fills on live data; no exchange orders"})
+        finally:
+            db.close()
+
+    @guard("read")
+    async def scalp_research(request):
+        import pkgutil
+        try:
+            raw = pkgutil.get_data("millionx", "data/scalp_research_summary.json")
+            return J(json.loads(raw) if raw else {"available": False})
+        except (OSError, FileNotFoundError, ValueError):
+            return J({"available": False})
+
     routes = [
+        Route("/api/scalp/status", scalp_status),
+        Route("/api/scalp/opportunities", scalp_opps),
+        Route("/api/scalp/paper", scalp_paper),
+        Route("/api/scalp/research", scalp_research),
         Route("/api/micro/status", micro_status),
         Route("/api/micro/collector", micro_collector, methods=["POST"]),
         Route("/api/micro/snapshot/{symbol}", micro_snapshot),

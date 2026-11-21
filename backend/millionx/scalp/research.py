@@ -355,6 +355,17 @@ def aggregate(pattern: str, log=print) -> dict[str, Any]:
               and sum(1 for q in out["walk_forward"][name] if (q["net_r"] or -1) > 0) >= 2)
         verdict[name] = "CANDIDATE_FOR_PAPER" if ok else "NO_TRADE"
     out["verdict"] = verdict
+    # packaged for the live scanner: chosen configs, verdicts and the DISCOVERY calibration of the chosen configs
+    calib = {"edges": {}, "cells": {}}
+    for eng, key in out["chosen"].items():
+        if not key:
+            continue
+        cfg, tf = int(key[1]), int(key.split("@")[1][:-1])
+        sel = (D["engine"] == eng) & (D["cfg"] == cfg) & (D["tf"] == tf) & disc
+        c = O.build_calibration(_rows(D, np.flatnonzero(sel)))
+        calib["edges"].update(c["edges"])
+        calib["cells"].update(c["cells"])
+    out["config"] = {"chosen": out["chosen"], "verdict": verdict, "calibration": calib}
     return out
 
 
@@ -404,6 +415,7 @@ def main() -> None:
         from ..backtest.metrics import json_safe
         o = aggregate(a.inputs)
         json.dump(json_safe(o), open(a.out, "w"), default=str)
+        json.dump(json_safe(o["config"]), open(os.path.join(os.path.dirname(a.out) or ".", "scalp_config.json"), "w"), default=str)
         open(a.out.replace(".json", ".md"), "w").write(to_markdown(o))
         print(to_markdown(o))
 

@@ -285,6 +285,7 @@ val MODULES = listOf(
     Module("ai_center", "AI Command Center", "Trader, Supervisor, providers", Icons.Filled.Psychology),
     Module("perf_audit", "Performance Auditor", "Real vs simulated", Icons.Filled.Insights),
     Module("research2", "Research 2.0", "Edge, selection, NO TRADE", Icons.Filled.Science),
+    Module("scalp", "Scalping", "Live scanner, opportunities, paper", Icons.Filled.Insights),
     Module("micro", "Research Data", "Funding, OI, book, CVD, quality", Icons.Filled.Insights),
     Module("boardroom", "AI Boardroom", "5 executives", Icons.Filled.Groups),
     Module("brains", "Six-Brain Control", "Prompts, logs, cost", Icons.Filled.Psychology),

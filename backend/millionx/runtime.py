@@ -98,6 +98,7 @@ class Runtime:
         self.micro_db_path = os.environ.get("MX_MICRO_DB") or os.path.join(os.path.dirname(self.s.db_path) or ".", "micro.db")
         self.micro_thread = None
         self.micro_stop = None
+        self.scanner = None
         self.micro_symbols: list[str] = []
         if os.environ.get("MX_MICRO_COLLECTOR") == "1" or (store.kv_get("micro_collector") or {}).get("enabled"):
             self.start_collector()
@@ -117,9 +118,18 @@ class Runtime:
         self.micro_symbols = symbols or (self.store.kv_get("micro_collector") or {}).get("symbols") or self.MICRO_DEFAULT
         self.micro_stop = threading.Event()
 
+        def attach(agg):
+            # 2.2: the continuous scalping scanner runs on every collected second (virtual PaperBook only)
+            from .scalp import live as scalp_live
+            self.scanner = scalp_live.Scanner(agg.db, agg.lock, scalp_live.load_config(),
+                                              capital_eur=self.s.pro_capital_eur if self.s.capital_mode == "pro" else 500.0,
+                                              risk_frac=self.s.risk.risk_per_trade, max_positions=self.s.risk.max_open_positions,
+                                              daily_loss_eur=self.s.risk.max_daily_loss_eur, max_leverage=self.s.risk.max_leverage)
+            agg.listeners.append(self.scanner.on_second)
+
         def loop():
             try:
-                collector.run(self.micro_db_path, self.micro_symbols, 0, self.micro_stop, log=log.info)
+                collector.run(self.micro_db_path, self.micro_symbols, 0, self.micro_stop, log=log.info, on_start=attach)
             except Exception as ex:  # recorded, never crashes the app
                 self.store.audit("system", "micro_collector_error", {"error": str(ex)[:300]})
         self.micro_thread = threading.Thread(target=loop, name="micro-collector", daemon=True)

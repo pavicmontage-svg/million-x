@@ -339,10 +339,13 @@ def _ws_loop(url: str, route: str, agg: Aggregator, stop: threading.Event, end: 
 
 
 def run(db_path: str, symbols: list[str], minutes: float = 0, stop: Optional[threading.Event] = None,
-        log: Callable[[str], None] = print) -> dict[str, Any]:
-    """Collect until `minutes` elapse (0 = forever) or `stop` is set. One reconnecting WebSocket per route."""
+        log: Callable[[str], None] = print, on_start: Optional[Callable[["Aggregator"], None]] = None) -> dict[str, Any]:
+    """Collect until `minutes` elapse (0 = forever) or `stop` is set. One reconnecting WebSocket per route.
+    `on_start(agg)` lets the 2.2 scanner register its per-second listener."""
     db = open_db(db_path)
     agg = Aggregator(db)
+    if on_start:
+        on_start(agg)
     stop = stop or threading.Event()
     end = time.time() + minutes * 60 if minutes else None
     stats: dict[str, int] = {}
