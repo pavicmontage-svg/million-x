@@ -208,6 +208,7 @@ fun TraderDetailScreen(id: Int) {
                 }
                 Text("A public track record does not make an account copyable. Copying requires an authorised source " +
                     "(your own account or a provider that signs signals).", color = Titan.Muted, style = MaterialTheme.typography.bodySmall)
+                SourceAccountPicker(id, t.market, t.sourceAccount, vm)
             }
         }
     }
@@ -308,3 +309,34 @@ private fun BacktestPanel(bt: com.titan.copyai.ui.vm.LoadVm<kotlinx.serializatio
 
 @Composable
 private fun <T> com.titan.copyai.ui.vm.LoadVm<T>.collectAsStateValue() = state.collectAsState().value
+
+
+/** Wire one of the owner's connected accounts as this trader's signal source (polled by the engine). */
+@Composable
+private fun SourceAccountPicker(traderId: Int, market: String, current: kotlinx.serialization.json.JsonObject?,
+                                vm: com.titan.copyai.ui.vm.LoadVm<com.titan.copyai.data.api.TraderDetail>) {
+    val ctx = LocalCtx.current
+    var accounts by remember { mutableStateOf<List<com.titan.copyai.data.api.ConnectionDto>>(emptyList()) }
+    androidx.compose.runtime.LaunchedEffect(traderId) {
+        accounts = runCatching { ctx.app.repo.api.connections() }.getOrDefault(emptyList()).filter {
+            (market == "crypto" && it.venue in setOf("binance_usdm", "binance_coinm")) ||
+                (market == "forex" && it.venue in setOf("mt5", "ctrader"))
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text("SOURCE ACCOUNT (no webhook needed)", style = MaterialTheme.typography.labelSmall, color = Titan.Muted)
+    if (current != null) {
+        KV("Polling", "${current.at("type").s()} · ${current.at("environment").s()} · since ${Fmt.time(current.at("since").s())}", Titan.Accent)
+        OutlinedButton({ vm.action("Source removed") { ctx.app.repo.api.removeSourceAccount(traderId) } }) { Text("Stop using this account") }
+    } else if (accounts.isEmpty()) {
+        Text("Add a ${if (market == "crypto") "Binance futures" else "MT5 or cTrader"} connection first; its new positions " +
+            "will be copied (positions already open are not).", color = Titan.Muted, style = MaterialTheme.typography.bodySmall)
+    }
+    if (current == null) accounts.forEach { a ->
+        OutlinedButton({
+            vm.action("Now copying from ${a.label}") {
+                ctx.app.repo.api.sourceAccount(traderId, buildJsonObject { put("credential_id", a.id); put("environment", a.environment) })
+            }
+        }) { Text("Copy from: ${a.label} (${a.venue}, ${a.environment})") }
+    }
+}

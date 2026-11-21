@@ -1,5 +1,16 @@
 # Security
 
+## On-phone mode
+* The engine's API listens on **127.0.0.1 only**; other devices on the network cannot reach it. The app's token is issued
+  in-process and stored in EncryptedSharedPreferences.
+* The credential-vault master key (32 random bytes) is generated on the phone and stored in EncryptedSharedPreferences,
+  whose keys live in the **Android Keystore**; it is passed to the engine at start, never written to the database.
+  Unpairing the UI keeps the key (otherwise stored exchange keys would become unreadable).
+* Database, logs and backups live in the app's private storage (not readable by other apps); app backup/cloud backup is
+  disabled. A rooted or compromised phone can read them - use a dedicated, updated phone with a screen lock.
+* Use exchange/broker keys without withdrawal permission. On the phone an IP whitelist is usually impossible (mobile IPs
+  change), which makes "no withdrawals" essential.
+
 ## Credentials
 * Exchange/broker/data credentials are entered once in the app, sent over TLS, and stored **only on the server**, encrypted with **AES-256-GCM** (random 96-bit nonce, record identity `venue|environment|label` bound as associated data so ciphertexts cannot be swapped). They are never returned by any API.
 * The master key comes from the secrets manager: Docker secret file `secrets/titan_master_key` → `/run/secrets/titan_master_key` (`TITAN_MASTER_KEY_FILE`). It is not in the image, the repository or the database. Losing it makes stored credentials unrecoverable (re-enter them).

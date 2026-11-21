@@ -1,5 +1,17 @@
 # Installation
 
+## 0. On the phone only (recommended)
+
+1. Install the APK (Android 9+; arm64 phone build from the GitHub Actions artifact `titan-apk`).
+2. Open it → **Start engine on this phone**. The first start unpacks the embedded Python engine (up to ~1 minute).
+3. Settings → *Engine on this phone* → **Allow running in background (battery)** (essential on Samsung/Xiaomi), and allow
+   notifications.
+4. Connect venues in *Binance API Connections* / *Broker Connections* (keys are encrypted on the phone).
+5. To copy: open a trader → *Copy from: <your account>* (source account) or import history and approve; enable it in
+   *Copy Portfolio*. Paper mode (€500 / 500 USDT, SIMULATED) is active from the start.
+
+Everything below (sections 1-5) is only needed for the optional server deployment.
+
 ## 1. Server (the permanent execution engine)
 
 Requirements: an EU VPS (2 vCPU, 4 GB RAM, 40 GB disk) with Docker + Docker Compose and a DNS name pointing at it.

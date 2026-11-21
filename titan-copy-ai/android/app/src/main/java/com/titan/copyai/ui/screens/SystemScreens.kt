@@ -88,8 +88,9 @@ fun SettingsScreen() {
     val vm = rememberLoad("settings") { live(Pair(api.settings(), api.readiness())) }
     val perm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LoadedList(vm) { (s, ready) ->
+        if (ctx.app.repo.store.localMode) item { EnginePanel() }
         item {
-            Panel(title = "Server") {
+            Panel(title = if (ctx.app.repo.store.localMode) "Engine configuration" else "Server") {
                 KV("URL", ctx.app.repo.store.serverUrl)
                 KV("Environment", s.at("env").s() ?: "")
                 KV("Live trading on server", if (s.at("live_trading_enabled").b() == true) "ENABLED" else "DISABLED",
@@ -152,5 +153,62 @@ fun AuditScreen() {
                 if (a.detail.isNotEmpty()) Text(a.detail.toString().take(400), style = MaterialTheme.typography.bodySmall)
             }
         }
+    }
+}
+
+
+/** On-phone engine controls: status, battery exemption, restart/stop, log, Claude key. */
+@Composable
+fun EnginePanel() {
+    val ctx = LocalCtx.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var status by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("checking…") }
+    var ok by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Boolean?>(null) }
+    var log by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var key by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var battery by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(com.titan.copyai.engine.LocalEngine.ignoringBatteryOptimizations(context))
+    }
+    LaunchedEffect(ctx.tick) {
+        val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.titan.copyai.engine.LocalEngine.probe(context) }
+        ok = r.first; status = r.second
+        battery = com.titan.copyai.engine.LocalEngine.ignoringBatteryOptimizations(context)
+    }
+    Panel(title = "Engine on this phone") {
+        com.titan.copyai.ui.components.StatusDot(ok, if (ok == true) "Running · 127.0.0.1:${com.titan.copyai.engine.LocalEngine.port}" else status)
+        Spacer(Modifier.height(6.dp))
+        Text("Runs 24/7 in a foreground service (survives closing the app, screen off and reboots). It stops if the " +
+            "phone is off or has no internet; open positions keep their stop-loss on the broker/exchange.",
+            style = MaterialTheme.typography.bodySmall, color = Titan.Muted)
+        Spacer(Modifier.height(8.dp))
+        if (!battery) {
+            Button({ context.startActivity(com.titan.copyai.engine.LocalEngine.batteryOptimizationIntent(context)) },
+                modifier = Modifier.fillMaxWidth()) { Text("Allow running in background (battery)") }
+            Text("Required on most phones (Samsung, Xiaomi…) or Android may pause the engine.",
+                color = Titan.Warn, style = MaterialTheme.typography.bodySmall)
+        } else KV("Battery optimisation", "exempt", Titan.Up)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton({ com.titan.copyai.engine.LocalEngine.start(context); ctx.snack("Engine (re)started") }) { Text("Start") }
+            OutlinedButton({ com.titan.copyai.engine.LocalEngine.stop(context); ctx.snack("Engine stopped - no copying") }) { Text("Stop") }
+            OutlinedButton({
+                scope.launch {
+                    log = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.titan.copyai.engine.LocalEngine.logTail(context)
+                    }
+                }
+            }) { Text("Log") }
+        }
+        log?.let { Text(it.takeLast(6000), style = MaterialTheme.typography.bodySmall, color = Titan.Muted) }
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.OutlinedTextField(key, { key = it.trim() }, singleLine = true,
+            label = { Text(if (ctx.app.repo.store.anthropicKey.isBlank()) "Claude API key (optional)" else "Claude API key: set (enter to replace)") },
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        OutlinedButton({
+            ctx.app.repo.store.anthropicKey = key; key = ""
+            com.titan.copyai.engine.LocalEngine.stop(context)
+            scope.launch { kotlinx.coroutines.delay(1500); com.titan.copyai.engine.LocalEngine.start(context) }
+            ctx.snack("Saved (encrypted). Engine restarting.")
+        }, enabled = key.length > 20) { Text("Save key & restart engine") }
     }
 }

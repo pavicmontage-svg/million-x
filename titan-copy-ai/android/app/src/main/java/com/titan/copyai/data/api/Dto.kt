@@ -102,6 +102,7 @@ data class TraderDetail(
     @SerialName("recent_trades") val recentTrades: List<JsonObject> = emptyList(),
     val allocations: List<JsonObject> = emptyList(),
     @SerialName("signal_source_configured") val signalSourceConfigured: Boolean = false,
+    @SerialName("source_account") val sourceAccount: JsonObject? = null,
 )
 
 @Serializable

@@ -59,28 +59,44 @@ import com.titan.copyai.ui.vm.live
 fun PairingScreen(app: AppVm) {
     var url by remember { mutableStateOf("https://") }
     var code by remember { mutableStateOf("") }
+    var remote by remember { mutableStateOf(false) }
     val err by app.pairError.collectAsState()
+    val status by app.localStatus.collectAsState()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center) {
         Text("TITAN COPY AI", style = MaterialTheme.typography.headlineLarge, color = Titan.Gold)
-        Text("Control centre for your cloud trading engine", color = Titan.Muted)
+        Text("Copy-trading engine that runs on this phone", color = Titan.Muted)
         Spacer(Modifier.height(28.dp))
-        Panel(title = "Connect to your server") {
-            OutlinedTextField(url, { url = it }, label = { Text("Server URL (https://…)") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(code, { code = it.uppercase() }, label = { Text("Pairing code") }, singleLine = true,
-                modifier = Modifier.fillMaxWidth())
+        Panel(title = "Run on this phone (recommended)") {
+            Text("The copy engine, risk limits, AI agents and the encrypted credential vault run here, 24/7, in a " +
+                "background service. No server needed. Starts in paper mode: Forex €500 and Crypto 500 USDT (SIMULATED).",
+                style = MaterialTheme.typography.bodyMedium, color = Titan.Muted)
             Spacer(Modifier.height(12.dp))
-            Button({ app.pair(url, code) }, enabled = url.length > 10 && code.length >= 6, modifier = Modifier.fillMaxWidth()) {
-                Text("Pair device")
+            Button({ app.startLocal() }, enabled = status == null, modifier = Modifier.fillMaxWidth()) {
+                Text(if (status == null) "Start engine on this phone" else "Starting…")
             }
-            err?.let { Text(it, color = Titan.Down, modifier = Modifier.padding(top = 8.dp)) }
+            status?.let { Text(it, color = Titan.Accent, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)) }
+            Text("First start unpacks the embedded Python engine (up to ~1 minute).", color = Titan.Muted,
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
         }
         Spacer(Modifier.height(16.dp))
-        Text("Get a code on the server: docker compose exec api python -m titan.cli pair\n" +
-            "Exchange and broker keys are entered later and stored encrypted on the server only.",
-            color = Titan.Muted, style = MaterialTheme.typography.bodySmall)
+        androidx.compose.material3.TextButton({ remote = !remote }) {
+            Text(if (remote) "Hide server option" else "Advanced: connect to a remote TITAN server instead")
+        }
+        if (remote) {
+            Panel(title = "Remote server") {
+                OutlinedTextField(url, { url = it }, label = { Text("Server URL (https://…)") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(code, { code = it.uppercase() }, label = { Text("Pairing code") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(12.dp))
+                Button({ app.pair(url, code) }, enabled = url.length > 10 && code.length >= 6, modifier = Modifier.fillMaxWidth()) {
+                    Text("Pair device")
+                }
+            }
+        }
+        err?.let { Text(it, color = Titan.Down, modifier = Modifier.padding(top = 8.dp)) }
     }
 }
 

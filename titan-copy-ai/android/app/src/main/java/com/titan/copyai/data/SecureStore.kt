@@ -34,5 +34,30 @@ class SecureStore(context: Context) {
 
     val isPaired: Boolean get() = serverUrl.isNotBlank() && token.isNotBlank()
 
-    fun clear() = prefs.edit().clear().apply()
+    /** true = the engine runs on this phone (default); false = remote server mode. */
+    var localMode: Boolean
+        get() = prefs.getBoolean("local_mode", false)
+        set(v) = prefs.edit().putBoolean("local_mode", v).apply()
+
+    /** 32-byte AES-256-GCM key for the on-phone credential vault (Keystore-protected storage). */
+    val engineMasterKey: String
+        get() = prefs.getString("engine_master_key", null) ?: run {
+            val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+            val k = android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or
+                android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+            prefs.edit().putString("engine_master_key", k).commit()
+            k
+        }
+
+    /** Optional Claude API key for the AI agents on the phone. */
+    var anthropicKey: String
+        get() = prefs.getString("anthropic_key", "") ?: ""
+        set(v) = prefs.edit().putString("anthropic_key", v.trim()).apply()
+
+    /** Unpair the UI. The engine's own master key is kept, otherwise stored credentials would be lost. */
+    fun clear() {
+        val key = prefs.getString("engine_master_key", null)
+        prefs.edit().clear().apply()
+        if (key != null) prefs.edit().putString("engine_master_key", key).commit()
+    }
 }

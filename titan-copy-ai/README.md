@@ -1,8 +1,13 @@
 # TITAN COPY AI
 
-Autonomous multi-market copy-trading platform: a cloud backend that discovers and scores traders, copies **authorised**
-signals into independent **Forex** and **Binance** portfolios under hard risk limits, and an Android app that is the
-control centre.
+Autonomous multi-market copy-trading platform that **runs entirely on an Android phone**: the copy engine, hard risk
+limits, six AI agents, trader discovery/scoring, the encrypted credential vault and the database all run inside the app
+(embedded Python, foreground service, 24/7). It copies **authorised** signals into independent **Forex** and **Binance**
+portfolios. A server deployment of the same backend (Docker) remains available as an option.
+
+**On-phone mode (default):** install the APK → *Start engine on this phone* → done. No server, no pairing code.
+The engine keeps running with the app closed and the screen off, restarts after reboots, and mirrors alerts as Android
+notifications. It cannot trade while the phone is off or offline; protective stop-losses stay on the broker/exchange.
 
 > **Status:** paper/demo only. Live trading is disabled by default and gated behind 30 days of paper evidence, a server
 > flag and a typed approval. Nothing in this system promises profit; past performance does not predict future results.
@@ -11,8 +16,8 @@ control centre.
 
 | | |
 |---|---|
-| `backend/` | Python 3.13 · FastAPI · PostgreSQL · Redis Streams · Celery · Docker |
-| `android/` | Kotlin · Jetpack Compose · Material 3 · MVVM · Retrofit · Room · EncryptedSharedPreferences · WorkManager |
+| `backend/` | Python engine · Starlette API · SQLAlchemy. On the phone: Python 3.12 (Chaquopy), SQLite, in-process bus & scheduler. On a server: PostgreSQL, Redis Streams, Celery, Docker |
+| `android/` | Kotlin · Jetpack Compose · Material 3 · MVVM · Retrofit · Room · EncryptedSharedPreferences · WorkManager · foreground EngineService · embedded Python engine |
 | `backend/bridges/mt5_bridge.py` | Self-hosted MetaTrader 5 bridge (runs next to your terminal) |
 | `docs/` | [Architecture](docs/ARCHITECTURE.md) · [Integrations research](docs/INTEGRATIONS.md) · [API](docs/API.md) · [Security](docs/SECURITY.md) · [Installation](docs/INSTALL.md) · [Test report](docs/TEST_REPORT.md) · [AI agents](docs/AGENTS.md) |
 
@@ -29,6 +34,9 @@ control centre.
 * **Six AI agents** – Trader Intelligence, Quantitative Research, Risk Management (veto), Market Intelligence, Execution,
   Audit & Performance. Versioned prompts, run logs and metrics; Claude (`claude-opus-5-5`) reviews deterministic analyses
   when a key is configured; agents can only tighten risk.
+* **Signal sources on the phone** – the engine polls a source account you control (Binance futures / sub-account, your
+  MT5 terminal via the bridge, a cTrader account via OAuth) and copies its new positions, closes, partial closes and SL/TP
+  changes. HMAC webhooks remain for server deployments.
 * **Copy engine** – idempotent, write-ahead order state, staleness/late-entry checks, independent sizing (never source lot
   size), mandatory stop-loss, copies entries, exits, SL/TP changes and partial closes, reconciliation of unknown orders,
   venue-side closes and missing source positions. Survives app closure, phone offline, engine/server restart and venue

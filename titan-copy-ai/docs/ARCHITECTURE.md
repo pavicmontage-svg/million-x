@@ -1,5 +1,33 @@
 # Architecture
 
+## On-phone mode (default)
+
+```
+Android app process
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Compose UI ──HTTP/WS──▶ 127.0.0.1:8765  Starlette API ─┐                     │
+│ EngineService (foreground, wake lock, START_STICKY, BootReceiver)           │
+│   └─ Chaquopy Python 3.12: titan.android_entry                              │
+│        ├─ Runtime threads: signals · commands · periodic (triggers,          │
+│        │   reconcile 20 s, risk monitor 30 s) · source-account polling 2 s   │
+│        ├─ Scheduler thread: agents, discovery, rescoring, backup, report    │
+│        ├─ MemoryBus (in-process) · SQLite (WAL, BEGIN IMMEDIATE)            │
+│        └─ Adapters ──HTTPS──▶ Binance / cTrader / MT5 bridge / data APIs    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+* The API listens on 127.0.0.1 only; the app gets a device token in-process (no pairing code).
+* The vault master key is generated on first start and kept in EncryptedSharedPreferences (Android Keystore).
+* Signals that were received but not processed when the process died are re-queued at start (processing is idempotent);
+  source-account snapshots are persisted so restarts never replay old positions.
+* pydantic-core has no Android build, so the backend uses Starlette (`api/web.py` provides the small FastAPI-style
+  layer), a dataclass config and plain validation; `requirements-android.txt` lists exactly what is embedded and CI runs
+  the whole test suite in that environment.
+* Limits of a phone: no trading while it is off/offline or if the OS kills the service (battery exemption requested);
+  open positions always carry venue-side stop-losses.
+
+## Server mode (optional)
+
 ```
 Android control centre (Kotlin/Compose)            Cloud backend (Docker)
 ┌───────────────────────────────┐   HTTPS/WSS   ┌──────────────────────────────────────────────────────┐

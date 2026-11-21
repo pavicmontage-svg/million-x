@@ -28,6 +28,8 @@ interface ApiService {
     @GET("api/traders/{id}") suspend fun trader(@Path("id") id: Int): TraderDetail
     @POST("api/traders/{id}/status") suspend fun traderStatus(@Path("id") id: Int, @Body body: JsonObject): JsonObject
     @POST("api/traders/{id}/signal-source") suspend fun signalSource(@Path("id") id: Int): JsonObject
+    @POST("api/traders/{id}/source-account") suspend fun sourceAccount(@Path("id") id: Int, @Body body: JsonObject): JsonObject
+    @DELETE("api/traders/{id}/source-account") suspend fun removeSourceAccount(@Path("id") id: Int): JsonObject
     @Multipart @POST("api/traders/import")
     suspend fun importTrader(@Part("name") name: RequestBody, @Part("platform") platform: RequestBody,
                              @Part("market") market: RequestBody, @Part trades: MultipartBody.Part?): JsonObject

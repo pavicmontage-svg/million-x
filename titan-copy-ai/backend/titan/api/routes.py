@@ -5,8 +5,6 @@ import json
 import secrets as pysecrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, UploadFile
-from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -17,7 +15,7 @@ from ..backtest.engine import BacktestConfig, run_backtest
 from ..backtest.readiness import live_readiness
 from ..config import get_settings
 from ..copy.signals import SignalIn, ingest_signal, publish
-from ..db import get_session
+from ..db import after_commit, get_session
 from ..discovery.service import ingest, load_history, ranking
 from ..discovery.sources import TraderData, parse_curve_csv, parse_trade_csv
 from ..events import get_bus
@@ -31,13 +29,15 @@ from ..security import encrypt_secret, fingerprint, verify_hmac_signature
 from ..services import state as st
 from ..services.portfolio import minutes_to_rollover, ny_rollover
 from .deps import COMMANDS, device
+from .web import APIRouter, BaseModel, Body, Depends, Field, File, Form, HTTPException, Request, UploadFile
 
 router = APIRouter(prefix="/api")
 auth = [Depends(device)]
 
 
 def _command(kind: str, **data):
-    get_bus().publish(COMMANDS, {"cmd": kind, **data})
+    # published after the request's transaction commits, so the engine sees the rows it refers to
+    after_commit(lambda: get_bus().publish(COMMANDS, {"cmd": kind, **data}))
 
 
 # ================================================================ dashboard
@@ -214,16 +214,18 @@ def trader(tid: int, s: Session = Depends(get_session)):
         "score_history": [{"t": x.as_of.isoformat(), "score": x.score} for x in reversed(scores)],
         "equity_curve": curve, "recent_trades": trades, "allocations": allocs,
         "signal_source_configured": bool((tr.signal_source or {}).get("secret_hash")),
+        "source_account": {k: (tr.signal_source or {}).get(k) for k in ("type", "credential_id", "environment", "since")}
+        if (tr.signal_source or {}).get("type") else None,
     }
 
 
 @router.post("/traders/import", dependencies=auth)
-async def import_trader(name: str = Form(...), platform: str = Form(...), market: str = Form("forex"),
+def import_trader(name: str = Form(...), platform: str = Form(...), market: str = Form("forex"),
                         broker: str | None = Form(None), description: str | None = Form(None),
                         trades_csv: UploadFile | None = File(None), curve_csv: UploadFile | None = File(None),
                         s: Session = Depends(get_session), dev=Depends(device)):
-    trades = parse_trade_csv((await trades_csv.read()).decode("utf-8", "replace")) if trades_csv else []
-    curve = parse_curve_csv((await curve_csv.read()).decode("utf-8", "replace")) if curve_csv else []
+    trades = parse_trade_csv(trades_csv.file.read().decode("utf-8", "replace")) if trades_csv else []
+    curve = parse_curve_csv(curve_csv.file.read().decode("utf-8", "replace")) if curve_csv else []
     if not trades and not curve:
         raise HTTPException(400, "no trades or curve rows could be parsed")
     td = TraderData(platform=platform, external_id=f"manual:{name}", name=name, source="manual_import", broker=broker,
@@ -259,6 +261,44 @@ def signal_source(tid: int, s: Session = Depends(get_session), dev=Depends(devic
     audit(s, f"device:{dev.id}", "trader.signal_source", f"trader:{tid}", fingerprint=fingerprint(secret))
     return {"webhook_path": f"/api/signals/webhook/{tid}", "secret": secret,
             "signature": "hex(HMAC_SHA256(secret, f'{X-Titan-Timestamp}.{raw_body}')) in X-Titan-Signature"}
+
+
+class SourceAccountIn(BaseModel):
+    credential_id: int
+    environment: str = Field("demo", pattern=r"^(demo|live)$")
+
+
+@router.post("/traders/{tid}/source-account", dependencies=auth)
+def source_account(tid: int, body: SourceAccountIn, s: Session = Depends(get_session), dev=Depends(device)):
+    """Use one of the owner's connected accounts as this trader's signal source (polled; no webhook needed)"""
+    from ..copy.sources import SOURCE_TYPES
+    tr = s.get(Trader, tid) or _404()
+    c = s.get(Credential, body.credential_id) or _404()
+    if c.venue not in SOURCE_TYPES:
+        raise HTTPException(400, f"{c.venue} cannot be a signal source (use Binance futures, MT5 or cTrader)")
+    market = Market.CRYPTO if c.venue.startswith("binance") else Market.FOREX
+    if tr.market != market:
+        raise HTTPException(400, "account market does not match the trader's market")
+    tr.signal_source = {**(tr.signal_source or {}), "type": c.venue, "credential_id": c.id,
+                        "environment": c.environment, "since": datetime.now(timezone.utc).isoformat()}
+    tr.copy_capability = CopyCapability.AUTHORIZED_SIGNALS
+    st.put(s, f"source:{tid}", {})   # new baseline: positions open right now are not copied
+    audit(s, f"device:{dev.id}", "trader.source_account", f"trader:{tid}", credential_id=c.id, venue=c.venue)
+    return {"trader_id": tid, "source": c.venue, "note": "positions already open on the source are not copied"}
+
+
+@router.delete("/traders/{tid}/source-account", dependencies=auth)
+def remove_source_account(tid: int, s: Session = Depends(get_session), dev=Depends(device)):
+    """Stop polling the trader's source account"""
+    tr = s.get(Trader, tid) or _404()
+    src = dict(tr.signal_source or {})
+    for k in ("type", "credential_id", "environment", "since"):
+        src.pop(k, None)
+    tr.signal_source = src
+    if not src.get("secret_enc"):
+        tr.copy_capability = CopyCapability.MONITOR_ONLY
+    audit(s, f"device:{dev.id}", "trader.source_account_removed", f"trader:{tid}")
+    return {"trader_id": tid}
 
 
 # ================================================================ allocations
@@ -301,13 +341,13 @@ def upsert_allocation(body: AllocationIn, s: Session = Depends(get_session), dev
 
 # ================================================================ signals
 @router.post("/signals/webhook/{tid}")
-async def webhook(tid: int, request: Request, s: Session = Depends(get_session)):
+def webhook(tid: int, request: Request, raw_body: bytes = b"", s: Session = Depends(get_session)):
     tr = s.get(Trader, tid)
     if tr is None or not (tr.signal_source or {}).get("secret_enc"):
         raise HTTPException(404, "no authorised signal source")
     from ..security import decrypt_secret
     secret = decrypt_secret(tr.signal_source["secret_enc"], f"signal|{tid}")["secret"]
-    body = await request.body()
+    body = raw_body
     if not verify_hmac_signature(secret, body, request.headers.get("X-Titan-Timestamp", ""),
                                  request.headers.get("X-Titan-Signature", "")):
         raise HTTPException(401, "bad signature or timestamp")
@@ -315,9 +355,9 @@ async def webhook(tid: int, request: Request, s: Session = Depends(get_session))
     data["trader_id"] = tid
     sig = SignalIn.model_validate(data)
     row, created = ingest_signal(s, sig, f"webhook:{tid}", payload=data)
-    s.commit()
     if created:
-        publish(row.id)
+        rid = row.id
+        after_commit(lambda: publish(rid))
     return {"signal_id": row.id, "duplicate": not created}
 
 

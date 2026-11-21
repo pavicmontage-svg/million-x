@@ -83,6 +83,47 @@ class Runtime:
                 if bid and ask:
                     FOREX_PAPER_FEED.update(g.symbol, bid, ask, g.source_ts.timestamp())
 
+    def recover_signals(self):
+        """Re-queue signals that were received but never processed (process died mid-way).
+        Processing is idempotent, so re-delivery is harmless."""
+        from .models import SignalStatus
+        with session_scope() as s:
+            ids = list(s.scalars(select(Signal.id).where(Signal.status == SignalStatus.RECEIVED).order_by(Signal.id)))
+        for sid in ids:
+            self.bus.publish(SIGNALS, {"signal_id": sid})
+        if ids:
+            log.info("re-queued %d unprocessed signals", len(ids))
+
+    def sources_loop(self):
+        """Poll owner-authorised source accounts and turn position changes into signals."""
+        from .copy.sources import SourceTracker, active_source_traders, build_source
+        trackers: dict[int, tuple[int, SourceTracker]] = {}
+        errors: dict[int, str] = {}
+        while not self.stop.is_set():
+            try:
+                wanted = {tid: (cid, venue) for tid, cid, venue in active_source_traders()}
+                for tid in list(trackers):
+                    if tid not in wanted or trackers[tid][0] != wanted[tid][0]:
+                        trackers.pop(tid)
+                for tid, (cid, venue) in wanted.items():
+                    if tid not in trackers:
+                        with session_scope() as s:
+                            from .models import Trader
+                            tr = s.get(Trader, tid)
+                            src = build_source(tr, credential(s, cid), venue)
+                        trackers[tid] = (cid, SourceTracker(tid, src))
+                for tid, (_, tracker) in list(trackers.items()):
+                    try:
+                        tracker.poll()
+                        errors.pop(tid, None)
+                    except Exception as e:
+                        if errors.get(tid) != str(e):
+                            log.warning("source %s poll failed: %s", tid, e)
+                            errors[tid] = str(e)
+            except Exception:
+                log.exception("sources loop error")
+            self.stop.wait(2)
+
     def commands_loop(self):
         self.bus.ensure_group(COMMANDS, GROUP)
         while not self.stop.is_set():
@@ -163,16 +204,34 @@ class Runtime:
                 log.exception("periodic loop error")
             self.stop.wait(1)
 
-    def run(self):
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    def start(self, scheduler: bool = False) -> list[threading.Thread]:
+        """Start all loops as daemon threads (server: run(); Android: called from the app)."""
         from .db import init_db
         init_db()
         self.load_adapters()
         self.heartbeat()
-        threads = [threading.Thread(target=f, name=f.__name__, daemon=True)
-                   for f in (self.signals_loop, self.commands_loop, self.periodic)]
+        self.bus.ensure_group(SIGNALS, GROUP)
+        self.recover_signals()
+        loops = [self.signals_loop, self.commands_loop, self.periodic, self.sources_loop]
+        if scheduler:
+            from .scheduler import Scheduler
+            loops.append(Scheduler(self.stop).loop)
+        threads = [threading.Thread(target=f, name=f.__name__, daemon=True) for f in loops]
         for t in threads:
             t.start()
+        self.threads = threads
+        return threads
+
+    def shutdown(self, reason: str = "Engine process shut down."):
+        self.stop.set()
+        with session_scope() as s:
+            st.put(s, st.ENGINE, {"status": "stopped", "heartbeat": None,
+                                  "stopped_at": datetime.now(timezone.utc).isoformat()})
+            notify(s, "copy_engine_stopped", "Copy engine stopped", reason, severity="critical")
+
+    def run(self):
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+        self.start(scheduler=False)
 
         def _stop(*_):
             log.info("shutting down engine")
@@ -181,8 +240,4 @@ class Runtime:
         signal.signal(signal.SIGINT, _stop)
         while not self.stop.is_set():
             time.sleep(0.5)
-        with session_scope() as s:
-            st.put(s, st.ENGINE, {"status": "stopped", "heartbeat": None,
-                                  "stopped_at": datetime.now(timezone.utc).isoformat()})
-            notify(s, "copy_engine_stopped", "Copy engine stopped", "Engine process shut down.", severity="critical")
-        _ = Position
+        self.shutdown()

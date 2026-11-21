@@ -4,6 +4,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
+    id("com.chaquo.python")
 }
 
 android {
@@ -17,6 +18,9 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // arm64-v8a = real phones; x86_64 = emulator (CI). Phone-only APK: -PtitanAbis=arm64-v8a
+        val abis = (project.findProperty("titanAbis") as String? ?: "arm64-v8a,x86_64").split(",").map { it.trim() }
+        ndk { abiFilters += abis }
     }
 
     signingConfigs {
@@ -52,6 +56,29 @@ android {
     lint {
         abortOnError = false
         checkReleaseBuilds = false
+    }
+}
+
+// The whole TITAN engine (copy engine, risk, agents, SQLite, API on 127.0.0.1) runs ON THE PHONE
+// in embedded Python. Packages mirror backend/requirements-android.txt (no pydantic: no Android build).
+chaquopy {
+    defaultConfig {
+        version = "3.12"
+        pip {
+            install("numpy==1.26.2")
+            install("cryptography==42.0.8")
+            install("SQLAlchemy==2.1.9")
+            install("starlette==1.10.0")
+            install("uvicorn==0.54.0")
+            install("websockets==17.4")
+            install("httpx==0.28.1")
+            install("python-multipart==0.0.34")
+        }
+    }
+    sourceSets {
+        getByName("main") {
+            srcDir("../../backend")
+        }
     }
 }
 

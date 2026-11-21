@@ -123,33 +123,53 @@ def llm_available() -> bool:
 
 
 def llm_review(system_prompt: str, analysis: dict) -> tuple[dict, str, int, int]:
-    """Claude review of a deterministic analysis -> validated structured output."""
-    import anthropic
+    """Claude review of a deterministic analysis -> validated structured output.
 
+    Uses the official Anthropic SDK. When the backend runs embedded in the Android app the SDK
+    cannot be installed (it depends on pydantic-core, which has no Android build), so the same
+    request is sent over HTTPS directly.
+    """
     st = get_settings()
-    client = anthropic.Anthropic(api_key=st.anthropic_api_key, max_retries=2, timeout=120)
     content = ("Deterministic analysis (JSON; null means UNKNOWN - do not estimate it):\n"
                + json.dumps(analysis, default=str, indent=1)[:150_000]
                + "\n\nReturn your review. tighten_actions may only block or reduce risk (risk_multiplier value "
                  "between 0 and 1); leave it empty if none are warranted.")
-    resp = client.beta.messages.create(
+    params = dict(
         model=st.llm_model,
         max_tokens=16000,
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
         thinking={"type": "adaptive"},
         output_config={"effort": st.llm_effort, "format": {"type": "json_schema", "schema": REVIEW_SCHEMA}},
         system=system_prompt,
         messages=[{"role": "user", "content": content}],
     )
-    if resp.stop_reason == "refusal":
+    try:
+        import anthropic
+    except ImportError:
+        anthropic = None
+    if anthropic is not None:
+        client = anthropic.Anthropic(api_key=st.anthropic_api_key, max_retries=2, timeout=120)
+        resp = client.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **params)
+        stop, model = resp.stop_reason, resp.model
+        text = next((b.text for b in resp.content if getattr(b, "type", "") == "text"), "")
+        tin, tout = resp.usage.input_tokens, resp.usage.output_tokens
+    else:
+        import httpx
+        r = httpx.post("https://api.anthropic.com/v1/messages", timeout=180, json={**params, "fallbacks": "default"},
+                       headers={"x-api-key": st.anthropic_api_key, "anthropic-version": "2023-06-01",
+                                "anthropic-beta": "server-side-fallback-2026-07-01", "content-type": "application/json"})
+        if r.status_code >= 400:
+            raise RuntimeError(f"Anthropic API HTTP {r.status_code}: {r.text[:300]}")
+        d = r.json()
+        stop, model = d.get("stop_reason"), d.get("model", st.llm_model)
+        text = next((b.get("text", "") for b in d.get("content", []) if b.get("type") == "text"), "")
+        tin, tout = d.get("usage", {}).get("input_tokens", 0), d.get("usage", {}).get("output_tokens", 0)
+    if stop == "refusal":
         raise RuntimeError("model declined to review this analysis")
-    if resp.stop_reason == "max_tokens":
+    if stop == "max_tokens":
         raise RuntimeError("review truncated (max_tokens)")
-    text = next((b.text for b in resp.content if getattr(b, "type", "") == "text"), "")
     review = json.loads(text)
     review["tighten_actions"] = [a for a in review.get("tighten_actions", []) if valid_tighten(a)]
-    return review, resp.model, resp.usage.input_tokens, resp.usage.output_tokens
+    return review, model, tin, tout
 
 
 def valid_tighten(a: dict) -> bool:

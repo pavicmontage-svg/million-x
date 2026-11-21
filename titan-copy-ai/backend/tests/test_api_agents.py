@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
+from starlette.testclient import TestClient
 from sqlalchemy import select
 
 from tests.test_analytics import disciplined

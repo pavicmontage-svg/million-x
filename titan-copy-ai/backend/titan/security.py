@@ -92,6 +92,13 @@ def redeem_pairing_code(s: Session, code: str, device_name: str) -> str | None:
     return token
 
 
+def issue_device_token(s: Session, device_name: str) -> str:
+    """Directly issue a token (used only in-process by the Android app for its own embedded engine)."""
+    token = secrets.token_urlsafe(32)
+    s.add(Device(name=device_name[:120], token_hash=_h(token)))
+    return token
+
+
 def authenticate(s: Session, token: str) -> Device | None:
     if not token:
         return None

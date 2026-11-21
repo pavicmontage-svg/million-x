@@ -1,3 +1,4 @@
+"""Starlette application (runs on a server and embedded in the Android app)."""
 from __future__ import annotations
 
 import asyncio
@@ -5,11 +6,13 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from starlette.routing import WebSocketRoute
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import __version__
 from ..config import get_settings
@@ -20,43 +23,18 @@ from ..security import authenticate, redeem_pairing_code
 from ..services import state as st
 from ..services.http import RateLimiter
 from .routes import router
+from .web import APIRouter, Body, Depends, HTTPException, Request, json_response
 
 log = logging.getLogger("titan.api")
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    from ..discovery.service import seed_watchlist
-    from ..services.venues import ensure_default_portfolios
-    with session_scope() as s:
-        ensure_default_portfolios(s)
-        seed_watchlist(s)
-    yield
-
-
-app = FastAPI(title="TITAN COPY AI", version=__version__, lifespan=lifespan,
-              description="Control-plane API for the TITAN copy-trading backend. All trading runs in the engine "
-                          "process; the API never places orders itself.")
-cfg = get_settings()
-if cfg.cors_origins:
-    app.add_middleware(CORSMiddleware, allow_origins=cfg.cors_origins, allow_methods=["*"], allow_headers=["*"])
-
+core = APIRouter(prefix="/api")
 _pair_limits: dict[str, RateLimiter] = {}   # per-client brute-force protection on pairing
 
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    resp = await call_next(request)
-    resp.headers["X-Content-Type-Options"] = "nosniff"
-    resp.headers["Cache-Control"] = "no-store"
-    resp.headers["Referrer-Policy"] = "no-referrer"
-    return resp
-
-
-@app.get("/api/health")
+@core.get("/health")
 def health():
-    out = {"service": "titan", "version": __version__, "time": datetime.now(timezone.utc).isoformat()}
+    """Service health (database, event bus, engine heartbeat)"""
+    out = {"service": "titan", "version": __version__, "time": datetime.now(timezone.utc).isoformat(),
+           "embedded": get_settings().embedded}
     try:
         with db_engine().connect() as c:
             c.execute(text("SELECT 1"))
@@ -72,12 +50,13 @@ def health():
     hb = eng.get("heartbeat")
     out["engine"] = "ok" if hb and (datetime.now(timezone.utc) - datetime.fromisoformat(hb)).total_seconds() < 90 else "down"
     ok = out["database"] == "ok" and out["redis"] == "ok"
-    return JSONResponse(out, status_code=200 if ok else 503)
+    return json_response(out, 200 if ok else 503)
 
 
-@app.post("/api/pair")
+@core.post("/pair")
 def pair(request: Request, code: str = Body(embed=True), device_name: str = Body("android", embed=True),
          s: Session = Depends(get_session)):
+    """Exchange a one-time pairing code for a device token"""
     ip = request.client.host if request.client else "?"
     lim = _pair_limits.setdefault(ip, RateLimiter(1 / 60, 5))   # 5 attempts, then 1 per minute
     if not lim.try_acquire():
@@ -90,7 +69,6 @@ def pair(request: Request, code: str = Body(embed=True), device_name: str = Body
     return {"token": token}
 
 
-@app.websocket("/api/ws")
 async def ws(websocket: WebSocket):
     token = websocket.query_params.get("token", "")
     with session_scope() as s:
@@ -113,4 +91,42 @@ async def ws(websocket: WebSocket):
         return
 
 
-app.include_router(router)
+@asynccontextmanager
+async def lifespan(app):
+    init_db()
+    from ..discovery.service import seed_watchlist
+    from ..services.venues import ensure_default_portfolios
+    with session_scope() as s:
+        ensure_default_portfolios(s)
+        seed_watchlist(s)
+    yield
+
+
+class SecurityHeaders:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers += [(b"x-content-type-options", b"nosniff"), (b"cache-control", b"no-store"),
+                            (b"referrer-policy", b"no-referrer")]
+                message["headers"] = headers
+            await send(message)
+        await self.app(scope, receive, send_wrapper)
+
+
+def build_app() -> Starlette:
+    middleware = [Middleware(SecurityHeaders)]
+    if get_settings().cors_origins:
+        middleware.append(Middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["*"],
+                                     allow_headers=["*"]))
+    routes = core.routes() + router.routes() + [WebSocketRoute("/api/ws", ws)]
+    return Starlette(routes=routes, middleware=middleware, lifespan=lifespan)
+
+
+app = build_app()

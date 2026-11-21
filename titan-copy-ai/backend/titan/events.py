@@ -89,6 +89,8 @@ class MemoryBus(EventBus):
             self._seq += 1
             mid = f"{self._seq}-0"
             self._streams[stream].append((mid, json.loads(json.dumps(event, default=str))))
+            if len(self._streams[stream]) > 20_000 and stream != SIGNALS and stream != "titan:commands":
+                del self._streams[stream][:10_000]
             self._lock.notify_all()
         for cb in list(self.subscribers):
             try:
@@ -119,8 +121,14 @@ class MemoryBus(EventBus):
 
     def tail(self, stream, last_id, block_ms=0):
         with self._lock:
-            n = int(last_id.split("-")[0]) if last_id not in ("$", "0") else 0
-            return [(m, e) for m, e in self._streams[stream] if int(m.split("-")[0]) > n]
+            if last_id == "$":
+                last_id = f"{self._seq}-0"      # only events published from now on
+            n = int(last_id.split("-")[0]) if last_id != "0" else 0
+            items = [(m, e) for m, e in self._streams[stream] if int(m.split("-")[0]) > n]
+            if not items and block_ms:
+                self._lock.wait(block_ms / 1000)
+                items = [(m, e) for m, e in self._streams[stream] if int(m.split("-")[0]) > n]
+            return items[-1000:]
 
     def ping(self) -> bool:
         return True

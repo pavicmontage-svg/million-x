@@ -78,12 +78,35 @@ class AppVm(app: Application) : AndroidViewModel(app) {
     private val _pairError = MutableStateFlow<String?>(null)
     val pairError: StateFlow<String?> = _pairError.asStateFlow()
     private var socket: WebSocket? = null
+    private val _localStatus = MutableStateFlow<String?>(null)
+    val localStatus: StateFlow<String?> = _localStatus.asStateFlow()
 
-    init { if (repo.store.isPaired) connectLive() }
+    init {
+        if (repo.store.localMode) {
+            // the engine may already be running in the foreground service; make sure it is
+            com.titan.copyai.engine.LocalEngine.start(getApplication())
+        }
+        if (repo.store.isPaired) connectLive()
+    }
+
+    /** Run the whole engine on this phone (no server). */
+    fun startLocal() = viewModelScope.launch {
+        _pairError.value = null
+        val err = com.titan.copyai.engine.LocalEngine.startLocal(getApplication(), onStatus = { _localStatus.value = it })
+        _localStatus.value = null
+        if (err != null) {
+            _pairError.value = err
+        } else {
+            _paired.value = true
+            connectLive()
+        }
+    }
 
     fun pair(url: String, code: String) = viewModelScope.launch {
         _pairError.value = null
         try {
+            if (repo.store.localMode) com.titan.copyai.engine.LocalEngine.stop(getApplication())
+            repo.store.localMode = false
             repo.pair(url, code, android.os.Build.MODEL ?: "android")
             _paired.value = true
             connectLive()
@@ -94,6 +117,7 @@ class AppVm(app: Application) : AndroidViewModel(app) {
 
     fun logout() = viewModelScope.launch {
         socket?.close(1000, "logout")
+        if (repo.store.localMode) com.titan.copyai.engine.LocalEngine.stop(getApplication())
         repo.logout()
         _paired.value = false
     }

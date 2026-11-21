@@ -1,58 +1,67 @@
 # API reference
 
-Generated from the FastAPI application (`python -m titan.cli api` also serves interactive OpenAPI docs at `/docs`).
-All endpoints except `/api/health`, `/api/pair` and the signed webhook require `Authorization: Bearer <device token>`.
+The same API runs on the phone (bound to 127.0.0.1, used by the app itself) and on an optional server.
+Implemented on Starlette (no pydantic, which has no Android build). All endpoints except `/api/health`,
+`/api/pair` and the signed webhook require `Authorization: Bearer <device token>`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/agents` | Agents |
-| POST | `/api/agents/{name}/run` | Run Agent |
-| GET | `/api/agents/{name}/runs` | Agent Runs |
-| GET | `/api/allocations` | Allocations |
-| POST | `/api/allocations` | Upsert Allocation |
-| GET | `/api/analytics/{tid}` | Analytics |
-| GET | `/api/audit` | Audit Log |
-| GET | `/api/audit/verify` | Audit Verify |
-| POST | `/api/backtest` | Backtest |
-| GET | `/api/connections` | Connections |
-| POST | `/api/connections` | Add Connection |
-| DELETE | `/api/connections/{cid}` | Delete Connection |
-| POST | `/api/connections/{cid}/portfolio` | Attach Portfolio |
-| POST | `/api/connections/{cid}/verify` | Verify Connection |
-| GET | `/api/dashboard` | Dashboard |
-| POST | `/api/devices/fcm` | Fcm |
-| GET | `/api/emergency` | Emergency |
-| POST | `/api/emergency/flatten` | Emergency Flatten |
-| POST | `/api/emergency/release` | Emergency Release |
-| POST | `/api/emergency/stop` | Emergency Stop |
-| POST | `/api/emergency/trader/{tid}/stop` | Emergency Trader |
-| GET | `/api/health` | Health |
-| POST | `/api/live/approve` | Approve Live |
-| GET | `/api/notifications` | Notifications |
-| POST | `/api/notifications/read` | Mark Read |
-| GET | `/api/orders` | Orders |
-| POST | `/api/pair` | Pair |
-| GET | `/api/portfolios` | Portfolios |
-| PATCH | `/api/portfolios/{pid}` | Patch Portfolio |
-| GET | `/api/portfolios/{pid}/equity` | Equity |
-| POST | `/api/portfolios/{pid}/reactivate` | Reactivate |
-| GET | `/api/positions` | Positions |
-| POST | `/api/positions/{pos_id}/close` | Close Position |
-| GET | `/api/readiness` | Readiness |
-| GET | `/api/risk` | Risk |
-| GET | `/api/settings` | Settings View |
-| GET | `/api/signals` | Signals |
-| POST | `/api/signals/webhook/{tid}` | Webhook |
-| GET | `/api/traders` | Traders |
-| POST | `/api/traders/import` | Import Trader |
-| GET | `/api/traders/{tid}` | Trader |
-| POST | `/api/traders/{tid}/signal-source` | Signal Source |
-| POST | `/api/traders/{tid}/status` | Trader Status |
+| GET | `/api/agents` | agents |
+| POST | `/api/agents/{name}/run` | run agent |
+| GET | `/api/agents/{name}/runs` | agent runs |
+| GET | `/api/allocations` | allocations |
+| POST | `/api/allocations` | upsert allocation |
+| GET | `/api/analytics/{tid}` | analytics |
+| GET | `/api/audit` | audit log |
+| GET | `/api/audit/verify` | audit verify |
+| POST | `/api/backtest` | backtest |
+| GET | `/api/connections` | connections |
+| POST | `/api/connections` | add connection |
+| DELETE | `/api/connections/{cid}` | delete connection |
+| POST | `/api/connections/{cid}/portfolio` | attach portfolio |
+| POST | `/api/connections/{cid}/verify` | verify connection |
+| GET | `/api/dashboard` | dashboard |
+| POST | `/api/devices/fcm` | fcm |
+| GET | `/api/emergency` | emergency |
+| POST | `/api/emergency/flatten` | emergency flatten |
+| POST | `/api/emergency/release` | emergency release |
+| POST | `/api/emergency/stop` | emergency stop |
+| POST | `/api/emergency/trader/{tid}/stop` | emergency trader |
+| GET | `/api/health` | Service health (database, event bus, engine heartbeat) |
+| POST | `/api/live/approve` | approve live |
+| GET | `/api/notifications` | notifications |
+| POST | `/api/notifications/read` | mark read |
+| GET | `/api/orders` | orders |
+| POST | `/api/pair` | Exchange a one-time pairing code for a device token |
+| GET | `/api/portfolios` | portfolios |
+| PATCH | `/api/portfolios/{pid}` | patch portfolio |
+| GET | `/api/portfolios/{pid}/equity` | equity |
+| POST | `/api/portfolios/{pid}/reactivate` | reactivate |
+| GET | `/api/positions` | positions |
+| POST | `/api/positions/{pos_id}/close` | close position |
+| GET | `/api/readiness` | readiness |
+| GET | `/api/risk` | risk |
+| GET | `/api/settings` | settings view |
+| GET | `/api/signals` | signals |
+| POST | `/api/signals/webhook/{tid}` | webhook |
+| GET | `/api/traders` | traders |
+| POST | `/api/traders/import` | import trader |
+| GET | `/api/traders/{tid}` | trader |
+| POST | `/api/traders/{tid}/signal-source` | Create (or rotate) the HMAC secret an authorised provider uses to sign webhook signals. |
+| DELETE | `/api/traders/{tid}/source-account` | Stop polling the trader's source account |
+| POST | `/api/traders/{tid}/source-account` | Use one of the owner's connected accounts as this trader's signal source (polled; no webhook needed) |
+| POST | `/api/traders/{tid}/status` | trader status |
 
 ## Live events
 `GET /api/ws?token=<device token>` (WebSocket) streams JSON events: `notification`, `position`, `signal`, `portfolio`.
 
-## Authorised signal webhook
+## Authorised signal sources
+
+On the phone, signals come from **source accounts** the engine polls (`POST /api/traders/{id}/source-account`
+with a Binance futures, MT5-bridge or cTrader credential): new position → open, closed → close, reduced → partial close,
+SL/TP changed → modify. Positions already open when a source is connected are not copied.
+
+## Authorised signal webhook (server mode only - a phone has no public address)
 ```
 POST /api/signals/webhook/{trader_id}
 X-Titan-Timestamp: <unix ms>
