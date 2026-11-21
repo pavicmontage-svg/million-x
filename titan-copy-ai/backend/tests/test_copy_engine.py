@@ -18,7 +18,12 @@ NOW = lambda: datetime.now(timezone.utc)  # noqa: E731
 
 
 @pytest.fixture()
-def env(db):
+def env(db, monkeypatch):
+    # Deterministic: tests must not depend on how close the real clock is to the NY 17:00 forex rollover
+    # (new forex entries are blocked 15 min before it and positions are flattened 10 min before it).
+    rollover = {"min": 600.0}
+    monkeypatch.setattr("titan.copy.engine.minutes_to_rollover", lambda *a: rollover["min"])
+    monkeypatch.setattr("titan.copy.monitor.minutes_to_rollover", lambda *a: rollover["min"])
     feed = PushFeed(max_age_s=3600)
     for sym, b, a in [("EURUSD", 1.08000, 1.08002), ("GBPUSD", 1.27, 1.27003), ("USDJPY", 150.0, 150.003),
                       ("XAUUSD", 2400.0, 2400.3), ("AUDUSD", 0.66, 0.66002), ("EURGBP", 0.85, 0.85002)]:
@@ -34,7 +39,7 @@ def env(db):
     broker = PaperBroker("paper_forex", "forex", "EUR", 500.0, feed, SimParams(slippage_bps=0, seed=1),
                          session_factory=db.session_scope)
     eng = CopyEngine({pid: broker})
-    return dict(db=db, feed=feed, broker=broker, eng=eng, pid=pid, tid=tid, tid2=tid2)
+    return dict(db=db, feed=feed, broker=broker, eng=eng, pid=pid, tid=tid, tid2=tid2, rollover=rollover)
 
 
 def send(env, kind="open", pos="P1", sym="EURUSD", side="buy", entry=1.08002, sl=1.07800, tp=1.08500, ts=None,
@@ -264,3 +269,26 @@ def test_audit_chain_survives_negative_zero_and_nan(db):
         audit(s, "test", "x", pnl=-0.0, nested={"a": [float("nan"), -0.0, 1.5]}, inf=float("inf"))
     with db.session_scope() as s:
         assert verify_chain(s)["valid"] is True
+
+
+def test_forex_rollover_blocks_entries_and_flattens(env):
+    """No uncontrolled overnight exposure: no new forex entries 15 min before the NY 17:00 rollover,
+    open forex positions are closed 10 min before it."""
+    send(env)
+    env["rollover"]["min"] = 12
+    _, _, out = send(env, pos="P2", sym="GBPUSD", entry=1.27003, sl=1.268, tp=None, trader=env["tid2"])
+    assert out[0].action == "rejected" and "rollover" in out[0].reason
+    assert positions(env, PositionStatus.OPEN)          # 12 min: entries blocked, position kept
+    env["rollover"]["min"] = 8
+    r = monitor_portfolio(env["eng"], env["pid"])
+    assert r["rollover_closed"][0]["action"] == "closed"
+    assert positions(env, PositionStatus.OPEN) == []
+    assert positions(env)[0].close_reason == "forex_rollover_flat"
+
+
+def test_ny_rollover_time_handles_dst():
+    from datetime import datetime, timezone
+
+    from titan.services.portfolio import ny_rollover
+    assert ny_rollover(datetime(2026, 7, 1, 12, tzinfo=timezone.utc)).hour == 21    # EDT: 17:00 = 21:00 UTC
+    assert ny_rollover(datetime(2026, 12, 1, 12, tzinfo=timezone.utc)).hour == 22   # EST: 17:00 = 22:00 UTC
