@@ -1,0 +1,107 @@
+name: titan-copy-ai
+
+on:
+  push:
+    paths: ["titan-copy-ai/**", ".github/workflows/titan.yml"]
+  pull_request:
+    paths: ["titan-copy-ai/**", ".github/workflows/titan.yml"]
+  workflow_dispatch:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: {POSTGRES_PASSWORD: test, POSTGRES_DB: titan_test}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+    defaults: {run: {working-directory: titan-copy-ai/backend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install -r requirements-dev.txt
+      - name: Tests on SQLite
+        run: python -m pytest -q
+      - name: Tests on PostgreSQL
+        env: {TITAN_TEST_DATABASE_URL: "postgresql+psycopg://postgres:test@localhost:5432/titan_test"}
+        run: python -m pytest -q
+      - name: Binance demo connectivity probe (informational; Binance blocks some runner regions)
+        continue-on-error: true
+        run: python -m titan.cli binance-check
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: titan-copy-ai/backend}}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the production compose stack
+        run: |
+          cp .env.example .env
+          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 16)/; s/^TITAN_DOMAIN=.*/TITAN_DOMAIN=localhost/" .env
+          mkdir -p secrets backups && sudo chown 10001:10001 backups
+          openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n' > secrets/titan_master_key
+          docker compose config -q
+          docker compose build -q
+          docker compose up -d postgres redis api engine worker
+          for i in $(seq 1 40); do docker compose exec -T api curl -fsS localhost:8080/api/health && break; sleep 3; done
+          CODE=$(docker compose exec -T api python -m titan.cli pair | tr -d '\r')
+          TOKEN=$(docker compose exec -T api curl -s -X POST localhost:8080/api/pair -H 'content-type: application/json' \
+                  -d "{\"code\":\"$CODE\",\"device_name\":\"ci\"}" | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
+          docker compose exec -T api curl -fsS localhost:8080/api/dashboard -H "authorization: Bearer $TOKEN" | head -c 400; echo
+          docker compose exec -T worker python -c "from titan.worker import backup; print(backup())"
+          docker compose exec -T postgres createdb -U titan titan_restore
+          docker compose cp backups/$(ls backups | head -1) postgres:/tmp/b.dump
+          docker compose exec -T postgres pg_restore -U titan -d titan_restore /tmp/b.dump
+          docker compose exec -T postgres psql -U titan -d titan_restore -tAc "select count(*) from portfolios" | grep -q 2
+          sleep 45 && docker compose ps
+          docker compose logs --tail 30 engine
+          docker compose down -v
+
+  android:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: titan-copy-ai/android}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: "17"}
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Optional release keystore (secret TITAN_KEYSTORE_B64)
+        env: {KS: "${{ secrets.TITAN_KEYSTORE_B64 }}"}
+        run: if [ -n "$KS" ]; then echo "$KS" | base64 -d > "$RUNNER_TEMP/titan.jks"; echo "TITAN_KEYSTORE_FILE=$RUNNER_TEMP/titan.jks" >> "$GITHUB_ENV"; fi
+      - name: Build debug APK + unit tests + minified release
+        env:
+          TITAN_KEYSTORE_PASSWORD: ${{ secrets.TITAN_KEYSTORE_PASSWORD }}
+          TITAN_KEY_ALIAS: ${{ secrets.TITAN_KEY_ALIAS }}
+          TITAN_KEY_PASSWORD: ${{ secrets.TITAN_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug testDebugUnitTest assembleRelease assembleDebugAndroidTest -PtestSigning
+      - uses: actions/upload-artifact@v4
+        with:
+          name: titan-apk
+          path: |
+            titan-copy-ai/android/app/build/outputs/apk/debug/app-debug.apk
+            titan-copy-ai/android/app/build/outputs/apk/release/app-release.apk
+
+  android-emulator:
+    runs-on: ubuntu-latest
+    needs: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: "17"}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Instrumented launch test on Android 14
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          working-directory: titan-copy-ai/android
+          script: chmod +x gradlew && ./gradlew --no-daemon connectedDebugAndroidTest

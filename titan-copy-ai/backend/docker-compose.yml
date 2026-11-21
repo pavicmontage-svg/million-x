@@ -1,0 +1,76 @@
+# TITAN COPY AI - production stack. Start: docker compose up -d
+x-app: &app
+  build: .
+  image: titan-backend:1.0.0
+  env_file: .env
+  environment:
+    TITAN_DATABASE_URL: postgresql+psycopg://titan:${POSTGRES_PASSWORD}@postgres:5432/titan
+    TITAN_REDIS_URL: redis://redis:6379/0
+    TITAN_MASTER_KEY_FILE: /run/secrets/titan_master_key
+  restart: unless-stopped
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+  secrets: [titan_master_key]
+  logging: {driver: json-file, options: {max-size: "20m", max-file: "5"}}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: titan
+      POSTGRES_USER: titan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U titan -d titan"], interval: 10s, timeout: 5s, retries: 10}
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes: [redisdata:/data]
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 10}
+
+  api:
+    <<: *app
+    command: ["python", "-m", "titan.cli", "api"]
+    expose: ["8080"]
+
+  engine:
+    <<: *app
+    command: ["python", "-m", "titan.cli", "engine"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://api:8080/api/health | grep -q '\"engine\":\"ok\"'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    stop_grace_period: 30s
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "titan.worker", "worker", "-B", "--loglevel=info", "--concurrency=2",
+              "--schedule=/tmp/celerybeat-schedule"]
+    volumes: [./backups:/backups]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A titan.worker inspect ping -d celery@$$HOSTNAME --timeout 10 | grep -q pong"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment: {TITAN_DOMAIN: "${TITAN_DOMAIN}"}
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddydata:/data]
+    depends_on: [api]
+
+secrets:
+  titan_master_key:
+    file: ./secrets/titan_master_key
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  caddydata: {}

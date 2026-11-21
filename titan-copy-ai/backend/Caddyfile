@@ -1,0 +1,9 @@
+{$TITAN_DOMAIN} {
+    encode gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Frame-Options "DENY"
+        -Server
+    }
+    reverse_proxy api:8080
+}

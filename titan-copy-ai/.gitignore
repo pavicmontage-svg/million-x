@@ -1,0 +1,15 @@
+# secrets & runtime data (never commit)
+backend/.env
+backend/secrets/
+backend/backups/
+**/*.db
+**/__pycache__/
+.pytest_cache/
+# android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.kotlin/
+# built APKs are published by CI, not committed
+dist/
