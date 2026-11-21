@@ -73,6 +73,7 @@ chaquopy {
             install("websockets==17.4")
             install("httpx==0.28.1")
             install("python-multipart==0.0.34")
+            install("tzdata==2026.6")   // Android has no system zoneinfo database (forex NY rollover)
         }
     }
     sourceSets {

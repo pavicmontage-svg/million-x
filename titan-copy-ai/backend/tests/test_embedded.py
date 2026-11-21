@@ -126,6 +126,7 @@ def test_android_entry_starts_full_stack(tmp_path):
     """Starts exactly what the Android service starts (in a fresh process) and talks to it over 127.0.0.1."""
     from titan.security import generate_master_key
     env = {k: v for k, v in os.environ.items() if not k.startswith("TITAN_")}
+    env["PYTHONTZPATH"] = "/nonexistent"   # like Android: no system time-zone database (needs the tzdata package)
     backend = Path(__file__).resolve().parents[1]
     r = subprocess.run([sys.executable, "-c", ENTRY, str(tmp_path), generate_master_key()], cwd=backend, env=env,
                        capture_output=True, text=True, timeout=180)

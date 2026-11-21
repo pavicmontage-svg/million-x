@@ -27,15 +27,22 @@ jobs:
       - name: Tests on PostgreSQL
         env: {TITAN_TEST_DATABASE_URL: "postgresql+psycopg://postgres:test@localhost:5432/titan_test"}
         run: python -m pytest -q
-      - name: Tests in the Android-equivalent environment (Python 3.12, only packages that exist on Android)
-        run: |
-          python3.12 -m venv /tmp/android-like || (sudo apt-get install -y python3.12-venv && python3.12 -m venv /tmp/android-like)
-          /tmp/android-like/bin/pip install -q -r requirements-android.txt pytest
-          /tmp/android-like/bin/python -c "import importlib.util as u; assert not any(u.find_spec(m) for m in ['pydantic','fastapi','celery','redis','psycopg'])"
-          /tmp/android-like/bin/python -m pytest -q -p no:cacheprovider
       - name: Binance demo connectivity probe (informational; Binance blocks some runner regions)
         continue-on-error: true
         run: python -m titan.cli binance-check
+
+  backend-android-env:
+    # Exactly the packages embedded in the APK (requirements-android.txt) on Python 3.12, no system tz database
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: titan-copy-ai/backend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-android.txt pytest
+      - name: No server-only packages present
+        run: python -c "import importlib.util as u; bad=[m for m in ['pydantic','fastapi','celery','redis','psycopg','anthropic'] if u.find_spec(m)]; assert not bad, bad"
+      - run: python -m pytest -q -p no:cacheprovider
 
   docker-smoke:
     runs-on: ubuntu-latest

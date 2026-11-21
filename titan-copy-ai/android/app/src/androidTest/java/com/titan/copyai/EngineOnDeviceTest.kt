@@ -20,7 +20,9 @@ class EngineOnDeviceTest {
         val (ok, status) = LocalEngine.probe(ctx)
         assertTrue("health: $status", ok)
         val repo = (ctx.applicationContext as TitanApp).repo
-        val d = repo.api.dashboard()
+        val d = try { repo.api.dashboard() } catch (e: Exception) {
+            throw AssertionError("dashboard failed: ${e.message}\n--- engine log ---\n${LocalEngine.logTail(ctx)}", e)
+        }
         assertEquals(listOf("Forex Paper", "Crypto Paper"), d.portfolios.map { it.name })
         assertTrue(d.copyEngine.toString(), d.copyEngine["running"].toString() == "true")
         assertEquals(7, repo.api.traders().count { it.platform in setOf("zulutrade", "ctrader_copy") })
