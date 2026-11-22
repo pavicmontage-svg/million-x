@@ -102,8 +102,9 @@ def build_adapter(s: Session, p: Portfolio) -> ExecutionAdapter:
     if p.venue == "ctrader":
         from ..adapters.forex.ctrader import CTraderAdapter, CTraderConnection
 
+        from ..adapters.forex.ctrader_auth import resolve_account_id
         conn = CTraderConnection(env, cred["client_id"], cred["client_secret"], cred["access_token"],
-                                 int(cred["account_id"]))
+                                 resolve_account_id(cred, env))
         ad = CTraderAdapter(conn, env, p.base_currency)
         ad.connect(FOREX_SYMBOLS)
         ad.listeners.append(lambda ev: None)

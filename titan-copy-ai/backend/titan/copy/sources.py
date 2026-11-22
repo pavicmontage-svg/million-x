@@ -195,8 +195,9 @@ def build_source(trader: Trader, credential: dict, venue: str) -> PositionSource
     if venue == "ctrader":
         from ..adapters.forex.ctrader import CTraderAdapter, CTraderConnection
         env = trader.signal_source.get("environment", "demo")
+        from ..adapters.forex.ctrader_auth import resolve_account_id
         ad = CTraderAdapter(CTraderConnection(env, credential["client_id"], credential["client_secret"],
-                                              credential["access_token"], int(credential["account_id"])), env)
+                                              credential["access_token"], resolve_account_id(credential, env)), env)
         from ..services.venues import FOREX_SYMBOLS
         ad.connect(FOREX_SYMBOLS)
         return AdapterSource(ad)

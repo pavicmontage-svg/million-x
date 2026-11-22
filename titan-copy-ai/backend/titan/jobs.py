@@ -146,3 +146,28 @@ def backup():
         if f.startswith("titan-") and datetime.fromtimestamp(os.path.getmtime(fp), timezone.utc) < cutoff:
             os.remove(fp)
     return path
+
+
+def refresh_ctrader_tokens(days_before: float = 7.0) -> int:
+    """cTrader access tokens last ~30 days: refresh them a week before they expire."""
+    import time
+
+    from .adapters.forex.ctrader_auth import refresh
+    from .db import session_scope
+    from .models import Credential
+    from .security import decrypt_secret, encrypt_secret
+    n = 0
+    with session_scope() as s:
+        for c in s.scalars(select(Credential).where(Credential.venue == "ctrader")):
+            aad = f"{c.venue}|{c.environment}|{c.label}"
+            data = decrypt_secret(c.ciphertext, aad)
+            if not data.get("refresh_token") or float(data.get("expires_at") or 0) - time.time() > days_before * 86400:
+                continue
+            try:
+                data.update(refresh(data["client_id"], data["client_secret"], data["refresh_token"]))
+                c.ciphertext = encrypt_secret(data, aad)
+                n += 1
+            except Exception as e:
+                log.warning("cTrader token refresh failed for %s: %s", c.label, e)
+                c.verify_result = {**(c.verify_result or {}), "ok": False, "error": f"token refresh failed: {e}"}
+    return n

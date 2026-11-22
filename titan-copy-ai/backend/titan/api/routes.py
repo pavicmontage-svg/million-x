@@ -541,7 +541,7 @@ class CredentialIn(BaseModel):
 
 REQUIRED = {"binance_spot": {"api_key", "api_secret"}, "binance_usdm": {"api_key", "api_secret"},
             "binance_coinm": {"api_key", "api_secret"},
-            "ctrader": {"client_id", "client_secret", "access_token", "account_id"},
+            "ctrader": {"client_id", "client_secret", "access_token"},   # account_id optional: resolved from the token
             "mt5": {"url", "secret"}, "myfxbook": {"email", "password"}, "darwinex": {"token"}}
 
 
@@ -613,6 +613,123 @@ def delete_connection(cid: int, s: Session = Depends(get_session), dev=Depends(d
     s.delete(c)
     audit(s, f"device:{dev.id}", "credential.deleted", f"credential:{cid}")
     return {"deleted": True}
+
+
+# ================================================================ cTrader login (OAuth)
+OAUTH_TTL_S = 20 * 60
+
+
+class CTraderStartIn(BaseModel):
+    client_id: str = Field(min_length=5, max_length=200)
+    client_secret: str = Field(min_length=5, max_length=200)
+    label: str = Field("cTrader", min_length=1, max_length=120)
+    redirect_uri: str | None = Field(None, max_length=500)
+
+
+def _oauth_key(state: str) -> str:
+    if not state.isalnum() or len(state) > 64:
+        raise HTTPException(400, "invalid state")
+    return f"ctrader_oauth:{state}"
+
+
+def _oauth_load(s: Session, state: str) -> dict:
+    from ..security import decrypt_secret
+    row = st.get(s, _oauth_key(state))
+    if not row or datetime.now(timezone.utc).timestamp() - row.get("created", 0) > OAUTH_TTL_S:
+        raise HTTPException(404, "login session expired - start again")
+    return {**row, **decrypt_secret(row["enc"], f"oauth|{state}")}
+
+
+def _oauth_save(s: Session, state: str, data: dict) -> None:
+    public = {k: data[k] for k in ("created", "status", "error", "accounts", "label", "redirect_uri") if k in data}
+    secret = {k: data[k] for k in ("client_id", "client_secret", "tokens") if k in data}
+    st.put(s, _oauth_key(state), {**public, "enc": encrypt_secret(secret, f"oauth|{state}")})
+
+
+@router.post("/ctrader/oauth/start", dependencies=auth)
+def ctrader_start(request: Request, body: CTraderStartIn, s: Session = Depends(get_session)):
+    """Start the cTrader login: returns the official authorisation link to open in the browser"""
+    from ..adapters.forex.ctrader_auth import authorize_url
+    state = pysecrets.token_hex(16)
+    redirect = body.redirect_uri or (str(request.base_url).rstrip("/") + "/api/ctrader/callback")
+    _oauth_save(s, state, {"created": datetime.now(timezone.utc).timestamp(), "status": "waiting_for_login",
+                           "label": body.label, "redirect_uri": redirect, "client_id": body.client_id.strip(),
+                           "client_secret": body.client_secret.strip()})
+    return {"state": state, "authorize_url": authorize_url(body.client_id.strip(), redirect, state),
+            "redirect_uri": redirect}
+
+
+def _oauth_complete(s: Session, state: str, code_or_url: str) -> dict:
+    from ..adapters.forex.ctrader_auth import code_from, exchange_code, list_accounts
+    d = _oauth_load(s, state)
+    try:
+        tokens = exchange_code(d["client_id"], d["client_secret"], code_from(code_or_url), d["redirect_uri"])
+        accounts = list_accounts(d["client_id"], d["client_secret"], tokens["access_token"], "demo")
+        d.update(tokens=tokens, accounts=accounts, status="choose_account", error=None)
+    except Exception as e:
+        d.update(status="error", error=str(e)[:300])
+    _oauth_save(s, state, d)
+    return {"status": d["status"], "error": d.get("error"), "accounts": d.get("accounts", [])}
+
+
+@router.get("/ctrader/callback")
+def ctrader_callback(code: str = "", state: str = "", error: str = "", s: Session = Depends(get_session)):
+    """Browser lands here after the cTrader login (redirect URI); no device token: validated by `state`"""
+    from starlette.responses import HTMLResponse
+    if error or not code or not state:
+        msg, ok = f"cTrader did not grant access: {error or 'no code'}", False
+    else:
+        r = _oauth_complete(s, state, code)
+        ok = r["status"] == "choose_account"
+        msg = "Connected. Go back to the TITAN app and choose your account." if ok else f"Failed: {r['error']}"
+    color = "#2ECC8F" if ok else "#FF5D6C"
+    return HTMLResponse(f"<html><head><meta name='viewport' content='width=device-width'></head>"
+                        f"<body style='background:#0A0E13;color:#E6EDF3;font-family:sans-serif;padding:24px'>"
+                        f"<h2 style='color:{color}'>TITAN Copy AI</h2><p>{msg}</p></body></html>")
+
+
+@router.post("/ctrader/oauth/{state}/code", dependencies=auth)
+def ctrader_code(state: str, code_or_url: str = Body(embed=True), s: Session = Depends(get_session)):
+    """Fallback: paste the address the browser showed after the login (or just the code)"""
+    return _oauth_complete(s, state, code_or_url)
+
+
+@router.get("/ctrader/oauth/{state}", dependencies=auth)
+def ctrader_status(state: str, s: Session = Depends(get_session)):
+    """Login progress and, once logged in, the accounts this token can trade"""
+    d = _oauth_load(s, state)
+    return {"status": d["status"], "error": d.get("error"), "accounts": d.get("accounts", []),
+            "redirect_uri": d.get("redirect_uri")}
+
+
+@router.post("/ctrader/oauth/{state}/finish", dependencies=auth)
+def ctrader_finish(state: str, account_id: int = Body(embed=True), s: Session = Depends(get_session),
+                   dev=Depends(device)):
+    """Save the chosen account as an encrypted cTrader connection"""
+    d = _oauth_load(s, state)
+    acc = next((a for a in d.get("accounts", []) if a["account_id"] == account_id), None)
+    if acc is None or not d.get("tokens"):
+        raise HTTPException(409, "log in first and choose one of the listed accounts")
+    env = "live" if acc["is_live"] else "demo"
+    if env == "live" and not get_settings().live_trading_enabled:
+        raise HTTPException(409, "this is a LIVE account; live trading is disabled - use a cTrader demo account")
+    fields = {"client_id": d["client_id"], "client_secret": d["client_secret"], **d["tokens"],
+              "account_id": acc["account_id"], "trader_login": acc["trader_login"], "broker": acc["broker"]}
+    label = f"{d['label']} {acc['trader_login']}"
+    old = s.scalar(select(Credential).where(Credential.venue == "ctrader", Credential.environment == env,
+                                            Credential.label == label))
+    c = old or Credential(venue="ctrader", environment=env, label=label, ciphertext="", fingerprint="")
+    c.ciphertext = encrypt_secret(fields, f"ctrader|{env}|{label}")
+    c.fingerprint = fingerprint(f"{d['client_id']}:{acc['account_id']}")
+    c.verify_result = {"ok": True, "broker": acc["broker"], "trader_login": acc["trader_login"], "account_id": acc["account_id"]}
+    c.verified_at = datetime.now(timezone.utc)
+    if old is None:
+        s.add(c)
+    s.flush()
+    st.put(s, _oauth_key(state), {})
+    audit(s, f"device:{dev.id}", "credential.added", f"credential:{c.id}", venue="ctrader", env=env,
+          broker=acc["broker"], trader_login=acc["trader_login"])
+    return {"id": c.id, "label": label, "environment": env, "broker": acc["broker"]}
 
 
 # ================================================================ notifications / settings / audit

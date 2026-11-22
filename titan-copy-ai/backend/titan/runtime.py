@@ -162,6 +162,12 @@ class Runtime:
                     from .adapters.forex.mt5 import MT5BridgeAdapter
                     a = MT5BridgeAdapter(data["url"], data["secret"]).account()
                     result = {"ok": True, "currency": a.currency, "equity": a.equity}
+                elif c.venue == "ctrader":
+                    from .adapters.forex.ctrader_auth import list_accounts, resolve_account_id
+                    acc_id = resolve_account_id(data, c.environment)
+                    acc = next(a for a in list_accounts(data["client_id"], data["client_secret"], data["access_token"],
+                                                        c.environment) if a["account_id"] == acc_id)
+                    result = {"ok": True, "account_id": acc_id, "trader_login": acc["trader_login"], "broker": acc["broker"]}
                 elif c.venue == "myfxbook":
                     from .discovery.sources import MyfxbookSource
                     src = MyfxbookSource(data["email"], data["password"])

@@ -21,6 +21,7 @@ app.conf.update(task_acks_late=True, worker_prefetch_multiplier=1, timezone="UTC
                     "audit-agent": {"task": "titan.worker.run_agent", "schedule": 6 * 3600, "args": ("audit_performance",)},
                     "weekly-report": {"task": "titan.worker.weekly_report", "schedule": crontab(hour=18, minute=7, day_of_week=0)},
                     "backup": {"task": "titan.worker.backup", "schedule": crontab(hour=2, minute=17)},
+                    "ctrader-tokens": {"task": "titan.worker.refresh_ctrader_tokens", "schedule": 12 * 3600},
                 })
 
 refresh_sources = app.task(name="titan.worker.refresh_sources")(jobs.refresh_sources)
@@ -29,3 +30,4 @@ run_agent = app.task(name="titan.worker.run_agent")(jobs.run_agent)
 market_intelligence = app.task(name="titan.worker.market_intelligence")(jobs.market_intelligence)
 weekly_report = app.task(name="titan.worker.weekly_report")(jobs.weekly_report)
 backup = app.task(name="titan.worker.backup")(jobs.backup)
+refresh_ctrader_tokens = app.task(name="titan.worker.refresh_ctrader_tokens")(jobs.refresh_ctrader_tokens)

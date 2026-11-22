@@ -10,6 +10,15 @@
 5. To copy: open a trader → *Copy from: <your account>* (source account) or import history and approve; enable it in
    *Copy Portfolio*. Paper mode (€500 / 500 USDT, SIMULATED) is active from the start.
 
+### Connecting cTrader from the phone
+1. At **openapi.ctrader.com** (cTrader ID login) → *Applications* → your app → add the Redirect URI shown in the app
+   (default `http://127.0.0.1:8765/api/ctrader/callback`). Spotware must have approved the app.
+2. TITAN → *Broker Connections* → **Log in with cTrader**: enter Client ID + Client Secret → the official cTrader login
+   opens → Allow → back in TITAN pick your **demo** account (shown with the account number you know).
+3. TITAN stores the token encrypted on the phone and refreshes it before it expires (~30 days). If the portal does not
+   accept a `127.0.0.1` redirect, register any https address you like, enter the same address in the app's
+   *Redirect URI* field, and after Allow paste the browser's address into the app (within one minute).
+
 Everything below (sections 1-5) is only needed for the optional server deployment.
 
 ## 1. Server (the permanent execution engine)

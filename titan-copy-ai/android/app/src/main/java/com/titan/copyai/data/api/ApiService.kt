@@ -56,6 +56,10 @@ interface ApiService {
     @POST("api/connections/{id}/verify") suspend fun verifyConnection(@Path("id") id: Int): JsonObject
     @POST("api/connections/{id}/portfolio") suspend fun attachPortfolio(@Path("id") id: Int, @Body body: JsonObject): JsonObject
     @DELETE("api/connections/{id}") suspend fun deleteConnection(@Path("id") id: Int): JsonObject
+    @POST("api/ctrader/oauth/start") suspend fun ctraderStart(@Body body: JsonObject): JsonObject
+    @GET("api/ctrader/oauth/{state}") suspend fun ctraderStatus(@Path("state") state: String): JsonObject
+    @POST("api/ctrader/oauth/{state}/code") suspend fun ctraderCode(@Path("state") state: String, @Body body: JsonObject): JsonObject
+    @POST("api/ctrader/oauth/{state}/finish") suspend fun ctraderFinish(@Path("state") state: String, @Body body: JsonObject): JsonObject
 
     @GET("api/notifications") suspend fun notifications(@Query("limit") limit: Int = 100,
                                                         @Query("after_id") afterId: Long = 0): List<NotificationDto>

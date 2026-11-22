@@ -25,6 +25,7 @@ JOBS = [
     ("refresh_sources", 6 * 3600, jobs.refresh_sources),
     ("rescore", 6 * 3600, jobs.rescore_all),
     ("backup", 24 * 3600, jobs.backup),
+    ("ctrader_tokens", 12 * 3600, jobs.refresh_ctrader_tokens),
     ("weekly_report", 7 * 24 * 3600, jobs.weekly_report),
 ]
 
