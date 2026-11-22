@@ -22,7 +22,8 @@ import time
 import MetaTrader5 as mt5  # type: ignore
 from fastapi import FastAPI, HTTPException, Request
 
-SECRET = os.environ.get("TITAN_BRIDGE_SECRET", "")
+_SECRET_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridge_secret.txt")
+SECRET = os.environ.get("TITAN_BRIDGE_SECRET") or (open(_SECRET_FILE).read().strip() if os.path.exists(_SECRET_FILE) else "")
 MAGIC = int(os.environ.get("TITAN_MAGIC", "7240001"))
 app = FastAPI(title="TITAN MT5 bridge")
 
@@ -45,6 +46,28 @@ async def auth(request: Request, call_next):
 def _need_init():
     if not mt5.initialize():
         raise HTTPException(503, f"MT5 initialize failed: {mt5.last_error()}")
+
+
+_SYM_CACHE: dict[str, str] = {}
+
+
+def _sym(name: str) -> str:
+    """Broker symbol for a canonical name (EURUSD -> EURUSD, EURUSD.r, EURUSDm, EURUSD-ECN, GOLD for XAUUSD...)."""
+    if name in _SYM_CACHE:
+        return _SYM_CACHE[name]
+    if mt5.symbol_info(name) is not None:
+        _SYM_CACHE[name] = name
+        return name
+    base = name.upper()
+    aliases = {"XAUUSD": ("XAUUSD", "GOLD")}.get(base, (base,))
+    cands = [s.name for s in (mt5.symbols_get() or [])
+             if any(s.name.upper().replace("/", "").startswith(a) and len(s.name) - len(a) <= 5 for a in aliases)]
+    if not cands:
+        raise HTTPException(404, f"symbol {name} not offered by this broker")
+    best = min(cands, key=len)          # the plainest variant (e.g. EURUSD.r before EURUSD.r.raw)
+    mt5.symbol_select(best, True)
+    _SYM_CACHE[name] = best
+    return best
 
 
 def _pos(p):
@@ -78,6 +101,7 @@ def positions():
 @app.get("/symbol/{symbol}")
 def symbol(symbol: str):
     _need_init()
+    symbol = _sym(symbol)
     mt5.symbol_select(symbol, True)
     s = mt5.symbol_info(symbol)
     if s is None:
@@ -90,7 +114,7 @@ def symbol(symbol: str):
 @app.get("/tick/{symbol}")
 def tick(symbol: str):
     _need_init()
-    t = mt5.symbol_info_tick(symbol)
+    t = mt5.symbol_info_tick(_sym(symbol))
     if t is None:
         raise HTTPException(404, "no tick")
     return {"bid": t.bid, "ask": t.ask, "time_msc": t.time_msc}
@@ -109,6 +133,7 @@ def _filling(symbol):
 async def open_(request: Request):
     _need_init()
     r = await request.json()
+    r["symbol"] = _sym(r["symbol"])
     t = mt5.symbol_info_tick(r["symbol"])
     req = {"action": mt5.TRADE_ACTION_DEAL, "symbol": r["symbol"], "volume": float(r["volume"]),
            "type": mt5.ORDER_TYPE_BUY if r["side"] == "buy" else mt5.ORDER_TYPE_SELL,
@@ -126,7 +151,7 @@ async def open_(request: Request):
 async def modify(request: Request):
     _need_init()
     r = await request.json()
-    res = mt5.order_send({"action": mt5.TRADE_ACTION_SLTP, "position": int(r["ticket"]), "symbol": r["symbol"],
+    res = mt5.order_send({"action": mt5.TRADE_ACTION_SLTP, "position": int(r["ticket"]), "symbol": _sym(r["symbol"]),
                           "sl": float(r["sl"] or 0), "tp": float(r.get("tp") or 0), "magic": MAGIC})
     return {"retcode": res.retcode, "done": res.retcode == mt5.TRADE_RETCODE_DONE, "comment": res.comment}
 

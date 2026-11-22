@@ -58,7 +58,14 @@ def normalize_symbol(sym: str) -> str:
     for suffix in (".PRO", ".M", ".R", ".ECN", ".RAW", "+", ".", "M"):
         if s.endswith(suffix) and s[: -len(suffix)] in INSTRUMENTS:
             s = s[: -len(suffix)]
-    return {"GOLD": "XAUUSD"}.get(s, s)
+    s = {"GOLD": "XAUUSD"}.get(s, s)
+    if s not in INSTRUMENTS:   # broker suffixes such as EURUSDECN, EURUSDA, GOLDPRO
+        for canon in INSTRUMENTS:
+            if s.startswith(canon) and len(s) - len(canon) <= 5:
+                return canon
+        if s.startswith("GOLD") and len(s) <= 9:
+            return "XAUUSD"
+    return s
 
 
 def spec(symbol: str) -> InstrumentSpec:

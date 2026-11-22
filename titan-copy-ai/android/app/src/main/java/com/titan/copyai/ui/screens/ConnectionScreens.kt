@@ -50,7 +50,10 @@ private val BROKERS = listOf(
         "Easier: use 'Log in with cTrader' above. Here account_id is optional and may be the account number you see " +
             "in cTrader; it is resolved from the token automatically."),
     VenueSpec("mt5", "MetaTrader 5 (self-hosted bridge)", listOf("url" to false, "secret" to true),
-        "Run bridges/mt5_bridge.py next to your logged-in MT5 terminal (Windows). Your MT5 password never leaves that machine."),
+        "Needs a Windows PC with MetaTrader 5 open and logged in, switched on while copying. On the PC run " +
+            "START_TITAN_BRIDGE.bat (TITAN-MT5-Bridge.zip) and install Tailscale on the PC and on this phone (same " +
+            "account). Enter the url (http://100.x.x.x:8765) and the secret the window shows. Your MT5 password never " +
+            "leaves the PC."),
     VenueSpec("myfxbook", "Myfxbook API (monitoring)", listOf("email" to false, "password" to true),
         "Official Myfxbook API: your own and watched accounts. Monitoring only - Myfxbook AutoTrade has no public API."),
     VenueSpec("darwinex", "Darwinex DARWIN Info API (monitoring)", listOf("token" to true),

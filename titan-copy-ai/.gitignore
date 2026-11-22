@@ -13,3 +13,4 @@ android/local.properties
 android/.kotlin/
 # built APKs are published by CI, not committed
 dist/
+backend/bridges/bridge_secret.txt
