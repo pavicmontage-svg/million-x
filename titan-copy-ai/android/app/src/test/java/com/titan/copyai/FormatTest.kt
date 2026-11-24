@@ -30,6 +30,8 @@ class FormatTest {
     @Test fun parsesBackendTimestamps() {
         val ms = Fmt.epochMillis("2026-11-21T19:54:44.680842+00:00")
         assertEquals(1795290884680L, ms)
+        // SQLite on the phone (older rows) returns no offset: it is UTC
+        assertEquals(1795290884680L, Fmt.epochMillis("2026-11-21T19:54:44.680842"))
     }
 
     @Test fun decodesDashboardWithUnknowns() {

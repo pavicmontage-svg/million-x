@@ -37,7 +37,9 @@ object Fmt {
 
     fun normalizeIso(s: String): String {
         // backend emits e.g. 2026-11-21T19:54:44.680842+00:00 -> Instant.parse needs Z or offset handling
-        return runCatching { java.time.OffsetDateTime.parse(s).toInstant().toString() }.getOrDefault(s)
+        return runCatching { java.time.OffsetDateTime.parse(s).toInstant().toString() }
+            .recoverCatching { java.time.LocalDateTime.parse(s).toInstant(java.time.ZoneOffset.UTC).toString() } // no offset = UTC
+            .getOrDefault(s)
     }
 
     fun epochMillis(iso: String): Long = runCatching { Instant.parse(normalizeIso(iso)).toEpochMilli() }.getOrDefault(0L)

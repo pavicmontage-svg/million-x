@@ -1,5 +1,9 @@
 package com.titan.copyai.ui.screens
 
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.buildJsonObject
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +53,39 @@ fun CopyPortfolioScreen() {
             item(key = "p${p.id}") {
                 Panel(title = "${p.name} (${p.currency})", trailing = { SimulatedBadge(p.simulated) }) {
                     val allocs = b.allocations.filter { it.portfolioId == p.id }
+                    val ready = b.traders.filter { it.market == p.market && it.status == "approved" &&
+                        it.copyCapability == "authorized_signals" }
+                    // ---- master switch
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Automatic copying", style = MaterialTheme.typography.titleMedium)
+                            Text(if (p.copyEnabled) "ON - new signals are copied within the risk limits" else "OFF - nothing is copied",
+                                style = MaterialTheme.typography.bodySmall, color = if (p.copyEnabled) Titan.Up else Titan.Muted)
+                        }
+                        Switch(checked = p.copyEnabled, enabled = p.status != "review_required", onCheckedChange = { on ->
+                            vm.action(if (on) "Copying ON for ${p.name}" else "Copying OFF for ${p.name}") {
+                                ctx.app.repo.api.patchPortfolio(p.id, buildJsonObject { put("copy_enabled", on) })
+                            }
+                        })
+                    }
+                    if (p.status == "review_required") Text("Maximum drawdown reached: review and reactivate on the Risk " +
+                        "screen first.", color = Titan.Down, style = MaterialTheme.typography.bodySmall)
+                    // ---- checklist: what is still missing before anything can be copied
+                    Spacer(Modifier.height(8.dp))
+                    Text("READY TO COPY?", style = MaterialTheme.typography.labelSmall, color = Titan.Muted)
+                    Check(p.copyEnabled, "Automatic copying switched on")
+                    Check(ready.isNotEmpty(), "A trader is approved and has a signal source " +
+                        "(${ready.size} ready for ${p.market})")
+                    Check(allocs.any { it.enabled }, "This portfolio follows at least one trader")
+                    Check(p.status == "active", "Portfolio status is active (now: ${p.status})")
+                    if (ready.isEmpty()) {
+                        Text("To get a ready trader: Trader Marketplace -> open a trader -> import its history so it gets " +
+                            "a score -> Approve -> 'Copy from: <account>' (your own account, or a read-only API key the " +
+                            "trader gave you).", style = MaterialTheme.typography.bodySmall, color = Titan.Muted)
+                        TextButton({ ctx.nav.navigate("traders") }) { Text("Open Trader Marketplace") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("FOLLOWED TRADERS", style = MaterialTheme.typography.labelSmall, color = Titan.Muted)
                     if (allocs.isEmpty()) Empty("Not following any trader yet")
                     allocs.forEach { a ->
                         var fraction by remember(a.id) { mutableFloatStateOf(a.capitalFraction.toFloat()) }
@@ -161,5 +198,15 @@ fun HistoryScreen() {
                 SimulatedBadge(p.simulated)
             }
         }
+    }
+}
+
+
+@Composable
+private fun Check(ok: Boolean, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+        Text(if (ok) "✓" else "✕", color = if (ok) Titan.Up else Titan.Down, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = if (ok) Titan.Text else Titan.Muted)
     }
 }

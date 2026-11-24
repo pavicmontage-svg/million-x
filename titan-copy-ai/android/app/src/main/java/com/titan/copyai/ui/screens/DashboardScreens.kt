@@ -170,7 +170,14 @@ fun PortfolioCard(p: PortfolioSummary, onClick: () -> Unit) {
         UsageBar("Daily loss-limit usage", p.dailyRiskUsagePct)
         if (!p.statusReason.isNullOrBlank()) Text(p.statusReason, color = Titan.Warn, style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 6.dp))
-        if (!p.copyEnabled) Text("Automatic copying is DISABLED", color = Titan.Down, style = MaterialTheme.typography.bodySmall)
+        if (!p.copyEnabled) {
+            val ctx = LocalCtx.current
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Text("Automatic copying is OFF", color = Titan.Down, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f))
+                androidx.compose.material3.TextButton({ ctx.nav.navigate("portfolio") }) { Text("Set up copying") }
+            }
+        }
     }
 }
 

@@ -292,3 +292,31 @@ def test_ny_rollover_time_handles_dst():
     from titan.services.portfolio import ny_rollover
     assert ny_rollover(datetime(2026, 7, 1, 12, tzinfo=timezone.utc)).hour == 21    # EDT: 17:00 = 21:00 UTC
     assert ny_rollover(datetime(2026, 12, 1, 12, tzinfo=timezone.utc)).hour == 22   # EST: 17:00 = 22:00 UTC
+
+
+def test_venue_portfolio_starting_capital_is_real_equity(env):
+    """Regression (seen on a phone): a Binance demo portfolio showed +4,500 'P&L' because the starting capital
+    was a fixed 500 while the demo account holds 5,000. Until the first copy, it follows the real equity."""
+    from titan.models import TradingMode
+    from titan.services.portfolio import build_state
+    with env["db"].session_scope() as s:
+        p = s.get(Portfolio, env["pid"])
+        p.mode = TradingMode.DEMO
+    env["broker"].state["balance"] = 5000.0
+    with env["db"].session_scope() as s:
+        p = s.get(Portfolio, env["pid"])
+        build_state(s, p, env["broker"])
+        assert p.initial_capital == 5000.0 and p.high_water_mark == 5000.0
+    send(env)                                    # after the first copied position the baseline is fixed
+    env["broker"].state["balance"] = 4000.0
+    with env["db"].session_scope() as s:
+        p = s.get(Portfolio, env["pid"])
+        build_state(s, p, env["broker"])
+        assert p.initial_capital == 5000.0
+
+
+def test_timestamps_are_utc_aware_on_every_database(env):
+    send(env)
+    with env["db"].session_scope() as s:
+        pos = s.scalar(select(Position))
+        assert pos.opened_at.tzinfo is not None and pos.opened_at.utcoffset().total_seconds() == 0

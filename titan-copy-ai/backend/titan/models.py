@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     BigInteger, Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, Numeric,
-    String, Text, UniqueConstraint,
+    String, Text, TypeDecorator, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,8 +26,25 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class UTCDateTime(TypeDecorator):
+    """Timezone-aware UTC datetimes on every backend. SQLite (the phone) stores no offset and returns naive
+    values; they are UTC by construction, so the zone is re-attached on load."""
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc) if value is not None else None
+
+    def process_result_value(self, value, dialect):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
+
 def TS(**kw):  # noqa: N802
-    return mapped_column(DateTime(timezone=True), **kw)
+    return mapped_column(UTCDateTime(), **kw)
 
 
 # --------------------------------------------------------------------------- enums

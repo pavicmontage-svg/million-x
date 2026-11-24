@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..adapters.base import AccountSnapshot, ExecutionAdapter
 from ..markets import crypto as cm
 from ..markets import forex as fx
-from ..models import Portfolio, Position, PositionStatus
+from ..models import Portfolio, Position, PositionStatus, TradingMode
 from ..risk.engine import OpenExposure, PortfolioState, RiskLimits
 from . import state as st
 
@@ -74,6 +74,13 @@ def limits_for(p: Portfolio) -> RiskLimits:
 
 def build_state(s: Session, p: Portfolio, adapter: ExecutionAdapter, snap: AccountSnapshot | None = None) -> tuple[PortfolioState, AccountSnapshot]:
     snap = snap or adapter.account()
+    if p.mode != TradingMode.PAPER and s.scalar(select(Position.id).where(Position.portfolio_id == p.id).limit(1)) is None:
+        # A venue account that has not copied anything yet: its starting capital is the real account equity
+        # (demo balances, deposits), so P&L and drawdown are measured from what the account actually holds.
+        if abs((p.initial_capital or 0) - snap.equity) > 1e-6:
+            p.initial_capital = snap.equity
+            p.high_water_mark = snap.equity
+            st.put(s, f"portfolio:{p.id}:periods", {})
     per = periods(s, p, snap.equity)
     if snap.equity > (p.high_water_mark or 0):
         p.high_water_mark = snap.equity
