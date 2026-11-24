@@ -19,6 +19,13 @@
    accept a `127.0.0.1` redirect, register any https address you like, enter the same address in the app's
    *Redirect URI* field, and after Allow paste the browser's address into the app (within one minute).
 
+### Connecting MetaTrader 5 from the phone
+MetaQuotes offers no API for the MT5 mobile app, so a **Windows PC with MetaTrader 5 open and logged in** must be on
+while copying. Unzip `TITAN-MT5-Bridge` (from `backend/bridges/`) on the PC, double-click
+`windows/START_TITAN_BRIDGE.bat` (installs the packages, creates the secret, opens a local page with a QR code), then in
+the app *Broker Connections* → **Scan QR from PC**. The QR carries the PC's Tailscale and home-network addresses and the
+secret; the app tries them and keeps the reachable one first. The pairing page is served only to the PC itself.
+
 Everything below (sections 1-5) is only needed for the optional server deployment.
 
 ## 1. Server (the permanent execution engine)

@@ -191,7 +191,7 @@ def build_source(trader: Trader, credential: dict, venue: str) -> PositionSource
                                                   credential["api_secret"]))
     if venue == "mt5":
         from ..adapters.forex.mt5 import MT5BridgeAdapter
-        return AdapterSource(MT5BridgeAdapter(credential["url"], credential["secret"]))
+        return AdapterSource(MT5BridgeAdapter(credential["url"], credential["secret"], alt_urls=credential.get("alt_urls")))
     if venue == "ctrader":
         from ..adapters.forex.ctrader import CTraderAdapter, CTraderConnection
         env = trader.signal_source.get("environment", "demo")

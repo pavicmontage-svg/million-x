@@ -8,8 +8,8 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Instaliram/azuriram pakete (MetaTrader5, fastapi, uvicorn)...
-py -3 -m pip install --upgrade --quiet MetaTrader5 fastapi uvicorn
+echo Instaliram/azuriram pakete (MetaTrader5, fastapi, uvicorn, qrcode)...
+py -3 -m pip install --upgrade --quiet MetaTrader5 fastapi uvicorn qrcode
 if not exist bridge_secret.txt py -3 -c "import secrets;open('bridge_secret.txt','w').write(secrets.token_urlsafe(18))"
 echo.
 echo ================= TITAN MT5 BRIDGE =================
@@ -23,5 +23,7 @@ echo    (ako iznad nema adrese: instalirajte Tailscale i prijavite se)
 echo.
 echo  MetaTrader 5 mora biti otvoren i prijavljen. Ne zatvarajte ovaj prozor.
 echo ====================================================
+echo  Otvaram stranicu s QR kodom u pregledniku...
+start "" cmd /c "timeout /t 5 >nul & start http://127.0.0.1:8765/pair"
 py -3 mt5_bridge.py --host 0.0.0.0 --port 8765
 pause

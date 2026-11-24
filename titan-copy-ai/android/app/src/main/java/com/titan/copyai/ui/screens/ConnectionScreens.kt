@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -49,11 +50,8 @@ private val BROKERS = listOf(
         "access_token" to true, "account_id" to false),
         "Easier: use 'Log in with cTrader' above. Here account_id is optional and may be the account number you see " +
             "in cTrader; it is resolved from the token automatically."),
-    VenueSpec("mt5", "MetaTrader 5 (self-hosted bridge)", listOf("url" to false, "secret" to true),
-        "Needs a Windows PC with MetaTrader 5 open and logged in, switched on while copying. On the PC run " +
-            "START_TITAN_BRIDGE.bat (TITAN-MT5-Bridge.zip) and install Tailscale on the PC and on this phone (same " +
-            "account). Enter the url (http://100.x.x.x:8765) and the secret the window shows. Your MT5 password never " +
-            "leaves the PC."),
+    VenueSpec("mt5", "MetaTrader 5 (manual, advanced)", listOf("url" to false, "secret" to true),
+        "Easier: use 'Scan QR from PC' above. Manual: enter the url and secret shown on the PC's pairing page."),
     VenueSpec("myfxbook", "Myfxbook API (monitoring)", listOf("email" to false, "password" to true),
         "Official Myfxbook API: your own and watched accounts. Monitoring only - Myfxbook AutoTrade has no public API."),
     VenueSpec("darwinex", "Darwinex DARWIN Info API (monitoring)", listOf("token" to true),
@@ -86,6 +84,7 @@ private fun ConnectionsScreen(key: String, specs: List<VenueSpec>, title: String
     val venues = specs.map { it.venue }.toSet()
     val vm = rememberLoad("conn-$key") { live(api.connections().filter { it.venue in venues }) }
     LoadedList(vm) { list ->
+        if (ctraderLogin) item { MT5QrPanel(onDone = { vm.refresh() }) }
         if (ctraderLogin) item { CTraderLoginPanel(onDone = { vm.refresh() }) }
         item { Text(note, style = MaterialTheme.typography.bodySmall, color = Titan.Muted) }
         items(list, key = { it.id }) { c -> ConnectionCard(c, vm) }
@@ -290,5 +289,63 @@ private fun CTraderLoginPanel(onDone: () -> Unit) {
             }
         }
         error?.let { Text(it, color = Titan.Down, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+
+/** MetaTrader 5: scan the QR code that START_TITAN_BRIDGE.bat opens on the Windows PC. */
+@Composable
+private fun MT5QrPanel(onDone: () -> Unit) {
+    val ctx = LocalCtx.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var ok by remember { mutableStateOf<Boolean?>(null) }
+    var live by remember { mutableStateOf(false) }
+
+    fun pair(payload: String) {
+        busy = true; result = "Connecting to your PC…"; ok = null
+        scope.launch {
+            try {
+                val r = ctx.app.repo.api.mt5Pair(buildJsonObject {
+                    put("payload", payload); put("environment", if (live) "live" else "demo")
+                })
+                val reachable = (r["reachable"] as? kotlinx.serialization.json.JsonArray)?.size ?: 0
+                ok = reachable > 0
+                result = if (ok == true)
+                    "Connected: ${r.at("label").s()} · ${r.at("account", "currency").s()} ${r.at("account", "equity").s()}"
+                else "Saved, but the PC is not reachable right now. Check that the bridge window is open and that " +
+                    "the phone is on the same Wi-Fi or Tailscale is on, then press Verify."
+                onDone()
+            } catch (e: Exception) {
+                ok = false; result = e.userMessage()
+            } finally { busy = false }
+        }
+    }
+
+    Panel(title = "MetaTrader 5 - scan QR from PC (recommended)") {
+        Text("1. On the Windows PC (MetaTrader 5 open and logged in) double-click START_TITAN_BRIDGE.bat from " +
+            "TITAN-MT5-Bridge.zip - a page with a QR code opens.\n2. Press the button below and scan it.",
+            style = MaterialTheme.typography.bodySmall, color = Titan.Muted)
+        Text("Away from home the phone reaches the PC through Tailscale (install it on both, same account); at home " +
+            "the same Wi-Fi is enough.", style = MaterialTheme.typography.bodySmall, color = Titan.Muted)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(false to "DEMO", true to "LIVE").forEach { (v, l) ->
+                FilterChip(selected = live == v, onClick = { live = v }, label = { Text(l) })
+            }
+        }
+        Button({
+            val options = com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build()
+            com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(context, options).startScan()
+                .addOnSuccessListener { code -> code.rawValue?.let { pair(it) } }
+                .addOnFailureListener { e -> ok = false; result = "Scanner unavailable: ${e.message}" }
+        }, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Connecting…" else "Scan QR from PC") }
+        result?.let {
+            Text(it, color = when (ok) { true -> Titan.Up; false -> Titan.Down; null -> Titan.Muted },
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+        }
     }
 }

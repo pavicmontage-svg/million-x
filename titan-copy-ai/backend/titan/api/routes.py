@@ -615,6 +615,64 @@ def delete_connection(cid: int, s: Session = Depends(get_session), dev=Depends(d
     return {"deleted": True}
 
 
+# ================================================================ MT5 pairing (QR from the PC)
+class MT5PairIn(BaseModel):
+    payload: str = Field(min_length=12, max_length=4000)
+    environment: str = Field("demo", pattern=r"^(demo|live)$")
+    label: str | None = Field(None, max_length=120)
+
+
+def decode_mt5_payload(payload: str) -> dict:
+    import base64
+    payload = payload.strip()
+    if not payload.startswith("titan-mt5:"):
+        raise HTTPException(400, "this QR code is not a TITAN MT5 pairing code")
+    raw = payload.split(":", 1)[1]
+    try:
+        d = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+    except Exception as e:
+        raise HTTPException(400, f"unreadable pairing code: {e}")
+    urls = [u for u in d.get("urls", []) if isinstance(u, str) and u.startswith("http")]
+    if not urls or not d.get("secret"):
+        raise HTTPException(400, "pairing code has no address or secret (is Tailscale running / is the PC online?)")
+    return {"urls": urls, "secret": str(d["secret"]), "name": str(d.get("name") or "MT5")[:60]}
+
+
+@router.post("/connections/mt5-pair", dependencies=auth)
+def mt5_pair(body: MT5PairIn, s: Session = Depends(get_session), dev=Depends(device)):
+    """Add an MT5 bridge from the QR code its pairing page shows (addresses + secret)"""
+    from ..adapters.forex.mt5 import MT5BridgeAdapter
+    if body.environment == "live" and not get_settings().live_trading_enabled:
+        raise HTTPException(409, "live trading is disabled on this device; use an MT5 demo account")
+    d = decode_mt5_payload(body.payload)
+    reachable, account, errors = [], None, {}
+    for u in d["urls"]:
+        try:
+            a = MT5BridgeAdapter(u, d["secret"]).account()
+            reachable.append(u)
+            account = account or {"currency": a.currency, "equity": a.equity, "server": a.raw.get("server"),
+                                  "login": a.raw.get("login")}
+        except Exception as e:
+            errors[u] = str(e)[:160]
+    ordered = reachable + [u for u in d["urls"] if u not in reachable]
+    label = body.label or f"MT5 {d['name']}"
+    fields = {"url": ordered[0], "alt_urls": ordered[1:], "secret": d["secret"]}
+    old = s.scalar(select(Credential).where(Credential.venue == "mt5", Credential.environment == body.environment,
+                                            Credential.label == label))
+    c = old or Credential(venue="mt5", environment=body.environment, label=label, ciphertext="", fingerprint="")
+    c.ciphertext = encrypt_secret(fields, f"mt5|{body.environment}|{label}")
+    c.fingerprint = fingerprint(d["secret"])
+    c.verify_result = {"ok": bool(reachable), **(account or {}),
+                       **({} if reachable else {"error": "PC not reachable right now: " + "; ".join(errors.values())})}
+    c.verified_at = datetime.now(timezone.utc)
+    if old is None:
+        s.add(c)
+    s.flush()
+    audit(s, f"device:{dev.id}", "credential.added", f"credential:{c.id}", venue="mt5", env=body.environment,
+          urls=len(ordered), reachable=len(reachable))
+    return {"id": c.id, "label": label, "reachable": reachable, "unreachable": errors, "account": account}
+
+
 # ================================================================ cTrader login (OAuth)
 OAUTH_TTL_S = 20 * 60
 

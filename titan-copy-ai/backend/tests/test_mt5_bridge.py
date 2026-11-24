@@ -89,3 +89,80 @@ def test_adapter_talks_to_bridge(bridge):
     bad = MT5BridgeAdapter("http://testserver", "wrong-secret", http=bridge)
     with pytest.raises(AdapterError, match="401"):
         bad.account()
+
+
+class DownExceptTestserver(httpx.BaseTransport if (httpx := __import__("httpx")) else object):
+    """Hosts other than 'testserver' behave like an unreachable PC address."""
+    def __init__(self, client):
+        self.inner = client._transport
+
+    def handle_request(self, request):
+        if request.url.host != "testserver":
+            raise httpx.ConnectError("unreachable", request=request)
+        resp = self.inner.handle_request(request)
+        resp.read()
+        return httpx.Response(resp.status_code, headers=resp.headers, content=resp.content, request=request)
+
+
+def test_pairing_page_only_local_and_qr_payload(bridge, monkeypatch):
+    mod = sys.modules["mt5_bridge"]
+    assert bridge.get("/pair").status_code == 403                   # from the network: refused
+    monkeypatch.setattr(mod, "LOCAL_HOSTS", mod.LOCAL_HOSTS | {"testclient"})
+    monkeypatch.setattr(mod, "_tailscale_ip", lambda: "100.64.0.9")
+    monkeypatch.setattr(mod, "_lan_ip", lambda: "192.168.1.20")
+    page = bridge.get("/pair")
+    assert page.status_code == 200 and "<svg" in page.text and "Scan QR from PC" in page.text
+    payload = mod.pair_payload(8765)
+    from titan.api.routes import decode_mt5_payload
+    d = decode_mt5_payload(payload)
+    assert d["urls"] == ["http://100.64.0.9:8765", "http://192.168.1.20:8765"] and d["secret"] == "s3cret-for-test"
+
+
+def test_adapter_falls_back_to_second_address(bridge):
+    import httpx
+
+    from titan.adapters.base import AdapterUnavailable, OpenRequest
+    from titan.adapters.forex.mt5 import MT5BridgeAdapter
+    http = httpx.Client(transport=DownExceptTestserver(bridge))
+    ad = MT5BridgeAdapter("http://100.64.0.9:8765", "s3cret-for-test", http=http, alt_urls=["http://testserver"])
+    assert ad.account().equity == 500.0 and ad.url == "http://testserver"      # GET switched address
+    ad2 = MT5BridgeAdapter("http://100.64.0.9:8765", "s3cret-for-test", http=http, alt_urls=["http://testserver"])
+    with pytest.raises(AdapterUnavailable):                                     # an order is NOT re-sent elsewhere
+        ad2.open_position(OpenRequest("tcx", "EURUSD", "buy", 0.01, sl=1.07))
+    assert ad2.url == "http://testserver"                                       # next attempt uses the other one
+
+
+def test_mt5_pair_api_orders_reachable_address_first(bridge, db, monkeypatch):
+    import httpx
+    from starlette.testclient import TestClient
+
+    from titan.adapters.forex import mt5 as mt5mod
+    from titan.api import app as appmod
+    mod = sys.modules["mt5_bridge"]
+    monkeypatch.setattr(mod, "_tailscale_ip", lambda: "100.64.0.9")
+    monkeypatch.setattr(mod, "_lan_ip", lambda: None)
+    real = mt5mod.MT5BridgeAdapter
+    http = httpx.Client(transport=DownExceptTestserver(bridge))
+    monkeypatch.setattr(mt5mod, "MT5BridgeAdapter", lambda u, sec, *a, **k: real(u, sec, http=http, **k))
+    import base64
+    import json
+    payload = "titan-mt5:" + base64.urlsafe_b64encode(json.dumps(
+        {"v": 1, "urls": ["http://100.64.0.9:8765", "http://testserver"], "secret": "s3cret-for-test",
+         "name": "HOME-PC"}).encode()).decode().rstrip("=")
+    appmod._pair_limits.clear()
+    with TestClient(appmod.app) as c:
+        c.headers["Authorization"] = "Bearer " + c.post("/api/pair", json={"code": "TEST-CODE-1234"}).json()["token"]
+        assert c.post("/api/connections/mt5-pair", json={"payload": "hello-not-a-titan-code"}).status_code == 400
+        r = c.post("/api/connections/mt5-pair", json={"payload": payload}).json()
+        assert r["reachable"] == ["http://testserver"] and r["account"]["equity"] == 500.0 and r["label"] == "MT5 HOME-PC"
+        conns = c.get("/api/connections").json()
+        assert conns[0]["venue"] == "mt5" and conns[0]["verify_result"]["ok"] is True
+        assert "s3cret-for-test" not in str(conns)
+    from sqlalchemy import select
+
+    from titan.models import Credential
+    from titan.security import decrypt_secret
+    with db.session_scope() as s:
+        cr = s.scalar(select(Credential).where(Credential.venue == "mt5"))
+        f = decrypt_secret(cr.ciphertext, f"mt5|demo|{cr.label}")
+        assert f["url"] == "http://testserver" and f["alt_urls"] == ["http://100.64.0.9:8765"]

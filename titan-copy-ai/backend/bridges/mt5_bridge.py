@@ -28,8 +28,16 @@ MAGIC = int(os.environ.get("TITAN_MAGIC", "7240001"))
 app = FastAPI(title="TITAN MT5 bridge")
 
 
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
 @app.middleware("http")
 async def auth(request: Request, call_next):
+    if request.url.path == "/pair":   # pairing page: only from this PC itself
+        if (request.client.host if request.client else "") in LOCAL_HOSTS:
+            return await call_next(request)
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "the pairing page is only available on this computer"}, status_code=403)
     if not SECRET:
         raise HTTPException(500, "TITAN_BRIDGE_SECRET not set")
     ts = request.headers.get("X-Titan-Ts", "0")
@@ -74,6 +82,75 @@ def _pos(p):
     return {"ticket": p.ticket, "symbol": p.symbol, "side": "buy" if p.type == mt5.POSITION_TYPE_BUY else "sell",
             "volume": p.volume, "price_open": p.price_open, "sl": p.sl or None, "tp": p.tp or None,
             "profit": p.profit, "comment": p.comment, "magic": p.magic, "time": p.time}
+
+
+def _tailscale_ip() -> str | None:
+    import shutil
+    import subprocess
+    exe = shutil.which("tailscale") or r"C:\Program Files\Tailscale\tailscale.exe"
+    try:
+        out = subprocess.run([exe, "ip", "-4"], capture_output=True, text=True, timeout=5).stdout.split()
+        return out[0] if out else None
+    except Exception:
+        return None
+
+
+def _lan_ip() -> str | None:
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sk:
+            sk.connect(("192.0.2.1", 80))   # no packet is sent; picks the outgoing interface
+            ip = sk.getsockname()[0]
+            return None if ip.startswith("127.") else ip
+    except OSError:
+        return None
+
+
+def pair_payload(port: int) -> str:
+    """QR content for the TITAN app: titan-mt5:<base64url(JSON)> with every address this PC can be reached on."""
+    import base64
+    import json
+    urls = [f"http://{ip}:{port}" for ip in (_tailscale_ip(), _lan_ip()) if ip]
+    data = {"v": 1, "urls": urls, "secret": SECRET, "name": os.environ.get("COMPUTERNAME", "MT5 PC")}
+    return "titan-mt5:" + base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
+
+
+@app.get("/pair")
+def pair(request: Request):
+    from fastapi.responses import HTMLResponse
+    payload = pair_payload(request.url.port or 8765)
+    try:
+        import io
+
+        import qrcode
+        import qrcode.image.svg
+        buf = io.BytesIO()
+        qrcode.make(payload, image_factory=qrcode.image.svg.SvgPathImage, box_size=12, border=2).save(buf)
+        qr = buf.getvalue().decode()
+    except Exception as e:  # qrcode missing: still show the values
+        qr = f"<p>(QR not available: {e})</p>"
+    try:
+        ti = mt5.terminal_info() if mt5.initialize() else None
+        mt5_ok = bool(ti and ti.connected)
+    except Exception:
+        mt5_ok = False
+    urls = ", ".join(json_urls(payload))
+    warn = "" if mt5_ok else "<p style='color:#FF5D6C'><b>MetaTrader 5 is not open / not logged in.</b></p>"
+    return HTMLResponse(
+        "<html><head><meta name='viewport' content='width=device-width'><title>TITAN MT5 pairing</title></head>"
+        "<body style='background:#0A0E13;color:#E6EDF3;font-family:sans-serif;text-align:center;padding:24px'>"
+        "<h2 style='color:#D9B25F'>TITAN Copy AI - MetaTrader 5</h2>"
+        "<p>In the TITAN app: <b>Broker Connections &rarr; Scan QR from PC</b></p>"
+        f"<div style='background:#fff;display:inline-block;padding:16px;border-radius:12px'>{qr}</div>"
+        f"{warn}<p style='color:#8B98A9'>Addresses in the code: {urls or 'none found'}</p>"
+        "<p style='color:#8B98A9'>Keep this computer on and MetaTrader 5 open while copying.</p></body></html>")
+
+
+def json_urls(payload: str) -> list[str]:
+    import base64
+    import json
+    raw = payload.split(":", 1)[1]
+    return json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))["urls"]
 
 
 @app.get("/health")

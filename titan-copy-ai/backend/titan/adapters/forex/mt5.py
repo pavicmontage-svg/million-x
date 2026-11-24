@@ -24,8 +24,10 @@ class MT5BridgeAdapter(ExecutionAdapter):
     venue = "mt5"
 
     def __init__(self, url: str, secret: str, env: str = "demo", symbol_map: dict[str, str] | None = None,
-                 http: httpx.Client | None = None):
-        self.url, self.secret, self.mode = url.rstrip("/"), secret, env
+                 http: httpx.Client | None = None, alt_urls: list[str] | None = None):
+        # several addresses of the same PC (Tailscale, home Wi-Fi): the first reachable one is used
+        self.urls = [u.rstrip("/") for u in [url, *(alt_urls or [])] if u]
+        self.url, self.secret, self.mode = self.urls[0], secret, env
         self.http = http or httpx.Client(timeout=15)
         self.symbol_map = symbol_map or {}          # canonical -> broker name (e.g. EURUSD -> EURUSD.r)
         self.rev = {v: k for k, v in self.symbol_map.items()}
@@ -36,11 +38,22 @@ class MT5BridgeAdapter(ExecutionAdapter):
         data = json.dumps(body).encode() if body is not None else b""
         ts = str(int(time.time() * 1000))
         sig = hmac.new(self.secret.encode(), f"{ts}.{method}.{path}.".encode() + data, hashlib.sha256).hexdigest()
-        try:
-            r = self.http.request(method, self.url + path, content=data or None,
-                                  headers={"X-Titan-Ts": ts, "X-Titan-Sig": sig, "Content-Type": "application/json"})
-        except (httpx.TransportError, httpx.TimeoutException) as e:
-            raise AdapterUnavailable(f"MT5 bridge unreachable: {e}") from e
+        headers = {"X-Titan-Ts": ts, "X-Titan-Sig": sig, "Content-Type": "application/json"}
+        order = [self.url] + [u for u in self.urls if u != self.url]
+        if method == "POST":
+            order = order[:1]   # orders are never re-sent to a second address: the first may have executed it
+        r, last = None, None
+        for base in order:
+            try:
+                r = self.http.request(method, base + path, content=data or None, headers=headers)
+                self.url = base   # remember the address that works
+                break
+            except (httpx.TransportError, httpx.TimeoutException) as e:
+                last = e
+        if r is None:
+            if method == "POST" and len(self.urls) > 1:
+                self.url = next(u for u in self.urls if u != order[0])   # next attempt uses the other address
+            raise AdapterUnavailable(f"MT5 bridge unreachable at {', '.join(order)}: {last}")
         if r.status_code >= 500:
             raise AdapterUnavailable(f"MT5 bridge {r.status_code}: {r.text[:200]}")
         if r.status_code >= 400:

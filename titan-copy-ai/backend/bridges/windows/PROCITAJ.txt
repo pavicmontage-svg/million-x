@@ -2,15 +2,17 @@ TITAN - MetaTrader 5 most (bridge)
 ==================================
 Treba: Windows racunalo koje je upaljeno dok zelite kopirati.
 
-1. Instalirajte MetaTrader 5 (od svog brokera ili metatrader5.com), prijavite se na DEMO racun.
-   U MT5: Tools > Options > Expert Advisors > ukljucite "Allow algorithmic trading".
-   Na alatnoj traci ukljucite gumb "Algo Trading" (zelen).
-2. Instalirajte Python 3.12 s python.org (oznacite "Add python.exe to PATH").
-3. Instalirajte Tailscale (tailscale.com/download) na racunalo I na mobitel, prijavite se istim racunom na oba.
-4. Raspakirajte ovaj ZIP i dvaput kliknite windows\START_TITAN_BRIDGE.bat.
-   Ako Windows Firewall pita - dopustite (Private networks).
-   Prozor prikazuje SECRET i URL (http://100.x.x.x:8765). Prozor ostavite otvoren.
-5. U TITAN aplikaciji: Broker Connections > MetaTrader 5 > DEMO > upisite url i secret > Save securely > Verify.
+JEDNOM:
+1. MetaTrader 5: prijavite se na DEMO racun.
+   Tools > Options > Expert Advisors > ukljucite "Allow algorithmic trading"; gumb "Algo Trading" mora biti zelen.
+2. Python 3.12 s python.org (pri instalaciji oznacite "Add python.exe to PATH").
+3. (Za rad izvan kuce) Tailscale na racunalo i mobitel, isti racun: tailscale.com/download
 
-Sigurnost: lozinka za MT5 nikad ne napusta racunalo. Most prihvaca samo zahtjeve potpisane vasim secretom
-(HMAC, vrijede 30 s). Promet ide kroz Tailscale (sifrirano). Novi secret: obrisite bridge_secret.txt i pokrenite ponovno.
+SVAKI PUT:
+4. Dvaput kliknite windows\START_TITAN_BRIDGE.bat. Otvori se stranica s QR kodom.
+   Ako Windows Firewall pita - dopustite (Private networks). Crni prozor ostavite otvoren.
+5. TITAN aplikacija: Broker Connections > "Scan QR from PC" > skenirajte QR. Gotovo.
+
+Kod kuce je dovoljan isti Wi-Fi; izvan kuce mobitel do racunala dolazi preko Tailscalea.
+Lozinka za MT5 nikad ne napusta racunalo. Novi kljuc: obrisite bridge_secret.txt i ponovno pokrenite.
+Isključite spavanje racunala (Postavke > Napajanje) dok kopirate.

@@ -160,7 +160,7 @@ class Runtime:
                     result = {"ok": True, **ad.preflight()}
                 elif c.venue == "mt5":
                     from .adapters.forex.mt5 import MT5BridgeAdapter
-                    a = MT5BridgeAdapter(data["url"], data["secret"]).account()
+                    a = MT5BridgeAdapter(data["url"], data["secret"], alt_urls=data.get("alt_urls")).account()
                     result = {"ok": True, "currency": a.currency, "equity": a.equity}
                 elif c.venue == "ctrader":
                     from .adapters.forex.ctrader_auth import list_accounts, resolve_account_id

@@ -112,7 +112,7 @@ def build_adapter(s: Session, p: Portfolio) -> ExecutionAdapter:
     if p.venue == "mt5":
         from ..adapters.forex.mt5 import MT5BridgeAdapter
 
-        ad = MT5BridgeAdapter(cred["url"], cred["secret"], env, cred.get("symbol_map") or {})
+        ad = MT5BridgeAdapter(cred["url"], cred["secret"], env, cred.get("symbol_map") or {}, alt_urls=cred.get("alt_urls"))
         ad.sync_specs(FOREX_SYMBOLS)
         return ad
     raise ValueError(f"unknown venue {p.venue}")
