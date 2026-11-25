@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: quanttitan
+      POSTGRES_USER: quanttitan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+  app:
+    build: .
+    env_file: .env
+    environment:
+      QT_DATABASE_URL: postgresql://quanttitan:${POSTGRES_PASSWORD}@db:5432/quanttitan
+    volumes: [qtdata:/data]
+    ports: ["127.0.0.1:8765:8765"]   # put an HTTPS reverse proxy in front
+    depends_on: [db]
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: "20m", max-file: "5" } }
+volumes: { pgdata: {}, qtdata: {} }
