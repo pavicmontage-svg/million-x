@@ -9,14 +9,20 @@ The defaults are *initial test parameters*, not optimised or recommended values.
 """
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+try:  # pydantic 2 (desktop/server) ships the v1 API as pydantic.v1
+    from pydantic.v1 import BaseModel, Field, root_validator
+except ImportError:  # pydantic 1.10 (Android/Chaquopy: pydantic-core has no Android build)
+    from pydantic import BaseModel, Field, root_validator
 
 
 class _M(BaseModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    class Config:
+        extra = "forbid"
+        validate_assignment = True
 
 
 class TradingMode(str, Enum):
@@ -66,13 +72,13 @@ class RiskConfig(_M):
     breaker_reset: Literal["auto_next_period", "manual"] = "auto_next_period"
     min_equity_usdt: float = Field(50.0, ge=0)
 
-    @model_validator(mode="after")
-    def _consistency(self) -> "RiskConfig":
-        if self.max_open_risk_pct < self.risk_per_trade_pct:
+    @root_validator(skip_on_failure=True)
+    def _consistency(cls, v: dict) -> dict:
+        if v["max_open_risk_pct"] < v["risk_per_trade_pct"]:
             raise ValueError("max_open_risk_pct must be >= risk_per_trade_pct")
-        if self.weekly_loss_limit_pct < self.daily_loss_limit_pct:
+        if v["weekly_loss_limit_pct"] < v["daily_loss_limit_pct"]:
             raise ValueError("weekly_loss_limit_pct must be >= daily_loss_limit_pct")
-        return self
+        return v
 
 
 # --------------------------------------------------------------------------------------------
@@ -351,4 +357,13 @@ def merge_patch(cfg: AppConfig, patch: dict) -> AppConfig:
                 out[k] = v
         return out
 
-    return AppConfig.model_validate(deep(cfg.model_dump(mode="json"), patch))
+    return AppConfig.parse_obj(deep(dump(cfg), patch))
+
+
+def dump(model: BaseModel) -> dict:
+    """JSON-safe dict of a config model (enums as values)."""
+    return json.loads(model.json())
+
+
+def load(data: dict) -> AppConfig:
+    return AppConfig.parse_obj(data)

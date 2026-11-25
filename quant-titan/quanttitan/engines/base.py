@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 
 from .. import indicators as ind
+from ..config import dump
 from ..core.logging import get_logger
 from ..core.types import ContractSpec, Direction, EngineSignal, RegimeState
 from ..data.candles import Candles, align_htf, resample
@@ -182,7 +183,7 @@ class Engine(ABC):
 
     def describe(self) -> dict:
         return {"name": self.name, "title": self.title, "description": self.description,
-                "enabled": self.enabled, "config": self.cfg.model_dump(mode="json"), "stats": self.stats.to_dict()}
+                "enabled": self.enabled, "config": dump(self.cfg), "stats": self.stats.to_dict()}
 
 
 def common_features(c: Candles, atr_n: int = 14) -> dict[str, np.ndarray]:
