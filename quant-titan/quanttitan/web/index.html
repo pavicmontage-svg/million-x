@@ -1,1 +1,31 @@
-<!doctype html><title>QUANT TITAN</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Quant Titan</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button class="icon-btn only-mobile" id="menuBtn" aria-label="Menu">☰</button>
+    <div class="brand"><span class="logo">QT</span><span class="brand-name">QUANT TITAN</span></div>
+    <div class="badges">
+      <span class="badge" id="modeBadge">—</span>
+      <span class="dot" id="connDot" title="connection"></span>
+    </div>
+    <button class="estop" id="estopBtn" aria-label="Emergency stop">■ STOP</button>
+  </header>
+  <nav class="sidenav" id="sidenav"></nav>
+  <main id="view" tabindex="-1"><div class="loading">Loading…</div></main>
+  <nav class="bottomnav only-mobile" id="bottomnav"></nav>
+</div>
+<div class="modal hidden" id="modal"><div class="modal-card" id="modalCard"></div></div>
+<div id="toasts"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

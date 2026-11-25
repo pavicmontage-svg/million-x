@@ -1,0 +1,126 @@
+name: quant-titan
+
+on:
+  push:
+    paths:
+      - "quant-titan/**"
+      - ".github/workflows/quant-titan.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: quant-titan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-server:
+    name: tests (Python 3.12, current libraries)
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: quant-titan } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -o addopts="" -q
+
+  tests-android-stack:
+    name: tests (Python 3.10, exact APK library versions)
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: quant-titan } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - run: pip install -r requirements-android.txt pytest pytest-asyncio
+      - run: python -m pytest -o addopts="" -q
+
+  postgres:
+    name: storage on PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      pg:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: qt, POSTGRES_DB: qt }
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults: { run: { working-directory: quant-titan } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -o addopts="" -q tests/test_storage.py
+        env: { QT_TEST_POSTGRES: "postgresql://postgres:qt@localhost:5432/qt" }
+
+  apk:
+    name: Android APK
+    needs: [tests-server, tests-android-stack]
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    defaults: { run: { working-directory: quant-titan/android } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "17" }
+      - uses: actions/setup-python@v5   # Chaquopy needs a build Python with the same version as the app
+        with: { python-version: "3.10" }
+      - uses: gradle/actions/setup-gradle@v4
+      # Signing: the owner's key from secrets if configured; otherwise a CI key kept in the Actions
+      # cache so consecutive builds can be installed as updates (keeps app data).
+      - name: Signing key
+        id: key
+        env:
+          KS: ${{ secrets.QT_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/qt.jks"; echo "source=secret" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Restore CI signing key
+        if: steps.key.outputs.source != 'secret'
+        uses: actions/cache@v4
+        with:
+          path: ~/.qt-ci-keystore
+          key: qt-ci-keystore-v1
+      - name: Prepare signing env
+        env:
+          KSP: ${{ secrets.QT_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.QT_KEY_ALIAS }}
+          KP: ${{ secrets.QT_KEY_PASSWORD }}
+        run: |
+          if [ -f "$RUNNER_TEMP/qt.jks" ]; then
+            echo "QT_KEYSTORE_FILE=$RUNNER_TEMP/qt.jks" >> "$GITHUB_ENV"
+            echo "QT_KEYSTORE_PASSWORD=$KSP" >> "$GITHUB_ENV"; echo "QT_KEY_ALIAS=$KA" >> "$GITHUB_ENV"; echo "QT_KEY_PASSWORD=$KP" >> "$GITHUB_ENV"
+          else
+            mkdir -p ~/.qt-ci-keystore
+            if [ ! -f ~/.qt-ci-keystore/ci.jks ]; then
+              keytool -genkeypair -keystore ~/.qt-ci-keystore/ci.jks -storepass qtci-store -keypass qtci-store -alias qtci \
+                -keyalg RSA -keysize 3072 -validity 10000 -dname "CN=Quant Titan CI"
+            fi
+            echo "QT_KEYSTORE_FILE=$HOME/.qt-ci-keystore/ci.jks" >> "$GITHUB_ENV"
+            echo "QT_KEYSTORE_PASSWORD=qtci-store" >> "$GITHUB_ENV"; echo "QT_KEY_ALIAS=qtci" >> "$GITHUB_ENV"; echo "QT_KEY_PASSWORD=qtci-store" >> "$GITHUB_ENV"
+          fi
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+          ls -la app/build/outputs/apk/debug/
+          mkdir -p /tmp/out
+          cp app/build/outputs/apk/debug/app-debug.apk "/tmp/out/QuantTitan-${GITHUB_SHA::7}-arm64.apk"
+          sha256sum /tmp/out/*.apk | tee /tmp/out/SHA256SUMS.txt
+      - name: Check the APK embeds the platform
+        run: |
+          unzip -l /tmp/out/*.apk | grep -E "assets/chaquopy/(app|requirements)" | head
+          unzip -l /tmp/out/*.apk | grep -c "\.so$" || true
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: quant-titan-apk
+          path: /tmp/out/
+      - name: Publish GitHub release "quant-titan-latest"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete quant-titan-latest --yes --cleanup-tag -R "$GITHUB_REPOSITORY" || true
+          gh release create quant-titan-latest /tmp/out/*.apk /tmp/out/SHA256SUMS.txt -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease --title "Quant Titan (latest build ${GITHUB_SHA::7})" \
+            --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Paper trading is the default; live trading is disabled. Install: download the APK on the phone and allow installs from this source. Simulated results do not guarantee future results."
