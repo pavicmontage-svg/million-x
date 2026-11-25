@@ -256,6 +256,10 @@ class Trader:
         if ctx is not None:
             self._push_paper_market(symbol, ctx)
             await self._manage_positions(symbol, ctx)
+        stale = not isinstance(self.feed, ReplayFeed) and now_ms() - close_ts > 2 * (ctx.candles.tf_ms if ctx else 300_000)
+        if ready and stale:  # backfilled bar after a reconnect: manage positions, but never open trades on old data
+            self._batch.pop(close_ts, None)
+            return
         if ready:
             self._batch.pop(close_ts, None)
             for old in [k for k in self._batch if k < close_ts - 3_600_000]:

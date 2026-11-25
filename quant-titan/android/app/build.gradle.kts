@@ -78,6 +78,8 @@ chaquopy {
             install("httpx==0.28.1")
         }
         pyc { src = true }
+        // the dashboard (HTML/JS/CSS) must exist as real files for the web server
+        extractPackages("quanttitan.web")
     }
     sourceSets {
         getByName("main") { srcDir(pyStage) }

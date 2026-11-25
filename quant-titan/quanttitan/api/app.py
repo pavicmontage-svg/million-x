@@ -38,7 +38,9 @@ from ..runtime.trader import Trader
 from ..security.auth import Auth, RateLimiter
 
 log = get_logger("api")
-WEB_DIR = Path(os.environ.get("QT_WEB_DIR", Path(__file__).resolve().parents[1] / "web"))
+from .. import web as _web_pkg  # noqa: E402  (importing it makes Chaquopy extract the files on Android)
+
+WEB_DIR = Path(os.environ.get("QT_WEB_DIR", Path(_web_pkg.__file__).resolve().parent))
 MAX_BODY = 64 * 1024
 PUBLIC = {"/api/health", "/api/auth/state", "/api/auth/login", "/api/auth/setup"}
 CONFIRM = {"close_all": "CLOSE ALL", "live": "ENABLE LIVE TRADING", "reset_breaker": "RESET", "paper_reset": "RESET PAPER"}
