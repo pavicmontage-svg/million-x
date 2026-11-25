@@ -3,7 +3,9 @@ from collections import Counter
 import numpy as np
 import pytest
 
-from quanttitan.config import AppConfig, BreakoutConfig, StatArbConfig, VWAPConfig
+from quanttitan.config import AppConfig, BreakoutConfig, StatArbConfig, VWAPConfig, rescale_timeframe
+
+CFG5 = lambda: rescale_timeframe(AppConfig(), "5m")  # synthetic fixtures are 5m bars
 from quanttitan.core.types import Direction, Regime
 from quanttitan.data.candles import Candles
 from quanttitan.data.synthetic import cointegrated_pair, generate, random_walk_pair, synthetic_book
@@ -34,7 +36,7 @@ def _signals(engine, candles):
 @pytest.mark.parametrize("name", ["vwap", "trend", "breakout", "order_flow"])
 def test_each_engine_is_independent_and_produces_signals(synth, name):
     candles, _ = synth
-    engines = build_engines(AppConfig())
+    engines = build_engines(CFG5())
     eng = engines[name]
     sigs = _signals(eng, candles)
     directional = [s for _, s in sigs if s.direction is not Direction.FLAT]
@@ -54,12 +56,12 @@ def test_each_engine_is_independent_and_produces_signals(synth, name):
 def test_live_path_equals_backtest_path(synth, name):
     """analyze() on a truncated buffer must equal evaluate() on full-history features (no lookahead)."""
     candles, _ = synth
-    full_eng = build_engines(AppConfig())[name]
+    full_eng = build_engines(CFG5())[name]
     ctx_full = MarketContext(candles.symbol, candles)
     f_full = full_eng.features(ctx_full)
     for i in (2500, 3333, 4999):
         a = full_eng.evaluate(ctx_full, f_full, i)
-        live = build_engines(AppConfig())[name]
+        live = build_engines(CFG5())[name]
         ctx = MarketContext(candles.symbol, candles.slice(0, i + 1))
         b = live.evaluate(ctx, live.features(ctx), i)
         assert a.direction == b.direction and a.state == b.state
@@ -94,7 +96,7 @@ def test_vwap_reversion_long_after_rejection():
     vols = np.full(n, 1000.0); vols[-1] = 2500
     taker = np.full(n, 0.5); taker[-1] = 0.65
     c = _bars(closes, lows=lows, highs=highs, vols=vols, taker=taker, start_ts=1_767_225_600_000)
-    eng = VWAPEngine(VWAPConfig(min_confidence=0))
+    eng = VWAPEngine(CFG5().engines.vwap.copy(update={'min_confidence': 0}))
     ctx = MarketContext("TESTUSDT", c)
     sig = eng.evaluate(ctx, eng.features(ctx), n - 1)
     assert sig.direction is Direction.LONG, (sig.state, sig.reasons)
@@ -109,7 +111,7 @@ def test_vwap_does_not_fade_band_riding_trend():
     closes = np.concatenate([np.full(300, 100.0) + np.sin(np.arange(300)) * 0.1, 100 - np.arange(1, 101) * 0.08])
     closes[-1] = closes[-2] + 0.05  # small up bar inside a down-trend
     c = _bars(closes, start_ts=1_767_225_600_000 - 112 * 300_000)
-    eng = VWAPEngine(VWAPConfig(min_confidence=0))
+    eng = VWAPEngine(CFG5().engines.vwap.copy(update={'min_confidence': 0}))
     ctx = MarketContext("TESTUSDT", c)
     sig = eng.evaluate(ctx, eng.features(ctx), n - 1)
     assert sig.direction is Direction.FLAT
@@ -129,7 +131,7 @@ def _compression_then_breakout(breakout_volume):
 
 
 def test_breakout_valid_and_low_volume():
-    cfg = BreakoutConfig(min_confidence=0, max_box_atr=20)
+    cfg = CFG5().engines.breakout.copy(update={'min_confidence': 0, 'max_box_atr': 20})
     for vol, expected in ((4000.0, Direction.LONG), (900.0, Direction.FLAT)):
         c = _compression_then_breakout(vol)
         eng = BreakoutEngine(cfg)
@@ -144,7 +146,7 @@ def test_breakout_valid_and_low_volume():
 
 def test_regime_classifier_tracks_ground_truth(synth):
     candles, truth = synth
-    eng = RegimeEngine(AppConfig().engines.regime)
+    eng = RegimeEngine(CFG5().engines.regime)
     labels = eng.classify_series(MarketContext(candles.symbol, candles))
     pairs = Counter()
     for lab, t in zip(labels[400:], truth[400:]):
@@ -162,7 +164,7 @@ def test_regime_classifier_tracks_ground_truth(synth):
 
 def test_regime_unsafe_on_wide_spread_and_unknown_on_short_history(synth):
     candles, _ = synth
-    eng = RegimeEngine(AppConfig().engines.regime)
+    eng = RegimeEngine(CFG5().engines.regime)
     book = synthetic_book(float(candles.close[-1]), tick=float(candles.close[-1]) * 0.002)  # 40bps spread
     ctx = MarketContext(candles.symbol, candles, micro=micro_stats(book, []))
     st = eng.state(ctx)
@@ -199,7 +201,7 @@ def test_stat_arb_signal_direction_and_legs():
 
 def test_order_flow_assess_reflects_book_and_flow(synth):
     candles, _ = synth
-    eng = build_engines(AppConfig())["order_flow"]
+    eng = build_engines(CFG5())["order_flow"]
     mid = float(candles.close[-1])
     trades = [{"price": mid, "qty": 1.0, "ts": k, "buyer_maker": k % 5 == 0} for k in range(200)]
     ctx = MarketContext(candles.symbol, candles, micro=micro_stats(synthetic_book(mid, imbalance=0.6), trades))
@@ -213,7 +215,7 @@ def test_order_flow_assess_reflects_book_and_flow(synth):
 
 def test_engine_cooldown_and_disable(synth):
     candles, _ = synth
-    cfg = AppConfig()
+    cfg = CFG5()
     cfg.engines.trend.min_confidence = 0
     eng = build_engines(cfg)["trend"]
     sigs = [s for _, s in _signals(eng, candles) if s.direction is not Direction.FLAT]

@@ -101,7 +101,7 @@ class CostConfig(_M):
 class EngineBase(_M):
     enabled: bool = True
     min_confidence: float = Field(60.0, ge=0, le=100)
-    cooldown_bars: int = Field(6, ge=0, le=1000, description="bars after a signal on a symbol before the next one")
+    cooldown_bars: int = Field(10, ge=0, le=5000, description="bars after a signal on a symbol before the next one (30 min on 3m)")
     risk_multiplier: float = Field(1.0, gt=0, le=1.0, description="engine-level risk scaling, never > 1")
     max_open_positions: int = Field(2, ge=0, le=50)
     daily_loss_limit_r: float = Field(3.0, gt=0, le=50, description="engine suspended for the day after this many R lost")
@@ -109,11 +109,11 @@ class EngineBase(_M):
 
 class VWAPConfig(EngineBase):
     session_anchor: Literal["utc_day", "rolling"] = "utc_day"
-    rolling_bars: int = Field(288, ge=20, le=5000)
+    rolling_bars: int = Field(480, ge=20, le=20000, description="rolling VWAP window (480 × 3m = 1 day)")
     band_mults: list[float] = Field(default_factory=lambda: [1.0, 2.0, 3.0])
     entry_band: float = Field(1.0, ge=0.5, le=4.0)
     overextended_band: float = Field(3.0, ge=1.5, le=6.0)
-    min_session_bars: int = Field(24, ge=3, le=1000)
+    min_session_bars: int = Field(40, ge=3, le=5000, description="bars since session start before σ is trusted (2h on 3m)")
     min_deviation_atr: float = Field(1.0, ge=0, le=10)
     touch_lookback: int = Field(3, ge=1, le=20)
     min_wick_ratio: float = Field(0.35, ge=0, le=1)
@@ -125,7 +125,7 @@ class VWAPConfig(EngineBase):
     stop_buffer_atr: float = Field(0.3, ge=0, le=5)
     min_rr_tp1: float = Field(1.0, ge=0.2, le=10)
     tp1_fraction: float = Field(0.5, ge=0.1, le=1.0)
-    time_stop_bars: int = Field(36, ge=1, le=2000)
+    time_stop_bars: int = Field(60, ge=1, le=5000)
 
 
 class TrendConfig(EngineBase):
@@ -145,7 +145,7 @@ class TrendConfig(EngineBase):
     tp1_r: float = Field(1.5, ge=0.3, le=20)
     tp1_fraction: float = Field(0.5, ge=0.1, le=1.0)
     trail_atr: float = Field(3.0, ge=0.5, le=20)
-    time_stop_bars: int = Field(96, ge=1, le=5000)
+    time_stop_bars: int = Field(160, ge=1, le=10000)
     allow_continuation: bool = True
     allow_pullback: bool = True
 
@@ -153,7 +153,7 @@ class TrendConfig(EngineBase):
 class BreakoutConfig(EngineBase):
     bb_period: int = Field(20, ge=5, le=500)
     bb_mult: float = Field(2.0, ge=0.5, le=5)
-    width_pct_lookback: int = Field(500, ge=50, le=10000)
+    width_pct_lookback: int = Field(830, ge=50, le=20000)
     compression_pct: float = Field(20.0, ge=1, le=60, description="BB width percentile considered compressed")
     min_compression_bars: int = Field(12, ge=2, le=500)
     box_lookback: int = Field(24, ge=5, le=500)
@@ -169,14 +169,14 @@ class BreakoutConfig(EngineBase):
     target_box_mult: float = Field(1.0, ge=0.25, le=10)
     tp1_fraction: float = Field(0.5, ge=0.1, le=1.0)
     trail_atr: float = Field(2.5, ge=0.5, le=20)
-    time_stop_bars: int = Field(48, ge=1, le=5000)
+    time_stop_bars: int = Field(80, ge=1, le=10000)
 
 
 class OrderFlowConfig(EngineBase):
     role: Literal["confirmation", "standalone"] = "confirmation"
     min_samples_standalone: int = Field(100, ge=10, le=100000)
     cvd_window: int = Field(12, ge=2, le=500)
-    vol_z_window: int = Field(96, ge=10, le=5000)
+    vol_z_window: int = Field(160, ge=10, le=10000)
     min_taker_ratio: float = Field(0.56, ge=0.5, le=1.0)
     book_levels: int = Field(10, ge=1, le=100)
     min_book_imbalance: float = Field(0.15, ge=0, le=1)
@@ -187,7 +187,7 @@ class OrderFlowConfig(EngineBase):
     stop_atr: float = Field(1.5, ge=0.3, le=10)
     tp1_r: float = Field(1.2, ge=0.3, le=20)
     tp1_fraction: float = Field(0.5, ge=0.1, le=1.0)
-    time_stop_bars: int = Field(12, ge=1, le=5000)
+    time_stop_bars: int = Field(20, ge=1, le=5000)
 
 
 class StatArbConfig(EngineBase):
@@ -217,17 +217,17 @@ class RegimeConfig(EngineBase):
     weak_adx: float = Field(20.0, ge=5, le=90)
     strong_er: float = Field(0.35, ge=0, le=1)
     range_er: float = Field(0.25, ge=0, le=1)
-    vol_lookback: int = Field(2016, ge=100, le=50000, description="bars for volatility percentiles (7d of 5m)")
+    vol_lookback: int = Field(3360, ge=100, le=100000, description="bars for volatility percentiles (7 days of 3m)")
     high_vol_pct: float = Field(85.0, ge=50, le=100)
     low_vol_pct: float = Field(15.0, ge=0, le=50)
     expansion_ratio: float = Field(1.6, ge=1.0, le=10, description="short/long realized vol ratio")
     compression_ratio: float = Field(0.6, ge=0.05, le=1.0)
     dislocation_vol_pct: float = Field(99.0, ge=80, le=100)
     jump_sigma: float = Field(6.0, ge=2, le=50, description="single-bar move in sigmas that flags a jump")
-    jump_lookback: int = Field(6, ge=1, le=200)
+    jump_lookback: int = Field(10, ge=1, le=500)
     max_spread_bps: float = Field(10.0, gt=0, le=500)
     unsafe_funding: float = Field(0.003, gt=0, le=0.1)
-    min_bars: int = Field(300, ge=50, le=50000)
+    min_bars: int = Field(500, ge=50, le=100000)
     high_vol_risk_mult: float = Field(0.5, gt=0, le=1)
     expansion_risk_mult: float = Field(0.75, gt=0, le=1)
     eligibility: dict[str, list[str]] = Field(
@@ -326,8 +326,8 @@ class NotificationConfig(_M):
 class SystemConfig(_M):
     trading_mode: TradingMode = TradingMode.PAPER
     direction: DirectionMode = DirectionMode.BOTH
-    execution_timeframe: Literal["1m", "5m", "15m"] = "5m"
-    analysis_timeframes: list[str] = Field(default_factory=lambda: ["1m", "5m", "15m", "1h", "4h"])
+    execution_timeframe: Literal["1m", "3m", "5m", "15m"] = "3m"
+    analysis_timeframes: list[str] = Field(default_factory=lambda: ["1m", "3m", "15m", "1h", "4h"])
     paper_starting_equity: float = Field(10_000.0, gt=0)
     trading_paused: bool = False
     market_data_source: Literal["binance_live", "binance_testnet", "replay"] = "binance_live"
@@ -343,6 +343,34 @@ class AppConfig(_M):
     execution: ExecutionConfig = Field(default_factory=ExecutionConfig)
     universe: UniverseConfig = Field(default_factory=UniverseConfig)
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
+
+
+# Parameters that express a *duration* in bars of the execution timeframe. When the timeframe changes
+# they are rescaled so they keep meaning the same wall-clock time. Indicator lengths (EMA, ADX, ATR,
+# Bollinger, structure and box lookbacks) are chart settings and are deliberately NOT rescaled —
+# the same as switching a TradingView chart from 5m to 3m.
+TIME_PARAMS: dict[str, tuple[str, ...]] = {
+    "vwap": ("rolling_bars", "min_session_bars", "time_stop_bars", "cooldown_bars"),
+    "trend": ("time_stop_bars", "cooldown_bars"),
+    "breakout": ("width_pct_lookback", "time_stop_bars", "cooldown_bars"),
+    "order_flow": ("vol_z_window", "time_stop_bars", "cooldown_bars"),
+    "regime": ("vol_lookback", "jump_lookback", "min_bars", "cooldown_bars"),
+}
+_TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000}
+
+
+def rescale_timeframe(cfg: "AppConfig", new_tf: str) -> "AppConfig":
+    """Return a copy of ``cfg`` on ``new_tf`` with duration parameters rescaled to the same wall-clock time."""
+    old_tf = cfg.system.execution_timeframe
+    d = dump(cfg)
+    d["system"]["execution_timeframe"] = new_tf
+    if old_tf != new_tf:
+        f = _TF_MS[old_tf] / _TF_MS[new_tf]
+        for eng, fields in TIME_PARAMS.items():
+            for k in fields:
+                v = d["engines"][eng][k]
+                d["engines"][eng][k] = max(1 if k != "cooldown_bars" else 0, int(round(v * f)))
+    return AppConfig.parse_obj(d)
 
 
 def merge_patch(cfg: AppConfig, patch: dict) -> AppConfig:

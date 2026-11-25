@@ -48,6 +48,25 @@ python -m quanttitan serve --port 8765            # dashboard on http://127.0.0.
 python -m quanttitan serve --replay BTCUSDT,ETHUSDT  # replay history through the live pipeline
 ```
 
+## Execution timeframe: 3m (default)
+
+The execution timeframe is **3 minutes** by default (Settings → system → execution_timeframe: 1m / 3m / 5m / 15m).
+Chart settings (EMA, ADX, ATR, Bollinger, VWAP bands) stay the same when switching; durations (time stops,
+cooldowns, statistics windows, minimum VWAP session length) are rescaled to keep the same wall-clock meaning.
+
+**3m vs 5m, same 6 perpetuals, 8 Jul – 31 Oct 2026, same costs** (`python scripts/timeframe_study.py`):
+
+| Variant | 5m: trades / return / PF / E[R] | 3m: trades / return / PF / E[R] |
+|---|---|---|
+| Full system | 72 / −1.02% / 0.92 / +0.03 | 47 / −0.50% / 0.92 / −0.05 |
+| VWAP only | 3 / +0.11% / 1.22 / +0.10 | 2 / −0.07% / 0.86 / −0.08 |
+| VWAP only, cost gate relaxed (research) | 12 / +2.23% / 2.09 / +0.46 | 29 / −2.09% / 0.71 / −0.19 |
+
+On 3m the VWAP engine signals ~4× more often (215 vs 54 signals), but the stops are tighter, so fees and
+slippage take a larger share of each trade (fees 304 USDT on 29 trades). In this period 3m did **not** improve
+VWAP results; every 95% confidence interval includes zero, so none of these differences is statistically
+reliable. Paper trading on 3m will add evidence over time.
+
 ## Research results (honest)
 
 Baseline study: 6 perpetuals (BTC, ETH, SOL, BNB, XRP, DOGE), 5-minute bars, **1 Jul – 31 Oct 2026**, Binance

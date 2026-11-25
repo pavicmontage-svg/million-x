@@ -25,6 +25,7 @@ import numpy as np
 from .. import indicators as ind
 from ..config import VWAPConfig
 from ..core.types import Direction, EngineSignal, Regime, TargetLevel
+from ..data.candles import DAY_MS, bars_in
 from .base import Engine, MarketContext, combine, common_features, fval, score_linear
 
 
@@ -57,7 +58,7 @@ class VWAPEngine(Engine):
             f["h1_adx"] = np.full(len(c), np.nan)
             f["h1_dir"] = np.zeros(len(c))
         f.update(vwap=vw, sd=sd, n_in=n_in, rsi=ind.rsi(c.close, 14),
-                 atr_rank=ind.rolling_percentile_rank(f["atr"] / c.close, 2016))
+                 atr_rank=ind.rolling_percentile_rank(f["atr"] / c.close, bars_in(c.timeframe, 7 * DAY_MS)))
         return f
 
     def evaluate(self, ctx: MarketContext, f: dict[str, np.ndarray], i: int) -> EngineSignal:

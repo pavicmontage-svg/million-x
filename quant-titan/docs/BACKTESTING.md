@@ -29,3 +29,8 @@ Sharpe 0.002); costs dominate tight 5-minute stops; the monthly drawdown breaker
 10%. Policy comparison on the relaxed-cost configuration: regime-gated −9.1% (56 trades), majority vote −8.5%
 (67), confidence average −8.5% (67) — none acceptable. This is exactly why the default configuration only trades
 when costs are ≤ 0.25 R and why live trading requires validated evidence.
+
+## Timeframe comparison (3m vs 5m)
+See the README table. Reproduce: `python -m quanttitan download <symbols> 2026-07-01 2026-10-31 --tf 3m` then
+`python scripts/timeframe_study.py --tfs 5m,3m`. The backtester rescales duration parameters to the data's
+timeframe automatically, so a 3m configuration is never applied to 5m bars by mistake.

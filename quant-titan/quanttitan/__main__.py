@@ -23,22 +23,25 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--port", type=int, default=int(os.environ.get("QT_PORT", 8765)))
     s.add_argument("--data", default=os.environ.get("QT_DATA_DIR", "data"))
     s.add_argument("--replay", default="")
+    s.add_argument("--tf", default="3m", help="timeframe of the replay history")
     a = sub.add_parser("create-admin")
     a.add_argument("username")
     a.add_argument("--data", default=os.environ.get("QT_DATA_DIR", "data"))
     d = sub.add_parser("download")
     d.add_argument("symbols"); d.add_argument("start"); d.add_argument("end")
     d.add_argument("--data", default=os.environ.get("QT_DATA_DIR", "data"))
+    d.add_argument("--tf", default="3m")
     b = sub.add_parser("backtest")
     b.add_argument("symbols")
     b.add_argument("--data", default=os.environ.get("QT_DATA_DIR", "data"))
     b.add_argument("--json", default="")
+    b.add_argument("--tf", default="3m")
     args = ap.parse_args(argv)
 
     if args.cmd == "serve":
         import uvicorn
         from .server import build
-        app, *_ = build(args.data, replay_symbols=[x for x in args.replay.split(",") if x])
+        app, *_ = build(args.data, replay_symbols=[x for x in args.replay.split(",") if x], replay_tf=args.tf)
         uvicorn.run(app, host=args.host, port=args.port, log_level="info", ws="wsproto", proxy_headers=False)
     elif args.cmd == "create-admin":
         from .security.auth import Auth
@@ -50,16 +53,16 @@ def main(argv: list[str] | None = None) -> None:
         from .data.history import HistoryStore
         hs = HistoryStore(os.path.join(args.data, "history"))
         for sym in args.symbols.split(","):
-            c = hs.download(sym, "5m", dt.date.fromisoformat(args.start), dt.date.fromisoformat(args.end))
+            c = hs.download(sym, args.tf, dt.date.fromisoformat(args.start), dt.date.fromisoformat(args.end))
             print(sym, len(c), "bars")
     elif args.cmd == "backtest":
         from .backtest.engine import Backtester
-        from .config import AppConfig
+        from .config import AppConfig, rescale_timeframe
         from .data.history import HistoryStore
         hs = HistoryStore(os.path.join(args.data, "history"))
         syms = args.symbols.split(",")
-        data = {x: hs.load(x, "5m") for x in syms}
-        r = Backtester(AppConfig(), {k: v for k, v in data.items() if v is not None},
+        data = {x: hs.load(x, args.tf) for x in syms}
+        r = Backtester(rescale_timeframe(AppConfig(), args.tf), {k: v for k, v in data.items() if v is not None},
                        funding={x: hs.load_funding(x) for x in syms if hs.load_funding(x) is not None}).run()
         print(json.dumps(r.summary(), indent=1))
         if args.json:

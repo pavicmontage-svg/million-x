@@ -21,12 +21,16 @@ import numpy as np
 
 from ..core.logging import get_logger
 from .binance_public import WS_URLS, BinancePublic, MarketDataError
-from .candles import TF_MS, Candles
+from .candles import DAY_MS, TF_MS, Candles, bars_in
 from .synthetic import synthetic_book
 
 log = get_logger("feed")
 BarCallback = Callable[[str, int], Awaitable[None]]
-HISTORY_BARS = 2400  # ~8.3 days of 5m bars (regime engine needs 7 days for vol percentiles)
+HISTORY_DAYS = 8.5  # the regime engine needs 7 days for volatility percentiles
+
+
+def history_bars(tf: str) -> int:
+    return bars_in(tf, int(HISTORY_DAYS * DAY_MS))
 
 
 class FeedState:
@@ -54,7 +58,7 @@ class FeedState:
 
 class LiveFeed:
     def __init__(self, source: str, symbols: list[str], on_bar_close: BarCallback, *, poll_s: float = 5.0,
-                 tf: str = "5m", use_ws: bool = True) -> None:
+                 tf: str = "3m", use_ws: bool = True) -> None:
         self.source = source
         self.rest = BinancePublic(source)
         self.symbols = list(symbols)
@@ -76,7 +80,7 @@ class LiveFeed:
     async def backfill(self, symbol: str) -> None:
         tfm = TF_MS[self.tf]
         end = int(time.time() * 1000)
-        c = await self.rest.klines_range(symbol, self.tf, end - HISTORY_BARS * tfm, end)
+        c = await self.rest.klines_range(symbol, self.tf, end - history_bars(self.tf) * tfm, end)
         self.state.candles[symbol] = c if symbol not in self.state.candles else self.state.candles[symbol].append(c)
         if len(c):
             self._last_closed[symbol] = int(c.ts[-1])
@@ -142,7 +146,7 @@ class LiveFeed:
         new = c.slice(int(np.searchsorted(c.ts, last, "right")), None)
         if len(new) == 0:
             return
-        self.state.candles[s] = cur.append(new).tail(HISTORY_BARS + 500)
+        self.state.candles[s] = cur.append(new).tail(history_bars(self.tf) + 500)
         self.state.last[s] = float(new.close[-1])
         for t in new.ts:
             self._last_closed[s] = int(t)
@@ -207,9 +211,12 @@ class LiveFeed:
 class ReplayFeed:
     """Replays cached history bar by bar through the live runtime."""
 
-    def __init__(self, data: dict[str, Candles], on_bar_close: BarCallback, *, warmup_bars: int = HISTORY_BARS,
+    def __init__(self, data: dict[str, Candles], on_bar_close: BarCallback, *, warmup_bars: int | None = None,
                  speed_s: float = 0.0, funding: dict | None = None) -> None:
         self.data = data
+        tf = next(iter(data.values())).timeframe if data else "3m"
+        self.hist = history_bars(tf)
+        warmup_bars = self.hist if warmup_bars is None else warmup_bars
         self.on_bar_close = on_bar_close
         self.warmup = warmup_bars
         self.speed = speed_s
@@ -244,7 +251,7 @@ class ReplayFeed:
                 i = int(np.searchsorted(c.close_ts, ts, "right")) - 1
                 if i < 0 or int(c.close_ts[i]) != ts:
                     continue
-                self.state.candles[s] = c.slice(max(0, i + 1 - HISTORY_BARS), i + 1)
+                self.state.candles[s] = c.slice(max(0, i + 1 - self.hist), i + 1)
                 px = float(c.close[i])
                 self.state.last[s] = self.state.mark[s] = px
                 self.state.book[s] = synthetic_book(px, tick=px * 5e-5, depth=float(c.volume[i]) / 50 + 1, seed=k)

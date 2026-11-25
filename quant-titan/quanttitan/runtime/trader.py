@@ -24,11 +24,11 @@ import numpy as np
 
 from ..agents import ExecutionSpecialist, MarketAnalyst, PerformanceAuditor, PortfolioManager, QuantResearcher
 from ..agents.portfolio_manager import correlation_matrix
-from ..config import AppConfig, ExchangeEnv, TradingMode, dump, load, merge_patch
+from ..config import AppConfig, ExchangeEnv, TradingMode, dump, load, merge_patch, rescale_timeframe
 from ..core.logging import get_logger
 from ..core.types import ContractSpec, Decision, Direction, Outcome, TradeRecord, new_id, now_ms
 from ..data.binance_public import BinancePublic
-from ..data.candles import Candles
+from ..data.candles import TF_MS, Candles
 from ..data.feeds import LiveFeed, ReplayFeed
 from ..data.micro import micro_stats
 from ..data.universe import select_universe
@@ -188,6 +188,9 @@ class Trader:
         if self.replay_data is not None or self.cfg.system.market_data_source == "replay":
             data = self.replay_data or {}
             self.symbols = sorted(data)
+            data_tf = next(iter(data.values())).timeframe if data else self.cfg.system.execution_timeframe
+            if data_tf != self.cfg.system.execution_timeframe:
+                self._apply(rescale_timeframe(self.cfg, data_tf))  # replay history defines the timeframe
             for s, c in data.items():
                 px = float(np.median(c.close[-50:]))
                 step = 10 ** np.floor(np.log10(max(1e-8, 10 / px)))
@@ -343,7 +346,7 @@ class Trader:
             views.append(v)
             books[s] = st.book.get(s)
         regimes = {s: self.engines["regime"].last_states[s] for s in self.symbols if s in self.engines["regime"].last_states}
-        if len(self.symbols) > 1 and int(close_ts / 300_000) % 12 == 0:
+        if len(self.symbols) > 1 and close_ts % 3_600_000 == 0:  # hourly
             self.pf.correlations = correlation_matrix({s: st.candles[s] for s in self.symbols if s in st.candles})
         avg_corr = float(np.mean(list(self.pf.correlations.values()))) if self.pf.correlations else None
         market = self.analyst.analyze(regimes, avg_corr)
@@ -429,7 +432,7 @@ class Trader:
     # ------------------------------------------------------------------ statistical arbitrage
     async def _scan_pairs(self, close_ts: int) -> None:
         cfg = self.cfg.engines.stat_arb
-        if not cfg.enabled or int(close_ts / 300_000) % 12 != 0:
+        if not cfg.enabled or close_ts % 3_600_000 != 0:  # hourly scan
             return
         eng = self.engines["stat_arb"]
         data = {s: self.feed.state.candles[s] for s in self.symbols if s in self.feed.state.candles}
@@ -440,7 +443,7 @@ class Trader:
         for st in stats:
             if not st.tradeable or f"{st.y}/{st.x}" in self.pairs_open:
                 continue
-            sig = eng.finalize(MarketContext(f"{st.y}/{st.x}", Candles(st.y, "5m")), eng.evaluate_pair(st, close_ts))
+            sig = eng.finalize(MarketContext(f"{st.y}/{st.x}", Candles(st.y, self.cfg.system.execution_timeframe)), eng.evaluate_pair(st, close_ts))
             if sig.direction is Direction.FLAT:
                 continue
             regs = self.engines["regime"].last_states
@@ -507,7 +510,7 @@ class Trader:
                 reason = "pair_mean_reversion"
             elif abs(z) >= pr["stop_z"]:
                 reason = "pair_stop_z"
-            elif info["bars"] >= max(1, pr["time_stop_bars"]) * 3:  # pair stats are on 15m bars; runtime ticks 5m
+            elif info["bars"] >= max(1, pr["time_stop_bars"]) * TF_MS[self.cfg.engines.stat_arb.timeframe] / TF_MS[self.cfg.system.execution_timeframe]:
                 reason = "pair_time_stop"
             alive = [pid for pid in info["positions"] if pid in self.pos.managed]
             if reason or len(alive) < len(info["positions"]):
@@ -536,6 +539,13 @@ class Trader:
 
     def update_config(self, patch: dict, actor: str, note: str = "") -> AppConfig:
         new = merge_patch(self.cfg, patch)
+        tf_changed = new.system.execution_timeframe != self.cfg.system.execution_timeframe
+        if tf_changed:
+            if self.pos and self.pos.positions:
+                raise PermissionError("close all positions before changing the execution timeframe")
+            # keep durations (time stops, cooldowns, statistics windows) equal in wall-clock time
+            new = merge_patch(rescale_timeframe(new.copy(update={"system": new.system.copy(update={
+                "execution_timeframe": self.cfg.system.execution_timeframe})}), new.system.execution_timeframe), {})
         if new.execution.exchange_env is ExchangeEnv.LIVE and self.cfg.execution.exchange_env is not ExchangeEnv.LIVE:
             raise PermissionError("switching to LIVE requires the dedicated /api/live/enable flow")
         venue_changed = (new.system.trading_mode, new.execution.exchange_env) != (self.cfg.system.trading_mode, self.cfg.execution.exchange_env)
@@ -543,7 +553,9 @@ class Trader:
             raise PermissionError("close all positions before changing trading mode or venue")
         self._apply(new)
         self.db.kv_set("config", dump(new))
-        self.db.save_config_version(dump(new), actor, note)
+        self.db.save_config_version(dump(new), actor, note + (" (timeframe change: durations rescaled)" if tf_changed else ""))
+        if tf_changed and self.running and not isinstance(self.feed, ReplayFeed):
+            asyncio.get_running_loop().create_task(self.restart_venue())  # new candle stream
         return new
 
     def _apply(self, new: AppConfig) -> None:

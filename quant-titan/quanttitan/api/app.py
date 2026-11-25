@@ -28,9 +28,10 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import __version__
 from ..backtest.metrics import compute_metrics
-from ..config import ExchangeEnv, TradingMode, dump, load
+from ..config import ExchangeEnv, TradingMode, dump, load, rescale_timeframe
 from ..core.logging import memory_handler, get_logger
 from ..core.types import TradeRecord, new_id, now_ms
+from ..data.candles import TF_MS
 from ..data.history import HistoryStore
 from ..engines import ENGINE_ORDER
 from ..research.lab import ResearchLab
@@ -384,12 +385,15 @@ def create_app(trader: Trader, auth: Auth, *, autostart: bool = True, history_di
             def work():
                 data, funding = {}, {}
                 for s in syms:
-                    c = history.load(s, "5m")
+                    tf = params.get("timeframe") or trader.cfg.system.execution_timeframe
+                    c = history.load(s, tf)
                     if c is None or len(c) == 0 or c.ts[-1] < (time.time() - 3 * 86400) * 1000:
-                        c = history.download(s, "5m", start, end)
-                    data[s] = c.tail(int((days + 8) * 288))
+                        c = history.download(s, tf, start, end)
+                    data[s] = c.tail(int((days + 8) * 86_400_000 / TF_MS[tf]))
                     funding[s] = history.load_funding(s)
                 cfg = load(params["config"]) if params.get("config") else trader.cfg
+                if cfg.system.execution_timeframe != tf:
+                    cfg = rescale_timeframe(cfg, tf)
                 lab = ResearchLab(cfg, data, {k: v for k, v in funding.items() if v is not None})
                 if kind == "backtest":
                     r = lab.backtest(cfg, label="backtest")

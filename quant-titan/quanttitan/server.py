@@ -12,7 +12,8 @@ from .security.secrets import SecretStore, load_master_key
 from .storage.db import Database
 
 
-def build(data_dir: str = "data", *, device_token: str | None = None, autostart: bool = True, replay_symbols: list[str] | None = None):
+def build(data_dir: str = "data", *, device_token: str | None = None, autostart: bool = True, replay_symbols: list[str] | None = None,
+          replay_tf: str = "3m"):
     os.makedirs(data_dir, exist_ok=True)
     setup_logging(os.environ.get("QT_LOG_LEVEL", "INFO"), json_output=os.environ.get("QT_LOG_JSON") == "1")
     db = Database(os.environ.get("QT_DATABASE_URL") or f"sqlite:///{os.path.join(data_dir, 'quanttitan.db')}")
@@ -21,7 +22,7 @@ def build(data_dir: str = "data", *, device_token: str | None = None, autostart:
     funding = None
     if replay_symbols:
         hs = HistoryStore(os.path.join(data_dir, "history"))
-        replay = {s: hs.load(s, "5m") for s in replay_symbols}
+        replay = {s: hs.load(s, replay_tf) for s in replay_symbols}
         replay = {s: c for s, c in replay.items() if c is not None}
         funding = {s: hs.load_funding(s) for s in replay}
     trader = Trader(db, secrets, replay_data=replay, replay_funding=funding)

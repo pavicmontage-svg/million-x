@@ -8,7 +8,7 @@ Measured inputs (5m execution timeframe unless noted)
   Efficiency ratio ER(20)   net move / path length (trendiness vs noise)
   EMA(50) slope / ATR       direction of drift
   1h EMA50 vs EMA200        higher-timeframe structure
-  RV_short / RV_long        realized-vol ratio (12 vs 288 bars) -> expansion / compression
+  RV_short / RV_long        realized-vol ratio (1 hour vs 1 day of bars) -> expansion / compression
   ATR% percentile           volatility level relative to the last ``vol_lookback`` bars
   BB-width percentile       range compression
   max |return| / sigma      jump detection over the last ``jump_lookback`` bars
@@ -24,6 +24,7 @@ import numpy as np
 from .. import indicators as ind
 from ..config import RegimeConfig
 from ..core.types import Direction, EngineSignal, Regime, RegimeState
+from ..data.candles import DAY_MS, HOUR_MS, bars_in
 from .base import Engine, MarketContext, fval
 
 
@@ -48,8 +49,8 @@ class RegimeEngine(Engine):
         h1_fast = ctx.htf_aligned("1h", ind.ema(h1.close, 50)) if len(h1) else np.full(len(c), np.nan)
         h1_slow = ctx.htf_aligned("1h", ind.ema(h1.close, 200)) if len(h1) else np.full(len(c), np.nan)
         r = ind.log_returns(c.close)
-        rv_s = ind.rolling_std(r, 12, ddof=1)
-        rv_l = ind.rolling_std(r, 288, ddof=1)
+        rv_s = ind.rolling_std(r, bars_in(c.timeframe, HOUR_MS), ddof=1)
+        rv_l = ind.rolling_std(r, bars_in(c.timeframe, DAY_MS), ddof=1)
         with np.errstate(divide="ignore", invalid="ignore"):
             atr_pct = atr / c.close
             jump = np.abs(r) / ind.shift(rv_l, 1)

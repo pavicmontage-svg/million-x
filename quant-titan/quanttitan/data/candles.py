@@ -10,6 +10,14 @@ TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "30m": 1_80
 FIELDS = ("ts", "open", "high", "low", "close", "volume", "quote_volume", "trades", "taker_buy")
 
 
+def bars_in(timeframe: str, duration_ms: int) -> int:
+    """Number of bars of ``timeframe`` covering ``duration_ms`` (at least 1)."""
+    return max(1, int(round(duration_ms / TF_MS[timeframe])))
+
+
+HOUR_MS, DAY_MS = 3_600_000, 86_400_000
+
+
 @dataclass
 class Candles:
     """Closed candles only. ``ts`` is the bar open time in ms (UTC)."""

@@ -23,10 +23,10 @@ import numpy as np
 
 from ..agents import ExecutionSpecialist, PortfolioManager
 from ..agents.portfolio_manager import correlation_matrix
-from ..config import AppConfig
+from ..config import AppConfig, rescale_timeframe
 from ..core.logging import get_logger
 from ..core.types import ContractSpec, Decision, Direction, Outcome, Position, TradeRecord, new_id
-from ..data.candles import Candles
+from ..data.candles import DAY_MS, Candles, bars_in
 from ..engines import build_engines
 from ..engines.base import MarketContext, fval
 from ..execution.exits import ExitFill, simulate_bar, trail_level
@@ -79,14 +79,18 @@ class BacktestResult:
 class Backtester:
     def __init__(self, cfg: AppConfig, data: dict[str, Candles], *, funding: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
                  specs: dict[str, ContractSpec] | None = None, equity0: float | None = None, label: str = "backtest",
-                 correlation_refresh_bars: int = 288) -> None:
+                 correlation_refresh_bars: int | None = None) -> None:
         self.cfg = copy.deepcopy(cfg)  # isolated: never mutates the caller's (live) configuration
+        data_tf = next(iter(data.values())).timeframe if data else cfg.system.execution_timeframe
+        if data_tf in ("1m", "3m", "5m", "15m") and data_tf != self.cfg.system.execution_timeframe:
+            self.cfg = rescale_timeframe(self.cfg, data_tf)  # durations keep their wall-clock meaning
         self.data = data
         self.funding = funding or {}
         self.specs = specs or {}
         self.equity0 = float(equity0 if equity0 is not None else cfg.system.paper_starting_equity)
         self.label = label
-        self.corr_every = correlation_refresh_bars
+        tf = next(iter(data.values())).timeframe if data else "3m"
+        self.corr_every = correlation_refresh_bars if correlation_refresh_bars is not None else bars_in(tf, DAY_MS)
 
     def _spec(self, s: str) -> ContractSpec:
         if s in self.specs:

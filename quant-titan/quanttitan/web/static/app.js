@@ -98,7 +98,7 @@ function lineChart(canvas, xs, ys, { color = "--green", fill = true, zero = fals
 
 // ---------------------------------------------------------------- config forms
 const ENUMS = {
-  trading_mode: ["PAPER", "SEMI_AUTOMATIC", "AUTOMATIC"], direction: ["BOTH", "LONG", "SHORT"], execution_timeframe: ["1m", "5m", "15m"],
+  trading_mode: ["PAPER", "SEMI_AUTOMATIC", "AUTOMATIC"], direction: ["BOTH", "LONG", "SHORT"], execution_timeframe: ["3m", "1m", "5m", "15m"],
   market_data_source: ["binance_live", "binance_testnet", "replay"], exchange_env: ["PAPER", "TESTNET"], entry_order_type: ["MARKET", "LIMIT_IOC"],
   margin_type: ["ISOLATED", "CROSSED"], conditional_endpoint: ["algo", "legacy"], working_type: ["MARK_PRICE", "CONTRACT_PRICE"],
   on_unexpected_position: ["alert_only", "protect", "flatten"], policy: ["regime_gated", "majority_vote", "confidence_average"],
@@ -408,7 +408,7 @@ PAGES.settings = async () => {
     "engines.order_flow": c.engines.order_flow, "engines.stat_arb": c.engines.stat_arb };
   return `<h1>Settings</h1><div class="tabs">${Object.keys(sections).map((k) => `<button data-go="#/settings/${k}" class="${k === tab ? "active" : ""}">${esc(k)}</button>`).join("")}<button data-go="#/settings/theme" class="${tab === "theme" ? "active" : ""}">appearance</button></div>
   ${tab === "theme" ? `<div class="card"><h2>Appearance</h2><div class="row"><button class="btn" data-act="theme" data-v="dark">Dark</button><button class="btn" data-act="theme" data-v="light">Light</button><button class="btn" data-act="theme" data-v="">System</button></div></div>`
-    : `<div class="card">${tab === "execution" ? '<div class="banner amber">Venue PAPER/TESTNET only here. LIVE is enabled from API Connection with a typed confirmation and a deployment flag.</div>' : ""}${configForm(tab, sections[tab])}</div>`}
+    : `<div class="card">${tab === "system" ? '<div class="banner amber">Changing the execution timeframe keeps chart settings (EMA/ADX/ATR/Bollinger/VWAP bands) and rescales durations (time stops, cooldowns, statistics windows) so they mean the same time. Positions must be closed; the market-data stream restarts.</div>' : ""}${tab === "execution" ? '<div class="banner amber">Venue PAPER/TESTNET only here. LIVE is enabled from API Connection with a typed confirmation and a deployment flag.</div>' : ""}${configForm(tab, sections[tab])}</div>`}
   <div class="card"><h2>Configuration versions</h2><div class="tablewrap"><table><tr><th>#</th><th>Time</th><th>By</th><th>Note</th><th></th></tr>${d.versions.map((v) => `<tr><td>${v.id}</td><td>${time(v.ts)}</td><td>${esc(v.actor)}</td><td class="muted">${esc(v.note)}</td><td><button class="btn small" data-act="rollback" data-id="${v.id}">Restore</button></td></tr>`).join("")}</table></div></div>`;
 };
 
