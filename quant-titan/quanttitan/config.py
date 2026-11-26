@@ -326,7 +326,7 @@ class NotificationConfig(_M):
 class SystemConfig(_M):
     trading_mode: TradingMode = TradingMode.PAPER
     direction: DirectionMode = DirectionMode.BOTH
-    execution_timeframe: Literal["1m", "3m", "5m", "15m"] = "3m"
+    execution_timeframe: Literal["1m", "3m", "5m", "15m", "30m", "1h", "4h"] = "3m"
     analysis_timeframes: list[str] = Field(default_factory=lambda: ["1m", "3m", "15m", "1h", "4h"])
     paper_starting_equity: float = Field(10_000.0, gt=0)
     trading_paused: bool = False
@@ -345,18 +345,18 @@ class AppConfig(_M):
     notifications: NotificationConfig = Field(default_factory=NotificationConfig)
 
 
-# Parameters that express a *duration* in bars of the execution timeframe. When the timeframe changes
-# they are rescaled so they keep meaning the same wall-clock time. Indicator lengths (EMA, ADX, ATR,
-# Bollinger, structure and box lookbacks) are chart settings and are deliberately NOT rescaled —
-# the same as switching a TradingView chart from 5m to 3m.
+# Statistics windows that express wall-clock time (a VWAP day, a 7-day volatility history, a 2-hour
+# minimum VWAP session, ...). When the execution timeframe changes they are rescaled so they keep the
+# same meaning. Indicator lengths (EMA, ADX, ATR, Bollinger, structure/box lookbacks) and trade
+# management (time stops, cooldowns) are chart settings counted in bars of the chart — exactly as when
+# a strategy is moved to another chart in TradingView — and are NOT rescaled.
 TIME_PARAMS: dict[str, tuple[str, ...]] = {
-    "vwap": ("rolling_bars", "min_session_bars", "time_stop_bars", "cooldown_bars"),
-    "trend": ("time_stop_bars", "cooldown_bars"),
-    "breakout": ("width_pct_lookback", "time_stop_bars", "cooldown_bars"),
-    "order_flow": ("vol_z_window", "time_stop_bars", "cooldown_bars"),
-    "regime": ("vol_lookback", "jump_lookback", "min_bars", "cooldown_bars"),
+    "vwap": ("rolling_bars", "min_session_bars"),
+    "breakout": ("width_pct_lookback",),
+    "order_flow": ("vol_z_window",),
+    "regime": ("vol_lookback", "jump_lookback", "min_bars"),
 }
-_TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000}
+_TF_MS = {"1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000, "30m": 1_800_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
 def rescale_timeframe(cfg: "AppConfig", new_tf: str) -> "AppConfig":
@@ -366,10 +366,13 @@ def rescale_timeframe(cfg: "AppConfig", new_tf: str) -> "AppConfig":
     d["system"]["execution_timeframe"] = new_tf
     if old_tf != new_tf:
         f = _TF_MS[old_tf] / _TF_MS[new_tf]
+        models = {n: type(getattr(cfg.engines, n)) for n in TIME_PARAMS}
         for eng, fields in TIME_PARAMS.items():
             for k in fields:
-                v = d["engines"][eng][k]
-                d["engines"][eng][k] = max(1 if k != "cooldown_bars" else 0, int(round(v * f)))
+                info = models[eng].__fields__[k].field_info
+                lo = info.ge if info.ge is not None else 0
+                hi = info.le if info.le is not None else 10 ** 9
+                d["engines"][eng][k] = int(min(hi, max(lo, round(d["engines"][eng][k] * f))))
     return AppConfig.parse_obj(d)
 
 

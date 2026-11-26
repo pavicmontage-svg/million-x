@@ -152,19 +152,23 @@ class Backtester:
             tr = TradeRecord(new_id("bt_"), s, p.direction.value, p.engine, p.setup, p.regime, m["entry_px"], exit_px,
                              p.initial_qty, p.opened_ts, ts, gross, fees, m["funding"], slip, net, r, m["init_risk"],
                              all_fills[-1][3], p.decision_id, "backtest", "", m["confidence"], m["expected_r"],
-                             {"tp_hits": p.tp_hits, "bars_held": p.bars_held, "exploration": m["exploration"]})
+                             {"tp_hits": p.tp_hits, "bars_held": p.bars_held, "exploration": m["exploration"],
+                              "stop": p.initial_stop, "targets": [t.price for t in p.targets],
+                              "exits": [{"qty": f[0], "price": f[1], "reason": f[3], "ts": f[5]} for f in all_fills]})
             trades.append(tr)
             pf.on_trade_closed(tr)
             pf.positions.remove(p)
 
-        def book_exit(p: Position, s: str, i: int, ef: ExitFill, ts: int) -> None:
+        def book_exit(p: Position, s: str, i: int, ef: ExitFill, ts: int, final: bool | None = None) -> None:
+            """Book one exit fill. ``final`` closes the trade; it must be explicit when one bar produced several
+            fills (e.g. TP1 and TP2 in the same candle), because simulate_bar has already reduced p.qty for all."""
             side = -p.direction.sign  # closing side
             px = fill_px(ef.price, side, s, i, ef.qty * ef.price)
             fee = ef.qty * px * costs.taker_fee
             gross_part = (px - meta[p.id]["entry_px"]) * ef.qty * p.direction.sign
             pf.balance += gross_part - fee
-            row = (ef.qty, px, fee, ef.reason, ef.price)
-            if p.qty <= 1e-12:
+            row = (ef.qty, px, fee, ef.reason, ef.price, ts)
+            if (p.qty <= 1e-12) if final is None else final:
                 close_trade(p, s, [row], ts)
             else:
                 meta[p.id]["all_exits"].append(row)
@@ -202,8 +206,9 @@ class Backtester:
                                       "funding": 0.0, "init_risk": abs(px - d.stop) * d.qty, "all_exits": [],
                                       "confidence": d.confidence, "expected_r": d.expected_r, "exploration": d.exploration}
                 for p in [p for p in pf.positions if p.symbol == s]:
-                    for ef in simulate_bar(p, o, h, l, cl, move_to_be=cfg.execution.move_stop_to_be_after_tp1):
-                        book_exit(p, s, i, ef, ts)
+                    fills = simulate_bar(p, o, h, l, cl, move_to_be=cfg.execution.move_stop_to_be_after_tp1)
+                    for n_f, ef in enumerate(fills):
+                        book_exit(p, s, i, ef, ts, final=(n_f == len(fills) - 1 and p.qty <= 1e-12))
                 pf.prices[s] = cl
             # 2) funding at 00/08/16 UTC crossed during (prev_ts, ts]
             if prev_ts is not None:

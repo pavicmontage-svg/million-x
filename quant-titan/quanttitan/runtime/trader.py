@@ -629,6 +629,7 @@ class Trader:
         regimes = self.engines["regime"].last_states
         return {
             "ts": now, "running": self.running, "mode": self.cfg.system.trading_mode.value, "venue": self.venue,
+            "timeframe": self.cfg.system.execution_timeframe,
             "paused": self.cfg.system.trading_paused, "portfolio": pf.snapshot(),
             "pnl": {"realized_total": pnl_since(0), "daily": pnl_since(day0), "weekly": pnl_since(now - 7 * 86_400_000),
                     "monthly": pnl_since(now - 30 * 86_400_000), "unrealized": round(pf.unrealized(), 4)},

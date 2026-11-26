@@ -1,0 +1,2 @@
+TradingView Lightweight Charts(TM) v4.2.3, Copyright (c) 2025 TradingView, Inc., Apache License 2.0.
+https://www.tradingview.com/ — bundled unmodified for offline use.

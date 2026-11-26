@@ -152,13 +152,13 @@ async function getCfg() { if (!S.cfg) S.cfg = (await api("/api/config")).config;
 
 // ---------------------------------------------------------------- pages
 const ROUTES = [
-  ["sec", "Trading"], ["overview", "Overview", "◉"], ["markets", "Live Markets", "≋"], ["trades", "Active Trades", "⇅"],
+  ["sec", "Trading"], ["overview", "Overview", "◉"], ["chart", "Chart", "📈"], ["markets", "Live Markets", "≋"], ["trades", "Active Trades", "⇅"],
   ["history", "Trade History", "☰"], ["sec", "Intelligence"], ["strategies", "Strategies", "⚙"], ["team", "AI Team", "◎"],
   ["regime", "Market Regime", "◈"], ["sec", "Risk & Research"], ["risk", "Risk Management", "⛨"], ["backtest", "Backtesting", "⏱"],
   ["paper", "Paper Trading", "▤"], ["performance", "Performance", "↗"], ["sec", "System"], ["settings", "Settings", "⚒"],
   ["api", "API Connection", "⚿"], ["alerts", "Alerts", "!"], ["logs", "System Logs", "≡"],
 ];
-const BOTTOM = [["overview", "Overview", "◉"], ["markets", "Markets", "≋"], ["trades", "Trades", "⇅"], ["risk", "Risk", "⛨"], ["more", "More", "⋯"]];
+const BOTTOM = [["overview", "Overview", "◉"], ["chart", "Graf", "📈"], ["trades", "Trades", "⇅"], ["risk", "Risk", "⛨"], ["more", "More", "⋯"]];
 function buildNav() {
   $("#sidenav").innerHTML = ROUTES.map((r) => (r[0] === "sec" ? `<div class="sec">${r[1]}</div>` : `<a href="#/${r[0]}" data-r="${r[0]}"><span>${r[2]}</span>${r[1]}</a>`)).join("");
   $("#bottomnav").innerHTML = BOTTOM.map((r) => `<a href="${r[0] === "more" ? "#" : "#/" + r[0]}" data-r="${r[0]}"><span class="ic">${r[2]}</span>${r[1]}</a>`).join("");
@@ -221,7 +221,7 @@ PAGES.markets = async () => {
   const m = await api("/api/markets");
   const rows = Object.entries(m.views).map(([s, v]) => {
     const sig = (n) => { const x = v.signals[n]; if (!x) return "—"; return x.direction === "FLAT" ? `<span class="muted">${esc(x.state || "—")}</span>` : `${dirPill(x.direction)} ${fmt(x.confidence, 0)}`; };
-    return `<tr class="click" data-go="#/regime"><td><b>${esc(s)}</b></td><td class="num">${px(v.price)}</td><td><span class="pill">${esc(v.regime.regime)}</span></td>
+    return `<tr class="click" data-go="#/chart/${esc(s)}"><td><b>${esc(s)}</b></td><td class="num">${px(v.price)}</td><td><span class="pill">${esc(v.regime.regime)}</span></td>
       <td class="num">${isNum(v.spread_bps) ? fmt(v.spread_bps, 1) : "—"}</td><td class="num">${isNum(v.funding) ? (v.funding * 100).toFixed(4) + "%" : "—"}</td>
       <td>${sig("vwap")}</td><td>${sig("trend")}</td><td>${sig("breakout")}</td><td>${sig("order_flow")}</td></tr>`;
   }).join("");
@@ -243,14 +243,14 @@ PAGES.trades = async () => {
       <tr><td class="muted">Mark</td><td class="num">${px(p.mark)}</td></tr><tr><td class="muted">Stop</td><td class="num">${px(p.stop)}</td></tr>
       <tr><td class="muted">Targets</td><td class="num">${p.targets.map((t) => px(t.price)).join(" / ")}</td></tr>
       <tr><td class="muted">Leverage</td><td class="num">${fmt(p.leverage, 0)}x</td></tr><tr><td class="muted">Opened</td><td class="num">${time(p.opened_ts)}</td></tr></table></div>
-      <div class="row" style="margin-top:8px"><span class="spacer"></span><button class="btn small danger" data-act="close-pos" data-id="${esc(p.id)}" data-sym="${esc(p.symbol)}">Close</button></div></div>`).join("")}</div>`
+      <div class="row" style="margin-top:8px"><a class="btn small primary" href="#/chart/${esc(p.symbol)}">📈 Graf</a><span class="spacer"></span><button class="btn small danger" data-act="close-pos" data-id="${esc(p.id)}" data-sym="${esc(p.symbol)}">Close</button></div></div>`).join("")}</div>`
     : `<div class="card">${empty("No open positions. The bot only trades when an eligible engine shows edge after costs and the Risk Manager approves.")}</div>`}`;
 };
 
 PAGES.history = async () => {
   const t = await api("/api/trades?limit=500");
   return `<h1>Trade History</h1><div class="card"><div class="tablewrap"><table><tr><th>Closed</th><th>Symbol</th><th>Dir</th><th>Engine</th><th>Regime</th><th class="num">Entry</th><th class="num">Exit</th><th class="num">Net</th><th class="num">R</th><th class="num">Fees</th><th>Exit reason</th><th>Mode</th></tr>
-  ${t.map((x) => `<tr><td>${time(x.closed_ts)}</td><td>${esc(x.symbol)}</td><td>${dirPill(x.direction)}</td><td>${esc(x.engine)}</td><td class="muted">${esc(x.regime)}</td><td class="num">${px(x.entry_price)}</td><td class="num">${px(x.exit_price)}</td><td class="num">${sgn(x.net_pnl)}</td><td class="num">${sgn(x.r_multiple)}</td><td class="num">${fmt(x.fees)}</td><td>${esc(x.exit_reason)}</td><td>${esc(x.mode)}</td></tr>`).join("") || `<tr><td colspan=12>${empty()}</td></tr>`}</table></div></div>`;
+  ${t.map((x) => `<tr class="click" data-go="#/chart/${esc(x.symbol)}/${esc(x.id)}"><td>${time(x.closed_ts)}</td><td>${esc(x.symbol)}</td><td>${dirPill(x.direction)}</td><td>${esc(x.engine)}</td><td class="muted">${esc(x.regime)}</td><td class="num">${px(x.entry_price)}</td><td class="num">${px(x.exit_price)}</td><td class="num">${sgn(x.net_pnl)}</td><td class="num">${sgn(x.r_multiple)}</td><td class="num">${fmt(x.fees)}</td><td>${esc(x.exit_reason)}</td><td>${esc(x.mode)}</td></tr>`).join("") || `<tr><td colspan=12>${empty()}</td></tr>`}</table></div></div>`;
 };
 
 PAGES.strategies = async () => {
@@ -341,13 +341,16 @@ PAGES.backtest = async () => {
   const jobs = [...j.running, ...j.history.filter((h) => !j.running.find((r) => r.id === h.id))];
   return `<h1>Backtesting & Research Lab</h1><p class="muted">Runs in an isolated copy of the configuration on Binance archive data (data.binance.vision), with fees, slippage, spread and funding. Results never change live settings.</p>
   <div class="card"><form id="btForm"><div class="form">
-    <div class="field"><label>Experiment</label><select name="kind"><option value="backtest">Backtest + Monte Carlo</option><option value="train_test">Train / test split</option><option value="walk_forward">Walk-forward (grid on train, stitched OOS)</option><option value="policy_comparison">Decision-policy comparison</option><option value="sensitivity">Parameter sensitivity</option></select></div>
-    <div class="field"><label>Symbols</label><input name="symbols" value="${esc((st.symbols || ["BTCUSDT", "ETHUSDT"]).slice(0, 3).join(","))}"></div>
-    <div class="field"><label>Days of history</label><input name="days" type="number" value="30"></div>
-    <div class="field"><label>Walk-forward train / test days</label><input name="wf" value="20,7"></div>
-    <div class="field" style="grid-column:1/-1"><label>Parameter grid (JSON, e.g. {"engines.vwap.entry_band":[1.0,1.5]})</label><textarea name="grid">{}</textarea></div>
-  </div><div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" type="submit">Run experiment</button></div></form></div>
-  <div class="card"><h2>Experiments</h2><div class="tablewrap"><table><tr><th>Started</th><th>Kind</th><th>Status</th><th></th></tr>${jobs.map((x) => `<tr><td>${time(x.ts)}</td><td>${esc(x.kind)}</td><td>${esc(x.status)}</td><td>${x.status === "done" ? `<a href="#/result/${esc(x.id)}">Open →</a>` : esc(x.error || "")}</td></tr>`).join("") || `<tr><td colspan=4>${empty()}</td></tr>`}</table></div></div>`;
+    <div class="field"><label>Vrsta testa</label><select name="kind"><option value="backtest">Backtest (+ Monte Carlo)</option><option value="train_test">Učenje / provjera</option><option value="walk_forward">Walk-forward (najpošteniji)</option><option value="policy_comparison">Usporedba načina odlučivanja</option><option value="sensitivity">Osjetljivost parametara</option></select></div>
+    <div class="field"><label>Parovi (zarezom)</label><input name="symbols" value="${esc((st.symbols || ["BTCUSDT", "ETHUSDT"]).slice(0, 3).join(","))}"></div>
+    <div class="field"><label>Koliko dana povijesti</label><input name="days" type="number" value="30" inputmode="numeric"></div>
+    <div class="field"><label>Timeframe</label><select name="timeframe">${["3m", "1m", "5m", "15m", "30m", "1h", "4h"].map((t) => `<option ${t === (st.timeframe || "3m") ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+    <div class="field"><label>Što testirati (za osjetljivost / walk-forward)</label><select name="preset">${Object.entries(PRESETS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join("")}</select></div>
+  </div><details style="margin-top:10px"><summary>Napredno</summary><div class="form" style="margin-top:8px">
+    <div class="field"><label>Walk-forward: dani učenja, dani provjere</label><input name="wf" value="20,7"></div>
+    <div class="field" style="grid-column:1/-1"><label>Vlastita mreža parametara (JSON) — zamjenjuje predložak</label><textarea name="grid" placeholder='{"engines.vwap.entry_band":[1.0,1.5]}'></textarea></div></div></details>
+  <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" type="submit">Pokreni test</button></div></form></div>
+  <div class="card"><h2>Experiments</h2><div class="tablewrap"><table><tr><th>Started</th><th>Kind</th><th>Status</th><th></th></tr>${jobs.map((x) => `<tr class="${x.status === "done" ? "click" : ""}" ${x.status === "done" ? `data-go="#/result/${esc(x.id)}"` : ""}><td>${time(x.ts)}</td><td>${esc(EXP_NAME[x.kind] || x.kind)}</td><td>${esc({ done: "gotovo", running: "radi", queued: "u redu", failed: "greška" }[x.status] || x.status)}</td><td>${x.status === "done" ? `<a href="#/result/${esc(x.id)}">Otvori →</a>` : x.status === "running" || x.status === "queued" ? "⏳ radi…" : esc(x.error || "")}</td></tr>`).join("") || `<tr><td colspan=4>${empty()}</td></tr>`}</table></div></div>`;
 };
 PAGES.backtest.after = () => {
   const f = $("#btForm");
@@ -355,29 +358,129 @@ PAGES.backtest.after = () => {
   f.onsubmit = async (e) => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(f).entries());
-    const [tr, te] = d.wf.split(",").map(Number);
+    const [tr, te] = (d.wf || "20,7").split(",").map(Number);
     try {
-      const r = await post("/api/research/run", { kind: d.kind, symbols: d.symbols.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean), days: Number(d.days), train_days: tr, test_days: te, grid: JSON.parse(d.grid || "{}") });
-      toast(`Experiment started (${r.id}). Data download may take a minute.`);
+      const grid = d.grid && d.grid.trim() ? JSON.parse(d.grid) : PRESETS[d.preset || "none"].grid;
+      if (d.kind === "sensitivity" && !Object.keys(grid).length) { toast("Za osjetljivost odaberi što testirati (predložak).", "warning"); return; }
+      const r = await post("/api/research/run", { kind: d.kind, symbols: d.symbols.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean), days: Number(d.days), train_days: tr, test_days: te, grid, timeframe: d.timeframe });
+      toast(`Test pokrenut. Skidanje podataka može potrajati minutu.`);
       setTimeout(() => route(), 1500);
     } catch (err) { toast(err.message, "critical"); }
   };
 };
+// ---------------------------------------------------------------- research results in plain language
+const EXP_NAME = { backtest: "Backtest", train_test: "Učenje / provjera", walk_forward: "Walk-forward", policy_comparison: "Usporedba načina odlučivanja", sensitivity: "Osjetljivost parametara" };
+const PRESETS = {
+  none: { label: "— bez parametara —", grid: {} },
+  vwap_band: { label: "VWAP: ulazni pojas 1σ / 1,5σ / 2σ", grid: { "engines.vwap.entry_band": [1.0, 1.5, 2.0] } },
+  vwap_rr: { label: "VWAP: minimalni omjer zarade/rizika 0,8 / 1,0 / 1,5", grid: { "engines.vwap.min_rr_tp1": [0.8, 1.0, 1.5] } },
+  trend_stop: { label: "Trend: širina stopa 1,5 / 1,8 / 2,5 ATR", grid: { "engines.trend.stop_atr": [1.5, 1.8, 2.5] } },
+  trend_tp1: { label: "Trend: TP1 na 1,0 / 1,5 / 2,0 R", grid: { "engines.trend.tp1_r": [1.0, 1.5, 2.0] } },
+  breakout_comp: { label: "Breakout: kompresija 15 / 20 / 30 percentil", grid: { "engines.breakout.compression_pct": [15, 20, 30] } },
+  cost_gate: { label: "Filter troškova 0,15 / 0,25 / 0,40 R", grid: { "orchestrator.max_cost_r": [0.15, 0.25, 0.4] } },
+};
+const pctS = (x, d = 2) => (isNum(x) ? `${x > 0 ? "+" : ""}${fmt(x, d)}%` : "—");
+function verdict(m, ci) {
+  const n = m.trades || 0, e = m.expectancy_r;
+  if (n < 30) return { cls: "amber", icon: "⚠️", title: "Premalo tradeova za zaključak", text: `Samo ${n} tradeova. Za pouzdan zaključak treba barem 30, idealno 100+. Pokreni duži period ili više parova.` };
+  if (ci && ci.lo > 0) return { cls: "ok", icon: "✅", title: "Obećavajuće", text: "Prosječan trade je pozitivan i to je statistički uvjerljivo (95% interval pouzdanosti je iznad nule). Sljedeći korak: paper trading da se potvrdi uživo." };
+  if ((ci && ci.hi < 0) || (m.profit_factor < 0.9 && e < 0)) return { cls: "bad", icon: "❌", title: "Gubitno", text: "Ovakve postavke su na ovim podacima gubile novac nakon troškova. Ne koristiti za pravi novac." };
+  return { cls: "amber", icon: "➖", title: "Neodlučno", text: "Rezultat nije ni jasno dobar ni jasno loš — razlika od nule može biti slučajnost. Treba više podataka." };
+}
+function verdictCard(v) { return `<div class="verdict ${v.cls}"><div class="vi">${v.icon}</div><div><b>${esc(v.title)}</b><div>${esc(v.text)}</div></div></div>`; }
+function tile(label, value, hint, cls = "") { return `<div class="card kpi ${cls}"><div class="l">${esc(label)}</div><div class="v">${value}</div>${hint ? `<div class="s">${hint}</div>` : ""}</div>`; }
+function plainStory(m, days) {
+  const n = m.trades || 0;
+  if (!n) return "U ovom periodu bot nije otvorio nijedan trade — nijedan signal nije prošao filtere (režim tržišta, troškovi, rizik). To je namjerno: bez prednosti nema ulaza.";
+  const wins = Math.round((m.win_rate || 0) * 10);
+  const cost = (m.fees || 0) + (m.slippage || 0) + Math.max(0, m.funding || 0);
+  const gross = m.gross_pnl || 0;
+  let s = `U ${days ? fmt(days, 0) + " dana" : "testiranom periodu"} bot bi napravio <b>${n}</b> tradeova i završio na <b class="${m.net_pnl >= 0 ? "pos" : "neg"}">${pctS(m.return_pct)}</b> (${sgn(m.net_pnl)} USDT na 10.000). `;
+  s += `Otprilike <b>${wins} od 10</b> tradeova je bilo dobitno. Prosječan trade: <b class="${m.expectancy_r >= 0 ? "pos" : "neg"}">${m.expectancy_r >= 0 ? "+" : ""}${fmt(m.expectancy_r, 2)}R</b> `;
+  s += `(R = iznos koji riskiraš po tradeu; uz 0,5% rizika, 1R ≈ 50 USDT). Najveći pad od vrha bio je <b>${fmt(m.max_drawdown_pct, 1)}%</b>. `;
+  if (cost > 0) s += `Troškovi (naknade ${fmt(m.fees, 0)} + slippage ${fmt(m.slippage, 0)} USDT) ${gross > 0 ? `odnijeli su <b>${fmt(Math.min(999, (cost / gross) * 100), 0)}%</b> bruto zarade` : "su dodatno povećali gubitak"}.`;
+  return s;
+}
+function hbars(rows, unit = "R") {  // rows: [{label, value, sub}]
+  const max = Math.max(0.0001, ...rows.map((r) => Math.abs(r.value || 0)));
+  return `<div class="hbars">${rows.map((r) => `<div class="hb"><span class="hl">${esc(r.label)}</span><div class="ht"><i class="${r.value >= 0 ? "p" : "n"}" style="width:${(Math.abs(r.value || 0) / max * 50).toFixed(1)}%;${r.value >= 0 ? "left:50%" : `right:50%`}"></i></div><span class="hv ${r.value >= 0 ? "pos" : "neg"}">${r.value >= 0 ? "+" : ""}${fmt(r.value, 2)}${unit}</span>${r.sub ? `<span class="hs">${esc(r.sub)}</span>` : ""}</div>`).join("")}</div>`;
+}
+function engineBars(by) {
+  if (!by || !Object.keys(by).length) return "";
+  return `<div class="card"><h2>Koji engine je kako radio</h2>${hbars(Object.entries(by).map(([k, v]) => ({ label: k, value: v.expectancy_r, sub: `${v.trades} tradeova · ${Math.round(v.win_rate * 100)}% dobitnih` })))}
+    <p class="muted">Prosječan rezultat po tradeu u R. Zeleno desno = zarađuje, crveno lijevo = gubi.</p></div>`;
+}
+function weeklyBars(trades) {
+  if (!trades || trades.length < 3) return "";
+  const wk = {};
+  trades.forEach((t) => { const d = new Date(t.closed_ts); const k = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)).toISOString().slice(0, 10); wk[k] = (wk[k] || 0) + t.net_pnl; });
+  const rows = Object.entries(wk).sort().map(([k, v]) => ({ label: k.slice(5).split("-").reverse().join("."), value: v }));
+  const pos = rows.filter((r) => r.value > 0).length;
+  return `<div class="card"><h2>Tjedan po tjedan</h2>${hbars(rows, " $")}<p class="muted">${pos} od ${rows.length} tjedana u plusu.</p></div>`;
+}
+function mcCard(mc) {
+  if (!mc || mc.error) return "";
+  return `<div class="card"><h2>Monte Carlo — što se moglo dogoditi</h2>
+    <p>Bot je ${mc.simulations} puta nasumično ispremiješao i ponovno izvukao iste tradeove da vidi raspon mogućih ishoda.</p>
+    <div class="grid kpis">${tile("Vjerojatnost gubitka", `${Math.round(mc.prob_loss * 100)}%`, "postotak simulacija koje završe u minusu", mc.prob_loss > 0.5 ? "bad" : "")}
+      ${tile("Tipičan rezultat", pctS(mc.bootstrap_return_pct.p50, 1), `90% simulacija između ${pctS(mc.bootstrap_return_pct.p5, 1)} i ${pctS(mc.bootstrap_return_pct.p95, 1)}`)}
+      ${tile("Najgori pad (95%)", `${fmt(mc.bootstrap_max_dd_pct.p95, 1)}%`, "u 95% simulacija pad nije bio veći od ovoga")}</div></div>`;
+}
+function tech(r) { return `<details class="card"><summary>Tehnički detalji (za napredne)</summary><pre class="explain">${esc(JSON.stringify(r, null, 1))}</pre></details>`; }
+
 PAGES.result = async (id) => {
   const j = await api(`/api/research/jobs/${encodeURIComponent(id)}`);
   const r = j.result || {};
-  let body = "";
-  if (r.metrics) {
-    body = `<div class="grid cols2"><div class="card"><h2>Metrics</h2>${metricsTable(r.metrics)}</div><div class="card"><h2>Equity</h2><canvas class="chart" id="resChart"></canvas>
-      ${r.monte_carlo && !r.monte_carlo.error ? `<h2 style="margin-top:12px">Monte Carlo (${r.monte_carlo.simulations} runs)</h2><pre class="explain">${esc(JSON.stringify(r.monte_carlo, null, 1))}</pre>` : ""}</div></div>
-      ${breakdown("By engine", r.metrics.by_engine)}${breakdown("By regime", r.metrics.by_regime)}${breakdown("By symbol", r.metrics.by_symbol)}${breakdown("By exit", r.metrics.by_exit)}
-      ${breakdown("Long / short", { long: r.metrics.long, short: r.metrics.short })}
-      <div class="card"><h2>Decisions</h2><pre class="explain">${esc(JSON.stringify(r.decisions, null, 1))}</pre></div>`;
-  } else body = `<div class="card"><pre class="explain">${esc(JSON.stringify(r, null, 1))}</pre></div>`;
-  S.resultCurve = r.equity_curve;
-  return `<h1><a href="#/backtest">←</a> ${esc(j.kind)} result</h1><p class="muted">Simulated on historical data. Past simulated results do not guarantee future results.</p>${body}`;
+  const kind = j.kind;
+  const head = `<h1><a href="#/backtest">←</a> ${esc(EXP_NAME[kind] || kind)}</h1><p class="muted">Simulacija na povijesnim podacima s naknadama, slippageom i fundingom. Prošli rezultati ne jamče buduće.</p>`;
+  if (j.status === "failed" || r.error) return head + `<div class="card"><b>Eksperiment nije uspio:</b> ${esc(r.error || j.error)}</div>`;
+  if (kind === "backtest" && r.metrics) {
+    const m = r.metrics;
+    S.resultCurve = r.equity_curve;
+    const days = r.days || (m.days);
+    return head + verdictCard(verdict(m, r.ci95)) + `<div class="card"><p class="big">${plainStory(m, days)}</p></div>
+      <div class="grid kpis">${tile("Rezultat", `<span class="${m.net_pnl >= 0 ? "pos" : "neg"}">${pctS(m.return_pct)}</span>`, `${sgn(m.net_pnl)} USDT`)}
+      ${tile("Tradeova", m.trades, `${Math.round((m.win_rate || 0) * 100)}% dobitnih`)}${tile("Prosječan trade", `${m.expectancy_r >= 0 ? "+" : ""}${fmt(m.expectancy_r, 2)}R`, r.ci95 ? `95% sigurno između ${fmt(r.ci95.lo, 2)} i ${fmt(r.ci95.hi, 2)}R` : "")}
+      ${tile("Profit faktor", fmt(m.profit_factor), "zarada ÷ gubici (iznad 1 = zarađuje)")}${tile("Najveći pad", `${fmt(m.max_drawdown_pct, 1)}%`, "od najvišeg stanja računa")}
+      ${tile("Troškovi", `${fmt((m.fees || 0) + (m.slippage || 0), 0)} $`, "naknade + slippage")}</div>
+      <div class="card"><h2>Stanje računa kroz vrijeme</h2><canvas class="chart" id="resChart"></canvas></div>
+      ${engineBars(m.by_engine)}${weeklyBars(r.trades)}${mcCard(r.monte_carlo)}
+      ${m.long && m.short ? `<div class="card"><h2>Long vs short</h2>${hbars([{ label: "LONG", value: m.long.expectancy_r, sub: `${m.long.trades} tradeova` }, { label: "SHORT", value: m.short.expectancy_r, sub: `${m.short.trades} tradeova` }])}</div>` : ""}
+      ${tech(r)}`;
+  }
+  if (kind === "train_test") {
+    const a = r.train || {}, b = r.test || {};
+    const held = isNum(a.expectancy_r) && isNum(b.expectancy_r) && (b.expectancy_r >= 0) === (a.expectancy_r >= 0);
+    const v = (b.trades || 0) < 30 ? verdict(b, null) : b.expectancy_r > 0 && held ? { cls: "ok", icon: "✅", title: "Rezultat se zadržao", text: "I na novim podacima (koje strategija 'nije vidjela') rezultat je ostao pozitivan." } :
+      { cls: "bad", icon: "❌", title: "Rezultat se nije zadržao", text: "Na novim podacima strategija nije zarađivala. To znači da dobar rezultat (ako ga je bilo) nije pouzdan." };
+    const col = (t, x) => `<div class="card"><h2>${t}</h2><p class="big"><b class="${x.net_pnl >= 0 ? "pos" : "neg"}">${pctS(x.return_pct)}</b> · ${x.trades} tradeova · prosjek ${fmt(x.expectancy_r, 2)}R</p><p class="muted">profit faktor ${fmt(x.profit_factor)} · najveći pad ${fmt(x.max_drawdown_pct, 1)}%</p></div>`;
+    return head + verdictCard(v) + `<div class="card"><p>Podaci su podijeljeni na dva dijela: <b>prvi dio</b> (učenje) i <b>drugi dio</b> (provjera na podacima koje strategija nije vidjela). Pravi test je drugi dio.</p></div>
+      <div class="grid cols2">${col("1. dio — učenje", a)}${col("2. dio — provjera", b)}</div>${tech(r)}`;
+  }
+  if (kind === "walk_forward") {
+    const m = r.oos_metrics || {};
+    const dsr = r.deflated_sharpe ? r.deflated_sharpe.dsr : null;
+    const folds = (r.folds || []).map((f, k) => ({ label: `Krug ${k + 1}`, value: f.test.return_pct || 0, sub: `${f.test.trades} tradeova${Object.keys(f.chosen || {}).length ? " · " + Object.entries(f.chosen).map(([a, b]) => a.split(".").pop() + "=" + b).join(", ") : ""}` }));
+    return head + verdictCard(verdict(m, r.expectancy_ci95)) + `<div class="card"><p>Walk-forward ponavlja ovo više puta zaredom: <b>nauči</b> na jednom razdoblju, pa <b>trguj</b> na idućem koje nije vidio. Ovo je najpošteniji test jer nalikuje stvarnom trgovanju.</p>
+      <p class="big">${plainStory(m)}</p>${isNum(dsr) ? `<p>Vjerojatnost da rezultat nije samo sreća (deflated Sharpe): <b>${Math.round(dsr * 100)}%</b> ${dsr >= 0.95 ? "— uvjerljivo" : "— nije dovoljno uvjerljivo (treba 95%+)"}.</p>` : ""}</div>
+      <div class="card"><h2>Rezultat svakog kruga (na neviđenim podacima)</h2>${hbars(folds, "%")}</div>${tech(r)}`;
+  }
+  if (kind === "policy_comparison") {
+    const NAMES = { regime_gated: "Prema režimu tržišta (zadano)", majority_vote: "Većina engineova", confidence_average: "Prosjek pouzdanosti" };
+    const rows = Object.entries(r.results || {}).map(([k, v]) => ({ label: NAMES[k] || k, value: v.return_pct || 0, sub: `${v.trades} tradeova · prosjek ${fmt(v.expectancy_r, 2)}R` }));
+    return head + `<div class="card"><p>Isti podaci, tri različita načina na koja središnji sustav odlučuje. Pokazuje radi li naš način (prema režimu tržišta) bolje od jednostavnih alternativa.</p></div><div class="card"><h2>Rezultat</h2>${hbars(rows, "%")}</div>${tech(r)}`;
+  }
+  if (kind === "sensitivity") {
+    const vs = r.variants || [];
+    if (!vs.length) return head + `<div class="verdict amber"><div class="vi">ℹ️</div><div><b>Nisi odabrao parametre za testiranje</b><div>Pokreni ponovno i u polju „Što testirati“ odaberi predložak (npr. „VWAP: ulazni pojas“).</div></div></div>` + tech(r);
+    const rows = vs.map((x) => ({ label: `${x.param.split(".").pop()} = ${x.value}`, value: x.expectancy_r || 0, sub: `${x.trades} tradeova · ${pctS(x.return_pct)}` }));
+    const interp = { "broad plateau": "Stabilno — rezultat ne ovisi o točnoj vrijednosti (dobar znak).", "fragile: performance depends on exact parameters": "Krhko — rezultat jako ovisi o točnoj vrijednosti (znak prenaučenosti).", mixed: "Mješovito." }[r.interpretation] || "";
+    return head + `<div class="card"><p>Isti test s malo promijenjenim postavkama. Ako rezultat ostaje sličan, strategija je robusna; ako skače, vjerojatno je slučajnost.</p><p><b>${esc(interp)}</b></p></div>
+      <div class="card"><h2>Prosječan trade po varijanti</h2>${hbars(rows)}<p class="muted">Osnovna postavka: ${fmt(r.base.expectancy_r, 2)}R, ${r.base.trades} tradeova.</p></div>${tech(r)}`;
+  }
+  return head + tech(r);
 };
-PAGES.result.after = () => { const c = S.resultCurve; if (c && c.equity && c.equity.length > 1) lineChart($("#resChart"), c.ts, c.equity); };
+PAGES.result.after = () => { const c = S.resultCurve; if (c && c.equity && c.equity.length > 1) lineChart($("#resChart"), c.ts, c.equity); S.resultCurve = null; };
 
 PAGES.paper = async () => {
   const p = await api("/api/paper");
@@ -453,6 +556,175 @@ PAGES.logs = async () => {
   <div class="card"><div class="tablewrap"><table>${rows.join("") || `<tr><td>${empty()}</td></tr>`}</table></div></div>`;
 };
 
+
+// ---------------------------------------------------------------- live trading chart
+const HR_STATE = {
+  INSIDE_BANDS: "cijena unutar VWAP pojaseva — nema odstupanja za trgovati", NORMAL_DEVIATION: "cijena izvan pojasa, čeka se potvrda okreta",
+  OVEREXTENDED: "cijena jako daleko od VWAP-a — previše rizično za ulaz", STRONG_TREND_CONTINUATION: "jak trend — bot ne ide protiv trenda",
+  POTENTIAL_REVERSAL: "moguć okret prema VWAP-u, provjeravaju se volumen i tok naloga", FALSE_REJECTION: "lažni okret — odbačeno",
+  VWAP_RECLAIM: "cijena se vratila iznad VWAP-a", VWAP_BREAKDOWN: "cijena je pala ispod VWAP-a", HIGH_VOLATILITY: "previsoka volatilnost",
+  INSUFFICIENT_SESSION: "dan je tek počeo — VWAP još nije pouzdan", NO_TREND: "nema jasnog trenda", TREND_REVERSAL: "trend se okreće",
+  TREND_EXHAUSTION: "trend gubi snagu", MOMENTUM_ACCELERATION: "zamah ubrzava", STRONG_BULL: "jak uzlazni trend", STRONG_BEAR: "jak silazni trend",
+  WEAK_BULL: "slab uzlazni trend", WEAK_BEAR: "slab silazni trend", COMPRESSION: "tržište se stišće — moguć proboj", NO_SETUP: "nema postavke",
+  VALID_BREAKOUT: "valjan proboj", LOW_VOLUME_BREAKOUT: "proboj bez volumena — odbačeno", FALSE_BREAKOUT: "lažni proboj", BREAKOUT_CONTINUATION: "proboj se nastavlja",
+  BALANCED: "kupci i prodavači u ravnoteži", AGGRESSIVE_BUYING: "agresivna kupnja", AGGRESSIVE_SELLING: "agresivna prodaja", ABSORPTION: "veliki volumen ne pomiče cijenu",
+  WARMUP: "skupljanje podataka", RANGE: "bočno tržište", STRONG_TREND: "jak trend", WEAK_TREND: "slab trend", HIGH_VOLATILITY_REGIME: "visoka volatilnost",
+  VOLATILITY_COMPRESSION: "volatilnost se stišće", VOLATILITY_EXPANSION: "volatilnost raste", MARKET_DISLOCATION: "poremećaj tržišta — bez novih ulaza",
+  UNSAFE_MARKET: "nesigurno tržište — bez novih ulaza", UNKNOWN: "premalo podataka", LOW_VOLATILITY: "niska volatilnost",
+};
+const EXIT_LABEL = { take_profit_1: "TP1", take_profit_2: "TP2", take_profit_3: "TP3", take_profit_4: "TP4", stop_loss: "SL", breakeven_stop: "BE",
+  trailing_stop: "Trail", time_stop: "Vrijeme", signal_exit: "Signal", regime_exit: "Režim", manual_close: "Ručno", manual_close_all: "Ručno",
+  emergency_stop: "STOP", end_of_test: "Kraj" };
+const tz = () => new Date().getTimezoneOffset() * 60;
+const T = (ms) => Math.floor(ms / 1000) - tz();
+const exitLabel = (r) => EXIT_LABEL[r] || (String(r).startsWith("take_profit") ? "TP" : String(r).slice(0, 8));
+function snap(times, ms) {  // bar (open time) containing ms
+  const t = T(ms); let lo = 0, hi = times.length - 1, best = times[0];
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (times[m] <= t) { best = times[m]; lo = m + 1; } else hi = m - 1; }
+  return best;
+}
+function chartColors() {
+  const cs = getComputedStyle(document.documentElement), v = (n) => cs.getPropertyValue(n).trim();
+  return { bg: v("--panel"), text: v("--muted"), line: v("--line"), green: v("--green"), red: v("--red"), amber: v("--amber"), accent: v("--accent"), violet: v("--violet") };
+}
+const OVL_DEFAULT = { vwap: true, bands: true, ema: true, volume: true };
+function overlays() { try { return { ...OVL_DEFAULT, ...JSON.parse(store.get("qt_ovl") || "{}") }; } catch { return { ...OVL_DEFAULT }; } }
+
+PAGES.chart = async (param) => {
+  const [symRaw, tradeId] = String(param || "").split("/");
+  const st = S.status || (await api("/api/status"));
+  const sym = (symRaw || (st.positions[0] && st.positions[0].symbol) || (st.symbols || [])[0] || "BTCUSDT").toUpperCase();
+  S.chartSym = sym; S.chartTrade = tradeId || null;
+  const held = new Set((st.positions || []).map((p) => p.symbol));
+  const ov = overlays();
+  const chip = (k, lbl, col) => `<button class="ovl ${ov[k] ? "on" : ""}" data-act="ovl" data-k="${k}"><i style="background:${col}"></i>${lbl}</button>`;
+  return `<h1>Graf <span class="pill">${esc(sym)}</span><span class="spacer"></span><span class="muted" id="chartTf"></span></h1>
+  <div class="tabs">${(st.symbols || []).map((s) => `<button data-go="#/chart/${s}" class="${s === sym ? "active" : ""}">${held.has(s) ? "● " : ""}${esc(s.replace("USDT", ""))}</button>`).join("")}</div>
+  <div class="card chartcard"><div id="tvchart" class="tvchart"></div>
+    <div class="row ovls">${chip("vwap", "VWAP", "var(--amber)")}${chip("bands", "VWAP ±σ", "color-mix(in srgb, var(--amber) 50%, transparent)")}${chip("ema", "EMA 20/50/200", "var(--accent)")}${chip("volume", "Volumen", "var(--muted)")}</div></div>
+  <div id="chartInfo"></div>`;
+};
+PAGES.chart.after = async () => { await drawChart(true); S.chartTimer = setInterval(() => { if (!document.hidden && S.route === "chart") drawChart(false).catch(() => {}); }, 5000); };
+
+async function drawChart(fresh) {
+  const sym = S.chartSym;
+  const d = await api(`/api/chart/${encodeURIComponent(sym)}?bars=400`);
+  if (S.route !== "chart" || S.chartSym !== sym) return;
+  const el = $("#tvchart");
+  if (!el || !window.LightweightCharts) { if (el) el.innerHTML = '<div class="empty">Grafički modul nije učitan.</div>'; return; }
+  const C = chartColors();
+  const LC = window.LightweightCharts;
+  if (fresh || !S.chart) {
+    if (S.chart) { try { S.chart.remove(); } catch {} }
+    const chart = LC.createChart(el, {
+      autoSize: true, layout: { background: { type: "solid", color: C.bg }, textColor: C.text, fontSize: 11 },
+      grid: { vertLines: { color: C.line }, horzLines: { color: C.line } }, rightPriceScale: { borderColor: C.line },
+      timeScale: { borderColor: C.line, timeVisible: true, secondsVisible: false, rightOffset: 6 }, crosshair: { mode: 0 },
+      localization: { priceFormatter: (x) => px(x) },
+    });
+    const S2 = { chart };
+    S2.candles = chart.addCandlestickSeries({ upColor: C.green, downColor: C.red, wickUpColor: C.green, wickDownColor: C.red, borderVisible: false });
+    S2.candles.priceScale().applyOptions({ scaleMargins: { top: 0.06, bottom: 0.2 } });
+    S2.volume = chart.addHistogramSeries({ priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
+    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+    const line = (color, width, style = 0) => chart.addLineSeries({ color, lineWidth: width, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    S2.vwap = line(C.amber, 2);
+    S2.bands = Object.keys(d.bands).map((k) => ({ k, up: line(C.amber, 1, Number(k) >= 2 ? 3 : 2), lo: line(C.amber, 1, Number(k) >= 2 ? 3 : 2) }));
+    const emaCol = [C.accent, C.violet, C.text];
+    S2.ema = Object.keys(d.ema).map((n, i) => ({ n, s: line(emaCol[i % 3], 1) }));
+    S2.lines = [];
+    S.chart = chart; S.cs = S2;
+  }
+  const s = S.cs, times = d.ts.map(T);
+  const bars = d.ts.map((_, i) => ({ time: times[i], open: d.o[i], high: d.h[i], low: d.l[i], close: d.c[i] })).filter((b) => b.open != null);
+  s.candles.setData(bars);
+  s.volume.setData(d.ts.map((_, i) => ({ time: times[i], value: d.v[i] || 0, color: (d.c[i] >= d.o[i] ? C.green : C.red) + "55" })));
+  const ser = (arr) => arr.map((v, i) => (v == null ? { time: times[i] } : { time: times[i], value: v }));
+  s.vwap.setData(ser(d.vwap));
+  s.bands.forEach((b) => { b.up.setData(ser(d.bands[b.k].up)); b.lo.setData(ser(d.bands[b.k].lo)); });
+  s.ema.forEach((e) => e.s.setData(ser(d.ema[e.n])));
+  const ov = overlays();
+  s.vwap.applyOptions({ visible: ov.vwap }); s.bands.forEach((b) => { b.up.applyOptions({ visible: ov.bands }); b.lo.applyOptions({ visible: ov.bands }); });
+  s.ema.forEach((e) => e.s.applyOptions({ visible: ov.ema })); s.volume.applyOptions({ visible: ov.volume });
+  // levels
+  s.lines.forEach((l) => { try { s.candles.removePriceLine(l); } catch {} });
+  s.lines = [];
+  const pl = (price, color, title, style = 0, width = 2) => { if (isNum(price)) s.lines.push(s.candles.createPriceLine({ price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title })); };
+  const markers = [];
+  const levelsOf = (dir, entry, stop, targets, hits, trail, curStop) => {
+    pl(entry, C.accent, `ULAZ ${dir === "LONG" ? "▲" : "▼"}`);
+    const tps = trail > 0 ? targets.slice(0, -1) : targets;
+    tps.forEach((t, k) => pl(t.price ?? t, k < hits ? C.text : C.green, `TP${k + 1}${t.fraction && t.fraction < 1 ? " " + Math.round(t.fraction * 100) + "%" : ""}${k < hits ? " ✓" : ""}`, k < hits ? 2 : 0));
+    const cs = curStop ?? stop;
+    const beyond = (cs - entry) * (dir === "LONG" ? 1 : -1);
+    pl(cs, C.red, beyond > 0 ? "TRAILING SL" : Math.abs(beyond) < 1e-12 ? "SL break-even" : "STOP LOSS");
+    if (isNum(stop) && Math.abs(stop - cs) > 1e-12) pl(stop, C.red, "početni SL", 1, 1);
+  };
+  for (const p of d.positions) {
+    levelsOf(p.direction, p.entry_price, p.initial_stop, p.targets, p.tp_hits, p.trail_atr, p.stop);
+    markers.push({ time: snap(times, p.opened_ts), position: p.direction === "LONG" ? "belowBar" : "aboveBar", color: C.accent, shape: p.direction === "LONG" ? "arrowUp" : "arrowDown", text: `ULAZ ${p.engine}` });
+  }
+  for (const t of d.trades) {
+    const long = t.direction === "LONG";
+    markers.push({ time: snap(times, t.opened_ts), position: long ? "belowBar" : "aboveBar", color: C.accent, shape: long ? "arrowUp" : "arrowDown", text: `${t.engine}` });
+    for (const x of (t.meta && t.meta.exits) || []) {
+      const good = String(x.reason).startsWith("take_profit") || (x.price - t.entry_price) * (long ? 1 : -1) > 0;
+      markers.push({ time: snap(times, x.ts || t.closed_ts), position: long ? "aboveBar" : "belowBar", color: good ? C.green : C.red, shape: "circle", text: exitLabel(x.reason) });
+    }
+    if (S.chartTrade === t.id) levelsOf(t.direction, t.entry_price, t.meta && t.meta.stop, (t.meta && t.meta.targets) || [], 0, 0, t.meta && t.meta.stop);
+  }
+  for (const dc of d.decisions) {
+    if (!["APPROVE_LONG", "APPROVE_SHORT"].includes(dc.outcome) || dc.status === "executed") continue;
+    markers.push({ time: snap(times, dc.ts), position: dc.direction === "LONG" ? "belowBar" : "aboveBar", color: C.violet, shape: "square", text: dc.status === "pending_user" ? "čeka odobrenje" : "signal" });
+  }
+  markers.sort((a, b) => a.time - b.time);
+  s.candles.setMarkers(markers);
+  if (fresh && S.chartTrade) {
+    const t = d.trades.find((x) => x.id === S.chartTrade);
+    if (t) s.chart.timeScale().setVisibleRange({ from: snap(times, t.opened_ts) - 60 * 60, to: snap(times, t.closed_ts) + 60 * 60 });
+  } else if (fresh) s.chart.timeScale().scrollToRealTime();
+  $("#chartTf").textContent = `${d.timeframe} · ${new Date().toLocaleTimeString()}`;
+  $("#chartInfo").innerHTML = chartInfo(d);
+}
+
+function chartInfo(d) {
+  const last = d.c[d.c.length - 1];
+  const pct = (a, b) => ((a - b) / b) * 100;
+  let h = "";
+  for (const p of d.positions) {
+    const long = p.direction === "LONG", sg = long ? 1 : -1, R = Math.abs(p.entry_price - p.initial_stop);
+    const ur = R > 0 ? ((last - p.entry_price) * sg) / R : 0;
+    const tps = (p.trail_atr > 0 ? p.targets.slice(0, -1) : p.targets);
+    const next = tps.find((_, k) => k >= p.tp_hits);
+    const prog = next ? Math.max(0, Math.min(1, (last - p.stop) / (next.price - p.stop))) : 1;
+    h += `<div class="card"><h2>Što bot sada radi</h2>
+      <p class="big">${long ? "📈 Kupio" : "📉 Prodao (short)"} <b>${esc(p.symbol)}</b> na <b>${px(p.entry_price)}</b> — engine <b>${esc(p.engine)}</b> (${esc(p.setup)}).
+      Trenutno ${sgn(p.unrealized)} USDT (<b class="${ur >= 0 ? "pos" : "neg"}">${ur >= 0 ? "+" : ""}${fmt(ur, 2)}R</b>).</p>
+      <p class="muted">R = iznos koji bot riskira na ovom tradeu (${fmt(p.initial_risk_usdt)} USDT). +1R znači zaradu jednaku riziku.</p>
+      <div class="levels">
+        ${tps.map((t, k) => `<div class="lv ${k < p.tp_hits ? "hit" : ""}"><span class="tag tp">TP${k + 1}</span><span class="num">${px(t.price)}</span><span class="muted">${fmt(pct(t.price, last), 2)}% od cijene · zatvara ${t.fraction < 1 ? Math.round(t.fraction * 100) + "%" : "ostatak"}${k < p.tp_hits ? " · ✓ ostvaren" : ""}</span></div>`).join("")}
+        ${p.trail_atr > 0 ? `<div class="lv"><span class="tag tp">RUNNER</span><span class="muted">ostatak prati trailing stop (${fmt(p.trail_atr, 1)} × ATR)</span></div>` : ""}
+        <div class="lv"><span class="tag entry">ULAZ</span><span class="num">${px(p.entry_price)}</span><span class="muted">${time(p.opened_ts)}</span></div>
+        <div class="lv"><span class="tag sl">SL</span><span class="num">${px(p.stop)}</span><span class="muted">${fmt(pct(p.stop, last), 2)}% od cijene${p.stop !== p.initial_stop ? ` · pomaknut (početni ${px(p.initial_stop)})` : ""}</span></div>
+      </div>
+      ${next ? `<div class="muted" style="margin-top:8px">Put od stop-lossa do sljedećeg cilja (TP${p.tp_hits + 1})</div><div class="bar"><i style="width:${(prog * 100).toFixed(0)}%"></i></div>` : ""}
+    </div>`;
+  }
+  const reg = d.regime;
+  const sig = Object.entries(d.signals || {});
+  h += `<div class="card"><h2>Što engineovi vide na ${esc(d.symbol)}</h2>
+    ${reg ? `<p><span class="pill">${esc(reg.regime)}</span> ${esc(HR_STATE[reg.regime] || "")}</p><p class="muted">Dopušteni engineovi u ovom režimu: ${esc((reg.permitted_engines || []).join(", ") || "nijedan")}</p>` : ""}
+    ${sig.map(([n, x]) => `<div class="lv"><b style="min-width:92px">${esc(n)}</b>${x.direction && x.direction !== "FLAT" ? dirPill(x.direction) + ` ${fmt(x.confidence, 0)}/100` : '<span class="pill">čeka</span>'}<span class="muted">${esc(HR_STATE[x.state] || x.state || "")}</span></div>`).join("") || empty("Čeka se prva zatvorena svjećica.")}
+    ${d.positions.length ? "" : '<p class="muted" style="margin-top:8px">Nema otvorene pozicije na ovom paru. Bot ulazi samo kad engine pokaže prednost nakon troškova i Risk Manager odobri.</p>'}
+  </div>
+  <div class="card"><h2>Legenda</h2><div class="legend">
+    <span><i style="background:var(--amber)"></i>VWAP (prosječna cijena dana po volumenu)</span><span><i class="dash" style="border-color:var(--amber)"></i>VWAP ±1σ / ±2σ pojasevi</span>
+    <span><i style="background:var(--accent)"></i>EMA 20</span><span><i style="background:var(--violet)"></i>EMA 50</span><span><i style="background:var(--muted)"></i>EMA 200</span>
+    <span><i style="background:var(--green)"></i>ciljevi TP1, TP2…</span><span><i style="background:var(--red)"></i>stop-loss</span><span>▲▼ ulaz · ● izlaz (zeleno dobit, crveno gubitak) · ■ signal bez ulaza</span>
+  </div><p class="muted" style="margin-top:8px">Graf: TradingView Lightweight Charts™ (Apache 2.0).</p></div>`;
+  return h;
+}
+
 // ---------------------------------------------------------------- actions
 const ACT = {
   async start() { toast("Starting runtime…"); await post("/api/control/start"); route(); },
@@ -485,6 +757,7 @@ const ACT = {
       extra: `<div class="field"><label>Mode</label><select data-k="mode"><option>SEMI_AUTOMATIC</option><option>AUTOMATIC</option></select></div>` });
     if (!c) return; await post("/api/live/enable", { confirm: "ENABLE LIVE TRADING", mode: c.vals.mode }); toast("LIVE enabled.", "critical"); route();
   },
+  ovl(el) { const ov = overlays(); ov[el.dataset.k] = !ov[el.dataset.k]; store.set("qt_ovl", JSON.stringify(ov), true); el.classList.toggle("on", ov[el.dataset.k]); drawChart(false); },
   async "alerts-read"() { await post("/api/alerts/read"); route(); },
   theme(el) { const v = el.dataset.v; if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme; store.set("qt_theme", v, true); },
 };
@@ -519,6 +792,9 @@ async function route() {
   S.param = rest.join("/") || null;
   markNav();
   const page = PAGES[S.route];
+  if (S.chartTimer && (S.route !== "chart" || view.dataset.route !== h)) { clearInterval(S.chartTimer); S.chartTimer = null; }
+  if (S.chart && S.route !== "chart") { try { S.chart.remove(); } catch {} S.chart = null; }
+  if (S.route === "chart" && view.dataset.route === h) return;  // the chart refreshes itself
   const scroll = window.scrollY;
   const same = view.dataset.route === h;
   if (!same) view.innerHTML = '<div class="loading">Loading…</div>';
@@ -534,7 +810,7 @@ async function route() {
   }
 }
 window.addEventListener("hashchange", () => { view.dataset.route = ""; route(); });
-const AUTO = new Set(["overview", "trades", "markets", "regime"]);
+const AUTO = new Set(["overview", "trades", "markets", "regime"]);  // the chart page refreshes itself
 function autoRefresh() {
   clearInterval(S.timer);
   S.timer = setInterval(() => {

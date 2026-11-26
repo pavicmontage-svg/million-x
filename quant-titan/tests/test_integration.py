@@ -70,6 +70,14 @@ def test_full_stack_replay_paper_trading(tmp_path):
         eng = client.get("/api/engines/vwap", headers=H).json()
         assert eng["name"] == "vwap" and "VWAP" in eng["doc"]
         assert len(client.get("/api/engines", headers=H).json()) == 6
+        # chart endpoint: candles, the engines' indicator values, trades with timestamped exits
+        ch = client.get(f"/api/chart/{trades[0]['symbol']}?bars=200", headers=H).json()
+        assert len(ch["ts"]) == len(ch["c"]) == len(ch["vwap"]) == 200
+        assert set(ch["bands"]) == {"1.0", "2.0", "3.0"} and len(ch["ema"]) == 3
+        for t in ch["trades"]:
+            assert t["meta"]["exits"] and all(x["ts"] >= t["opened_ts"] for x in t["meta"]["exits"])
+            assert t["meta"]["stop"] and t["meta"]["targets"]
+        assert client.get("/api/chart/NOPEUSDT", headers=H).status_code == 400
         # paper trades were recorded as evidence in the edge book
         assert sum(e.n for e in trader.edge.all_estimates()) == len([t for t in trades if not t["group_id"]])
 

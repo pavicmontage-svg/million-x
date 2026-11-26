@@ -7,14 +7,14 @@ import numpy as np
 
 from ..config import AppConfig
 from ..core.types import Decision, Outcome
-from ..data.candles import Candles, resample
+from ..data.candles import TF_MS, Candles, resample
 from ..risk.portfolio import PortfolioState
 
 
 def correlation_matrix(candles: dict[str, Candles], tf: str = "1h", window: int = 168) -> dict[tuple[str, str], float]:
     rets: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     for s, c in candles.items():
-        h = resample(c, tf) if c.timeframe != tf else c
+        h = c if TF_MS[c.timeframe] >= TF_MS[tf] else resample(c, tf)  # already at/above the correlation timeframe
         if len(h) < 30:
             continue
         h = h.tail(window + 1)

@@ -27,6 +27,7 @@ class LegFill:
     fee: float
     reason: str
     ref: float
+    ts: int = field(default_factory=now_ms)
 
 
 @dataclass
@@ -280,7 +281,8 @@ class PositionManager:
                          p.initial_qty, p.opened_ts, now_ms(), gross, fees, funding, slip, net,
                          net / init_risk if init_risk > 0 else 0.0, init_risk, reason, p.decision_id, self.mode,
                          p.group_id, m.confidence, m.expected_r,
-                         {"exits": [x.__dict__ for x in m.exits], "tp_hits": p.tp_hits, "bars_held": p.bars_held})
+                         {"exits": [x.__dict__ for x in m.exits], "tp_hits": p.tp_hits, "bars_held": p.bars_held,
+                          "stop": p.initial_stop, "final_stop": p.stop, "targets": [t.price for t in p.targets]})
         p.status = "closed"
         if self.on_closed:
             self.on_closed(tr)

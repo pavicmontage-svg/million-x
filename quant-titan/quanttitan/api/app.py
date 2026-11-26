@@ -343,6 +343,49 @@ def create_app(trader: Trader, auth: Auth, *, autostart: bool = True, history_di
         return ok({"metrics": compute_metrics(recs, trader.cfg.system.paper_starting_equity),
                    "equity": db.equity_curve(limit=3000), "audit": trader.auditor.last})
 
+    # ------------------------------------------------------------------ chart
+    @handler
+    async def chart(request):
+        """Candles + the exact indicator values the engines use + positions, levels, fills and signals."""
+        import numpy as np
+        from .. import indicators as ind
+        sym = request.path_params["symbol"].upper()
+        bars = max(50, min(int(request.query_params.get("bars", 300)), 1500))
+        c = trader.feed.state.candles.get(sym) if trader.feed else None
+        if c is None or len(c) == 0:
+            tf = trader.cfg.system.execution_timeframe
+            c = history.load(sym, tf)
+        if c is None or len(c) == 0:
+            raise KeyError(f"no candles for {sym}")
+        cfg = trader.cfg.engines
+        full = c.tail(bars + 300)  # extra history so indicators are warmed up
+        vw, sd, _ = ind.session_vwap(full.ts, full.high, full.low, full.close, full.volume,
+                                     anchor=cfg.vwap.session_anchor, rolling_bars=cfg.vwap.rolling_bars)
+        k0 = len(full) - min(bars, len(full))
+        r = lambda a: [None if not np.isfinite(x) else round(float(x), 10) for x in a[k0:]]  # noqa: E731
+        out = {
+            "symbol": sym, "timeframe": c.timeframe, "ts": [int(t) for t in full.ts[k0:]],
+            "o": r(full.open), "h": r(full.high), "l": r(full.low), "c": r(full.close), "v": r(full.volume),
+            "taker": r(ind.taker_buy_ratio(full.volume, full.taker_buy)),
+            "vwap": r(vw), "bands": {str(k): {"up": r(vw + k * sd), "lo": r(vw - k * sd)} for k in cfg.vwap.band_mults},
+            "ema": {str(n): r(ind.ema(full.close, n)) for n in (cfg.trend.ema_fast, cfg.trend.ema_mid, cfg.trend.ema_slow)},
+        }
+        out["positions"] = [p.to_dict() | {"mark": trader.pf.prices.get(sym), "unrealized": p.unrealized(trader.pf.prices.get(sym, p.entry_price)),
+                                           "risk_usdt": p.risk_usdt, "initial_risk_usdt": p.initial_risk_usdt}
+                            for p in (trader.pos.positions if trader.pos else []) if p.symbol == sym]
+        t0 = out["ts"][0] if out["ts"] else 0
+        out["trades"] = [t for t in db.trades(300) if t["symbol"] == sym and t["closed_ts"] >= t0]
+        out["decisions"] = [{"ts": d["ts"], "direction": d["direction"], "engine": d["engine"], "outcome": d["outcome"],
+                             "status": d.get("status"), "confidence": d.get("confidence"), "entry": d.get("entry"),
+                             "stop": d.get("stop"), "explanation": d.get("explanation")}
+                            for d in db.decisions(200, sym, actionable_only=True) if d["ts"] >= t0]
+        view = trader.last_views.get(sym, {})
+        out["regime"] = view.get("regime")
+        out["signals"] = {n: {"direction": s.get("direction"), "confidence": s.get("confidence"), "state": s.get("state")}
+                          for n, s in (view.get("signals") or {}).items()}
+        out["symbols"] = trader.symbols
+        return ok(out)
+
     # ------------------------------------------------------------------ paper trading
     @handler
     async def paper(request):
@@ -397,7 +440,11 @@ def create_app(trader: Trader, auth: Auth, *, autostart: bool = True, history_di
                 lab = ResearchLab(cfg, data, {k: v for k, v in funding.items() if v is not None})
                 if kind == "backtest":
                     r = lab.backtest(cfg, label="backtest")
-                    return {**r.to_dict(), "monte_carlo": lab.monte_carlo(r.trades, r.equity0, n=500)}
+                    from ..research.stats import bootstrap_ci
+                    import numpy as np
+                    rs = np.array([t.r_multiple for t in r.trades])
+                    return {**r.to_dict(), "monte_carlo": lab.monte_carlo(r.trades, r.equity0, n=500),
+                            "ci95": bootstrap_ci(rs, n=1000) if len(rs) >= 5 else None, "timeframe": tf, "days": days}
                 if kind == "train_test":
                     return lab.train_test(float(params.get("train_frac", 0.6)))
                 if kind == "policy_comparison":
@@ -615,6 +662,7 @@ def create_app(trader: Trader, auth: Auth, *, autostart: bool = True, history_di
         R("/api/risk", risk), R("/api/risk/reset", reset_breaker, methods=["POST"]),
         R("/api/control/{action}", control, methods=["POST"]),
         R("/api/agents", agents), R("/api/performance", performance),
+        R("/api/chart/{symbol}", chart),
         R("/api/paper", paper), R("/api/paper/reset", paper_reset, methods=["POST"]),
         R("/api/research/run", research_run, methods=["POST"]), R("/api/research/jobs", research_jobs),
         R("/api/research/jobs/{jid}", research_job),

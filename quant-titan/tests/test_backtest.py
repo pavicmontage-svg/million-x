@@ -153,3 +153,26 @@ def test_policy_comparison_runs(data):
     end = int(data["AAAUSDT"].close_ts[1500])
     out = lab.policy_comparison(end=end)
     assert set(out["results"]) == {"regime_gated", "majority_vote", "confidence_average"}
+
+
+def test_tp1_and_tp2_in_the_same_candle_closes_cleanly():
+    """Regression: one bar hitting both targets used to close the trade on the first fill and crash on the second."""
+    from quanttitan.core.types import Position, TargetLevel
+    p = Position("p", "X", Direction.LONG, "e", "s", 100.0, 1.0, 1.0, 98.0, 98.0,
+                 [TargetLevel(102.0, 0.5), TargetLevel(104.0, 1.0)], 0, best_price=100.0)
+    fills = simulate_bar(p, 100.5, 105.0, 100.2, 104.5)
+    assert [f.reason for f in fills] == ["take_profit_1", "take_profit_2"] and p.qty == 0
+
+
+def test_backtest_survives_wide_range_bars(data):
+    """Bars with huge ranges make multi-target fills in one candle common; the run must account every fill."""
+    big = {}
+    for s, c in data.items():
+        cc = Candles(s, c.timeframe, *(getattr(c, f).copy() for f in FIELDS))
+        cc.high = cc.high + (cc.high - cc.low) * 3
+        cc.low = cc.low - (cc.high - cc.low) * 0.1
+        big[s] = cc
+    r = Backtester(research_cfg(), big).run()
+    for t in r.trades:
+        assert sum(e["qty"] for e in t.meta["exits"]) == pytest.approx(t.qty)
+    assert r.equity[-1] == pytest.approx(r.equity0 + sum(t.net_pnl for t in r.trades), rel=1e-6)

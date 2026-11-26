@@ -25,7 +25,7 @@ from .. import indicators as ind
 from ..config import dump
 from ..core.logging import get_logger
 from ..core.types import ContractSpec, Direction, EngineSignal, RegimeState
-from ..data.candles import Candles, align_htf, resample
+from ..data.candles import TF_MS, Candles, align_htf, resample
 
 
 @dataclass
@@ -64,6 +64,8 @@ class MarketContext:
     _htf: dict[str, Candles] = field(default_factory=dict)
 
     def htf(self, tf: str) -> Candles:
+        if TF_MS[tf] <= self.candles.tf_ms:
+            return self.candles  # the execution timeframe is already at or above the requested context timeframe
         if tf not in self._htf:
             self._htf[tf] = resample(self.candles, tf)
         return self._htf[tf]
