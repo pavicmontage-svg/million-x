@@ -34,3 +34,11 @@ when costs are ≤ 0.25 R and why live trading requires validated evidence.
 See the README table. Reproduce: `python -m quanttitan download <symbols> 2026-07-01 2026-10-31 --tf 3m` then
 `python scripts/timeframe_study.py --tfs 5m,3m`. The backtester rescales duration parameters to the data's
 timeframe automatically, so a 3m configuration is never applied to 5m bars by mistake.
+
+## All-timeframe study (1m … 4h)
+`python scripts/multi_tf_study.py` — 6 perpetuals; 12 months (Nov 2025 – Oct 2026) for 3m–4h and the last
+4 months for all timeframes including 1m; "shipped" configuration vs "raw" (every signal traded). Result: no
+timeframe shows a statistically positive edge; 1h is closest to break-even (+0.54% over 12 months, 249 trades);
+3m is statistically negative (−5.95%, 95% CI of expectancy below zero). Costs per trade fall from 0.29 R on 1m to
+0.04 R on 4h, which explains most of the difference. Statistics windows are rescaled to keep their wall-clock
+meaning; indicator lengths and trade management stay in chart bars.

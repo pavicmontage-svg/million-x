@@ -700,7 +700,7 @@ function chartInfo(d) {
     h += `<div class="card"><h2>Što bot sada radi</h2>
       <p class="big">${long ? "📈 Kupio" : "📉 Prodao (short)"} <b>${esc(p.symbol)}</b> na <b>${px(p.entry_price)}</b> — engine <b>${esc(p.engine)}</b> (${esc(p.setup)}).
       Trenutno ${sgn(p.unrealized)} USDT (<b class="${ur >= 0 ? "pos" : "neg"}">${ur >= 0 ? "+" : ""}${fmt(ur, 2)}R</b>).</p>
-      <p class="muted">R = iznos koji bot riskira na ovom tradeu (${fmt(p.initial_risk_usdt)} USDT). +1R znači zaradu jednaku riziku.</p>
+      <p class="muted">R = koliko bot izgubi ako cijena dođe do stop-lossa: ${fmt(p.initial_risk_usdt)} USDT (+ naknade i slippage, ukupno ≈ 0,5% računa). +1R znači zaradu jednaku tom riziku.</p>
       <div class="levels">
         ${tps.map((t, k) => `<div class="lv ${k < p.tp_hits ? "hit" : ""}"><span class="tag tp">TP${k + 1}</span><span class="num">${px(t.price)}</span><span class="muted">${fmt(pct(t.price, last), 2)}% od cijene · zatvara ${t.fraction < 1 ? Math.round(t.fraction * 100) + "%" : "ostatak"}${k < p.tp_hits ? " · ✓ ostvaren" : ""}</span></div>`).join("")}
         ${p.trail_atr > 0 ? `<div class="lv"><span class="tag tp">RUNNER</span><span class="muted">ostatak prati trailing stop (${fmt(p.trail_atr, 1)} × ATR)</span></div>` : ""}
